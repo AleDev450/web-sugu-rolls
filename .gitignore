@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+build/
+.env
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+.DS_Store
+
+# copia generada de imagenes/ — la fuente de verdad es /imagenes
+/public/imagenes/
