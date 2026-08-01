@@ -10,10 +10,23 @@ import { TierImage } from './TierImage';
 
 export type PanelId = 'howto' | 'settings' | 'book' | 'ranking' | 'code' | null;
 
+/** Salida del juego hacia la web. Es un <a> real: recarga y libera Pixi. */
+export function VolverAlSitio() {
+  return (
+    <a href="/" className="volver-sitio" aria-label="Volver a la web de Sugu Rolls">
+      <span aria-hidden>‹</span>
+      <span>Volver a la web</span>
+    </a>
+  );
+}
+
 /**
  * Vista principal: la ilustración VistaPrincipal trae los botones pintados
  * (INICIAR JUEGO / CÓMO JUGAR / RANKING); encima van zonas clicables
  * invisibles posicionadas en % de la imagen.
+ *
+ * El juego vive dentro de la web (/juego), así que arriba a la izquierda va
+ * la salida de vuelta al sitio.
  */
 export function StartOverlay({
   onPlay,
@@ -32,6 +45,7 @@ export function StartOverlay({
         alt="Sugu Rolls"
         draggable={false}
       />
+      <VolverAlSitio />
       <button
         className="start-hotspot"
         style={{ top: '45%', height: '9%' }}

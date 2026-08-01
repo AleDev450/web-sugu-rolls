@@ -1,0 +1,139 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Menu, ShoppingBag, X } from 'lucide-react';
+import { NAV } from '@/data/site';
+import { useCartStore } from '@/store/useCartStore';
+import { Logo } from './Logo';
+
+/**
+ * Encabezado fijo: transparente sobre el hero y con fondo negro al bajar.
+ * En móvil despliega un panel a pantalla completa.
+ */
+export function Header() {
+  const [scrolled, setScrolled] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const abrirCarrito = useCartStore((s) => s.abrir);
+  const unidades = useCartStore((s) => s.items.reduce((t, i) => t + i.cantidad, 0));
+
+  useEffect(() => {
+    const alScroll = () => setScrolled(window.scrollY > 24);
+    alScroll();
+    window.addEventListener('scroll', alScroll, { passive: true });
+    return () => window.removeEventListener('scroll', alScroll);
+  }, []);
+
+  // con el menú abierto no se hace scroll detrás
+  useEffect(() => {
+    document.body.style.overflow = menuAbierto ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [menuAbierto]);
+
+  return (
+    <>
+      <header
+        className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ease-premium ${
+          scrolled
+            ? 'border-b border-white/10 bg-night/95 py-3.5 backdrop-blur-xl'
+            : 'border-b border-transparent py-7'
+        }`}
+      >
+        <div className="wrap flex items-center justify-between gap-8">
+          <Logo ancho={scrolled ? 100 : 126} prioridad className="transition-all duration-500" />
+
+          <nav className="hidden items-center gap-10 lg:flex" aria-label="Principal">
+            {NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group relative text-[14px] font-medium text-bone-dim transition-colors hover:text-white"
+              >
+                {item.label}
+                <span className="absolute -bottom-1.5 left-0 h-px w-0 bg-sugu transition-all duration-300 ease-premium group-hover:w-full" />
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={abrirCarrito}
+              className="btn-primary relative !px-7 !py-3.5 text-[14px]"
+            >
+              <ShoppingBag className="h-4.5 w-4.5" />
+              <span className="hidden sm:inline">Pedir ahora</span>
+              {unidades > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-[12px] font-bold text-sugu">
+                  {unidades}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setMenuAbierto(true)}
+              className="rounded-full border border-white/15 p-2.5 text-white transition-colors hover:border-white/40 lg:hidden"
+              aria-label="Abrir menú"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <AnimatePresence>
+        {menuAbierto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-[60] bg-night/[0.97] backdrop-blur-2xl lg:hidden"
+          >
+            <div className="wrap flex items-center justify-between py-4">
+              <Logo ancho={110} />
+              <button
+                onClick={() => setMenuAbierto(false)}
+                className="rounded-full border border-white/15 p-2.5 text-white"
+                aria-label="Cerrar menú"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <nav className="wrap mt-8 flex flex-col gap-1" aria-label="Principal móvil">
+              {NAV.map((item, i) => (
+                <motion.div
+                  key={item.href}
+                  initial={{ opacity: 0, x: -24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.05 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <Link
+                    href={item.href}
+                    onClick={() => setMenuAbierto(false)}
+                    className="block border-b border-white/10 py-4 text-2xl font-semibold text-white transition-colors hover:text-sugu"
+                  >
+                    {item.label}
+                  </Link>
+                </motion.div>
+              ))}
+            </nav>
+
+            <div className="wrap mt-8">
+              <Link
+                href="/juego"
+                onClick={() => setMenuAbierto(false)}
+                className="btn-primary w-full"
+              >
+                Juega y gana premios
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
