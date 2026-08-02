@@ -38,6 +38,8 @@ type Estado = 'cargando' | 'sin-backend' | 'anonimo' | 'sin-permiso' | 'listo';
 export function AdminShell({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<Estado>('cargando');
   const [correo, setCorreo] = useState<string | null>(null);
+  /** Error del RPC `is_admin`, si la comprobación no llegó a ejecutarse. */
+  const [fallo, setFallo] = useState<string | null>(null);
   const ruta = usePathname();
 
   const revisar = async () => {
@@ -51,7 +53,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
       return;
     }
     setCorreo(usuario.email ?? null);
-    setEstado((await esAdmin()) ? 'listo' : 'sin-permiso');
+    const { admin, error } = await esAdmin();
+    setFallo(error);
+    setEstado(admin ? 'listo' : 'sin-permiso');
   };
 
   useEffect(() => {
@@ -80,8 +84,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
   if (estado === 'sin-permiso') {
     return (
       <Aviso
-        titulo="Tu cuenta no es administrador"
-        texto={`La sesión de ${correo ?? 'este usuario'} no tiene permisos. Márcala como administrador en la tabla profiles (is_admin = true).`}
+        titulo={fallo ? 'No se pudo comprobar el permiso' : 'Tu cuenta no es administrador'}
+        texto={
+          fallo
+            ? `Supabase rechazó la llamada a is_admin(): ${fallo}. Vuelve a ejecutar supabase/schema.sql en el SQL Editor — probablemente falte la función o su permiso de ejecución.`
+            : `La sesión de ${correo ?? 'este usuario'} no tiene permisos. Márcala como administrador en la tabla profiles (is_admin = true); si esa fila no existe, créala.`
+        }
         alSalir={async () => {
           await cerrarSesion();
           void revisar();

@@ -31,6 +31,8 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
+  /* en Android, arrastrar para apuntar no debe disparar el "pull to refresh" */
+  overscroll-behavior: none;
   font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
   background: #0d0a14;
   color: var(--cream);
@@ -39,11 +41,25 @@
   justify-content: center;
 }
 
+/*
+ * El marco mide SIEMPRE el lienzo de diseño (480x854) y se escala entero con
+ * --fit, que calcula `useEscalaJuego`. Así el arte, los hotspots pintados y el
+ * canvas de Pixi caen exactamente en el mismo sitio en cualquier pantalla: solo
+ * cambia el factor, nunca la maquetación.
+ *
+ * Antes se estiraba con min() + `max-width: 480px`, y ese tope rompía la
+ * proporción en cuanto la pantalla era alta (tablets, monitores): el marco
+ * quedaba más alto que 9:16, Pixi centraba el juego dentro dejando franjas
+ * negras — de ahí que se viera "chiquito" — y el HUD en HTML se desalineaba
+ * respecto del tablero.
+ */
 .phone {
   position: relative;
-  width: min(100vw, calc(100vh * 0.5625));
-  height: min(100vh, calc(100vw / 0.5625));
-  max-width: 480px;
+  flex: none;
+  width: 480px;
+  height: 854px;
+  transform: scale(var(--fit, 1));
+  transform-origin: center center;
   overflow: hidden;
   background: radial-gradient(120% 80% at 50% -10%, #7a4e2e 0%, #4a2f1c 45%, #2a1a10 100%);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);

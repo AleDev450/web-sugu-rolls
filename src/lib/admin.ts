@@ -82,12 +82,23 @@ export async function usuarioActual() {
   return data.user;
 }
 
-/** ¿La sesión actual tiene permisos de administrador? */
-export async function esAdmin(): Promise<boolean> {
+/**
+ * ¿La sesión actual tiene permisos de administrador?
+ *
+ * Devuelve también el error del RPC. Antes se resumía todo a `false`, y eso
+ * confundía dos casos muy distintos: que la cuenta no sea admin, o que la
+ * llamada falle porque `public.is_admin()` no existe todavía o le falta el
+ * `grant execute`. El panel mostraba el mismo mensaje para ambos.
+ */
+export async function esAdmin(): Promise<{ admin: boolean; error: string | null }> {
   const cliente = getSupabase();
-  if (!cliente) return false;
+  if (!cliente) return { admin: false, error: 'Supabase no está configurado' };
+
   const { data, error } = await cliente.rpc('is_admin');
-  return !error && data === true;
+  if (error) {
+    return { admin: false, error: `${error.message}${error.code ? ` (${error.code})` : ''}` };
+  }
+  return { admin: data === true, error: null };
 }
 
 // ---------- lectura para el panel (incluye lo desactivado) ----------

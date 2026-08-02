@@ -18,9 +18,11 @@ import { useGameStore, hydrateFromStorage } from '@/store/useGameStore';
 import { useVipStore } from '@/store/useVipStore';
 import { VipBar } from '@/components/VipBar';
 import { startMusic, stopMusic } from '@/game/audio/audio';
+import { useEscalaJuego } from '@/lib/escala';
 
 export default function Page() {
   const [panel, setPanel] = useState<PanelId>(null);
+  const marco = useEscalaJuego();
 
   const status = useGameStore((s) => s.status);
   const festivalOn = useVipStore((s) => s.festivalActive);
@@ -55,7 +57,7 @@ export default function Page() {
   };
 
   return (
-    <main className={`phone${festivalOn ? ' festival' : ''}`}>
+    <main ref={marco} className={`phone${festivalOn ? ' festival' : ''}`}>
       <div className="ambient" />
 
       <GameCanvas />

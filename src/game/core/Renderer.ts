@@ -71,15 +71,50 @@ export class Renderer {
     this.drawGlass();
     this.layout();
     this.app.renderer.on('resize', () => this.layout());
+
+    window.addEventListener('resize', this.alRedimensionar);
+    window.addEventListener('orientationchange', this.alRedimensionar);
+    this.alRedimensionar();
   }
 
   destroy() {
+    window.removeEventListener('resize', this.alRedimensionar);
+    window.removeEventListener('orientationchange', this.alRedimensionar);
     gsap.killTweensOf([...this.sprites.values()]);
     this.sprites.clear();
     this.app?.destroy(true, { children: true, texture: false });
   }
 
   // ---------- encuadre ----------
+
+  /** Factor del `transform: scale()` que el CSS aplica al marco del juego. */
+  private escalaCss(): number {
+    const canvas = this.app?.canvas;
+    const ancho = canvas?.clientWidth;
+    if (!canvas || !ancho) return 1;
+    return canvas.getBoundingClientRect().width / ancho;
+  }
+
+  /**
+   * El marco se agranda con `transform: scale()`, así que un canvas de 480px
+   * se estira en pantallas grandes. Subimos la resolución del renderer en la
+   * misma proporción para que no se vea borroso (tope 3 para no reventar la
+   * GPU en móviles de densidad alta).
+   */
+  private ajustarNitidez = () => {
+    const canvas = this.app?.canvas;
+    if (!canvas || !canvas.clientWidth) return;
+
+    const deseada = Math.min((window.devicePixelRatio || 1) * this.escalaCss(), 3);
+    if (Math.abs(deseada - this.app.renderer.resolution) < 0.05) return;
+
+    this.app.renderer.resize(canvas.clientWidth, canvas.clientHeight, deseada);
+  };
+
+  /** El CSS recalcula `--fit` en el mismo evento: medimos en el frame siguiente. */
+  private alRedimensionar = () => {
+    requestAnimationFrame(this.ajustarNitidez);
+  };
 
   private layout() {
     const w = this.app.renderer.width / this.app.renderer.resolution;
@@ -91,12 +126,18 @@ export class Renderer {
     this.world.position.set(this.offsetX, this.offsetY);
   }
 
-  /** Convierte un punto de la página a coordenadas de diseño. */
+  /**
+   * Convierte un punto de la página a coordenadas de diseño.
+   *
+   * El rect ya viene multiplicado por el `transform: scale()` del marco, así
+   * que hay que deshacerlo antes de aplicar el encuadre interno del canvas.
+   */
   toDesign(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.app.canvas.getBoundingClientRect();
+    const css = this.escalaCss();
     return {
-      x: (clientX - rect.left - this.offsetX) / this.scale,
-      y: (clientY - rect.top - this.offsetY) / this.scale,
+      x: ((clientX - rect.left) / css - this.offsetX) / this.scale,
+      y: ((clientY - rect.top) / css - this.offsetY) / this.scale,
     };
   }
 
