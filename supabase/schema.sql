@@ -513,8 +513,14 @@ $$;
 -- PÚBLICO: tabla de posiciones.
 --
 -- Devuelve SOLO nickname y puntaje — nunca nombre ni teléfono.
--- Un jugador ocupa un único puesto: se toma su mejor partida (por perfil si
--- está registrado, o por teléfono si es invitado).
+--
+-- CADA PARTIDA REGISTRADA ES UNA FILA. Si la misma persona vuelve con otro
+-- código y se registra igual (mismo nombre, mismo nickname), entra como una
+-- entrada nueva: no reemplaza ni actualiza la anterior. Un buen jugador puede
+-- ocupar varios puestos, que es justo lo que premia comprar de nuevo.
+--
+-- Antes se agrupaba por jugador (perfil o teléfono) y solo se mostraba su
+-- mejor partida, así que la segunda visita parecía "pisar" a la primera.
 -- ---------------------------------------------------------------------
 create or replace function public.get_ranking(p_limit integer default 10)
 returns table (posicion bigint, jugador text, puntaje integer, fecha timestamptz)
@@ -523,23 +529,13 @@ stable
 security definer
 set search_path = public
 as $$
-  with mejores as (
-    select distinct on (coalesce(gs.player_id::text, gs.phone, gs.id::text))
-           gs.nickname    as nick,
-           gs.score       as pts,
-           gs.finished_at as cuando
-    from public.game_sessions gs
-    where gs.score is not null
-    order by coalesce(gs.player_id::text, gs.phone, gs.id::text),
-             gs.score desc,
-             gs.finished_at asc
-  )
-  select row_number() over (order by m.pts desc, m.cuando asc),
-         m.nick,
-         m.pts,
-         m.cuando
-  from mejores m
-  order by m.pts desc, m.cuando asc
+  select row_number() over (order by gs.score desc, gs.finished_at asc),
+         gs.nickname,
+         gs.score,
+         gs.finished_at
+  from public.game_sessions gs
+  where gs.score is not null
+  order by gs.score desc, gs.finished_at asc
   limit least(coalesce(p_limit, 10), 100);
 $$;
 
