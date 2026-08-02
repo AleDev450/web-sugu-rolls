@@ -4,13 +4,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Leaf, Sparkles, Truck } from 'lucide-react';
+import { lista, texto } from '@/data/secciones';
 import { useCartStore } from '@/store/useCartStore';
+import { useSeccion } from './useSeccion';
 
-const BENEFICIOS = [
-  { icono: Leaf, texto: 'Ingredientes frescos' },
-  { icono: Sparkles, texto: 'Calidad premium' },
-  { icono: Truck, texto: 'Delivery rápido' },
-];
+/** Un icono por posición; si se añaden beneficios, se reutilizan en ciclo. */
+const ICONOS = [Leaf, Sparkles, Truck];
 
 const surgir = {
   oculto: { opacity: 0, y: 28 },
@@ -23,6 +22,13 @@ const surgir = {
 
 export function Hero() {
   const abrirCarrito = useCartStore((s) => s.abrir);
+  const s = useSeccion('hero');
+
+  const beneficios = lista<string>(s.extra, 'beneficios', [
+    'Ingredientes frescos',
+    'Calidad premium',
+    'Delivery rápido',
+  ]);
 
   return (
     <section className="relative flex min-h-[100svh] items-center overflow-hidden pt-48 lg:pt-40">
@@ -43,7 +49,7 @@ export function Hero() {
             variants={surgir}
             className="kicker"
           >
-            Makis peruanos · Preparados al momento
+            {s.etiqueta}
           </motion.p>
 
           <motion.h1
@@ -53,10 +59,10 @@ export function Hero() {
             variants={surgir}
             className="mt-7 text-[clamp(3.1rem,7.6vw,6.4rem)] font-extrabold leading-[0.92] tracking-[-0.045em] text-balance"
           >
-            Makis que
+            {s.titulo}
             <br />
             <span className="font-brush text-[1.32em] font-bold leading-[0.78] text-sugu">
-              te hacen feliz
+              {s.manuscrito}
             </span>
           </motion.h1>
 
@@ -67,8 +73,7 @@ export function Hero() {
             variants={surgir}
             className="mt-9 max-w-prose text-[17px] leading-[1.75] text-bone-dim"
           >
-            En Sugu Rolls combinamos frescura, sabor y pasión en cada roll. Makis preparados
-            al momento con ingredientes seleccionados y mucho sabor para ti.
+            {s.bajada}
           </motion.p>
 
           <motion.div
@@ -79,10 +84,10 @@ export function Hero() {
             className="mt-12 flex flex-wrap gap-4"
           >
             <button onClick={abrirCarrito} className="btn-primary">
-              Pedir ahora
+              {texto(s.extra, 'boton_principal', 'Pedir ahora')}
             </button>
             <Link href="/carta" className="btn-ghost">
-              Ver nuestra carta
+              {texto(s.extra, 'boton_secundario', 'Ver nuestra carta')}
             </Link>
           </motion.div>
 
@@ -93,16 +98,19 @@ export function Hero() {
             variants={surgir}
             className="mt-16 flex flex-wrap gap-x-7 gap-y-6"
           >
-            {BENEFICIOS.map(({ icono: Icono, texto }) => (
-              <li key={texto} className="flex items-center gap-3">
-                <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full border border-sugu/30 bg-sugu/10">
-                  <Icono className="h-4.5 w-4.5 text-sugu" />
-                </span>
-                <span className="whitespace-nowrap text-[14px] font-medium text-bone-dim">
-                  {texto}
-                </span>
-              </li>
-            ))}
+            {beneficios.map((b, i) => {
+              const Icono = ICONOS[i % ICONOS.length];
+              return (
+                <li key={b} className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 flex-none items-center justify-center rounded-full border border-sugu/30 bg-sugu/10">
+                    <Icono className="h-4.5 w-4.5 text-sugu" />
+                  </span>
+                  <span className="whitespace-nowrap text-[14px] font-medium text-bone-dim">
+                    {b}
+                  </span>
+                </li>
+              );
+            })}
           </motion.ul>
         </div>
 
@@ -114,7 +122,7 @@ export function Hero() {
         >
           <div className="relative mx-auto aspect-square w-full max-w-[680px] animate-float">
             <Image
-              src="/imagenes/web/hero-makis.webp"
+              src={s.imagen || '/imagenes/web/hero-makis.webp'}
               alt="Tabla de makis Sugu Rolls recién preparados"
               fill
               priority

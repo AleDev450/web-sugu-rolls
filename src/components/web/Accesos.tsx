@@ -3,54 +3,63 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Gamepad2 } from 'lucide-react';
+import { lista, texto } from '@/data/secciones';
 import { Aparecer } from './Seccion';
+import { useSeccion } from './useSeccion';
 
-/** Las tres puertas de entrada: carta, catering y el juego. */
+interface Tarjeta {
+  titulo: string;
+  texto: string;
+  imagen: string;
+  href: string;
+}
+
+const TARJETAS_POR_DEFECTO: Tarjeta[] = [
+  {
+    titulo: 'Nuestra Carta',
+    texto: 'Descubre todos nuestros makis, bowls, entradas y bebidas.',
+    imagen: '/imagenes/web/carta.webp',
+    href: '/carta',
+  },
+  {
+    titulo: 'Catering',
+    texto: 'Lleva el sabor de Sugu Rolls a reuniones, cumpleaños y ocasiones especiales.',
+    imagen: '/imagenes/web/catering.webp',
+    href: '/catering',
+  },
+];
+
+/** Las puertas de entrada de la portada: carta, catering y el juego. */
 export function Accesos() {
+  const s = useSeccion('accesos');
+  const tarjetas = lista<Tarjeta>(s.extra, 'tarjetas', TARJETAS_POR_DEFECTO);
+
   return (
     <section className="wrap section">
       <div className="grid gap-7 lg:grid-cols-3">
-        <Aparecer delay={0}>
-          <TarjetaAcceso
-            href="/carta"
-            titulo="Nuestra Carta"
-            texto="Descubre todos nuestros makis, bowls, entradas y bebidas."
-            imagen="/imagenes/web/carta.webp"
-            alt="Maki sostenido con palillos"
-          />
-        </Aparecer>
+        {tarjetas.map((t, i) => (
+          <Aparecer key={t.href} delay={i * 0.08}>
+            <TarjetaAcceso {...t} />
+          </Aparecer>
+        ))}
 
-        <Aparecer delay={0.08}>
-          <TarjetaAcceso
-            href="/catering"
-            titulo="Catering"
-            texto="Lleva el sabor de Sugu Rolls a reuniones, cumpleaños y ocasiones especiales."
-            imagen="/imagenes/web/catering.webp"
-            alt="Bandeja de makis para compartir"
+        <Aparecer delay={tarjetas.length * 0.08}>
+          <TarjetaJuego
+            titulo={texto(s.extra, 'juego_titulo', 'Promociones y Juego')}
+            descripcion={texto(
+              s.extra,
+              'juego_texto',
+              'Juega, gana y disfruta de descuentos, makis gratis y premios exclusivos.'
+            )}
+            boton={texto(s.extra, 'juego_boton', 'Jugar ahora')}
           />
-        </Aparecer>
-
-        <Aparecer delay={0.16}>
-          <TarjetaJuego />
         </Aparecer>
       </div>
     </section>
   );
 }
 
-function TarjetaAcceso({
-  href,
-  titulo,
-  texto,
-  imagen,
-  alt,
-}: {
-  href: string;
-  titulo: string;
-  texto: string;
-  imagen: string;
-  alt: string;
-}) {
+function TarjetaAcceso({ href, titulo, texto: descripcion, imagen }: Tarjeta) {
   return (
     <Link
       href={href}
@@ -58,7 +67,7 @@ function TarjetaAcceso({
     >
       <Image
         src={imagen}
-        alt={alt}
+        alt={titulo}
         fill
         sizes="(max-width: 1024px) 100vw, 33vw"
         className="object-cover transition-transform duration-[1.2s] ease-premium group-hover:scale-110"
@@ -67,7 +76,9 @@ function TarjetaAcceso({
 
       <div className="relative p-10">
         <h3 className="text-3xl font-bold tracking-tight">{titulo}</h3>
-        <p className="mt-3.5 max-w-[34ch] text-[15px] leading-relaxed text-bone-dim">{texto}</p>
+        <p className="mt-3.5 max-w-[34ch] text-[15px] leading-relaxed text-bone-dim">
+          {descripcion}
+        </p>
         <span className="mt-8 inline-flex items-center gap-2.5 text-[15px] font-semibold text-sugu">
           Ver más
           <ArrowRight className="h-4.5 w-4.5 transition-transform duration-500 group-hover:translate-x-2" />
@@ -77,13 +88,20 @@ function TarjetaAcceso({
   );
 }
 
-function TarjetaJuego() {
+function TarjetaJuego({
+  titulo,
+  descripcion,
+  boton,
+}: {
+  titulo: string;
+  descripcion: string;
+  boton: string;
+}) {
   return (
     <div
       className="group relative flex h-[520px] flex-col justify-between overflow-hidden rounded-[2rem] p-10"
       style={{ backgroundImage: 'linear-gradient(150deg, #E31323 0%, #920B15 100%)' }}
     >
-      {/* trazos japoneses decorativos */}
       <svg
         className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 opacity-15"
         viewBox="0 0 100 100"
@@ -104,21 +122,20 @@ function TarjetaJuego() {
           <Gamepad2 className="h-4 w-4" />
           Promociones
         </span>
-        <h3 className="mt-7 text-3xl font-bold leading-[1.1] tracking-tight">
-          Promociones
-          <br />y Juego
+        <h3 className="mt-7 max-w-[14ch] text-3xl font-bold leading-[1.1] tracking-tight">
+          {titulo}
         </h3>
         <p className="mt-4 max-w-[26ch] text-[15px] leading-relaxed text-white/85">
-          Juega, gana y disfruta de descuentos, makis gratis y premios exclusivos.
+          {descripcion}
         </p>
       </div>
 
       <div className="relative flex items-end justify-between gap-4">
         <Link
-          href="/juego"
+          href="/promociones"
           className="inline-flex items-center gap-2.5 rounded-full bg-night px-8 py-4 text-[15px] font-bold text-white transition-transform duration-500 ease-premium hover:-translate-y-1"
         >
-          Jugar ahora
+          {boton}
           <ArrowRight className="h-4.5 w-4.5" />
         </Link>
 

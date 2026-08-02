@@ -33,26 +33,27 @@ export function whatsappUrl(mensaje: string): string {
   return `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(mensaje)}`;
 }
 
+/** Cada entrada es una página propia. */
 export const NAV = [
   { label: 'Inicio', href: '/' },
   { label: 'Nuestra Carta', href: '/carta' },
-  { label: 'Paquetes', href: '/#paquetes' },
+  { label: 'Paquetes', href: '/paquetes' },
   { label: 'Catering', href: '/catering' },
-  { label: 'Promociones', href: '/#juego' },
-  { label: 'Nosotros', href: '/#nosotros' },
-  { label: 'Contacto', href: '/#contacto' },
+  { label: 'Promociones', href: '/promociones' },
+  { label: 'Nosotros', href: '/nosotros' },
+  { label: 'Contacto', href: '/contacto' },
 ] as const;
 
 export const FOOTER_LINKS = {
   rapidos: [
     { label: 'Nuestra Carta', href: '/carta' },
-    { label: 'Paquetes', href: '/#paquetes' },
+    { label: 'Paquetes', href: '/paquetes' },
     { label: 'Catering', href: '/catering' },
     { label: 'Juega y gana', href: '/juego' },
   ],
   ayuda: [
-    { label: 'Preguntas frecuentes', href: '/#contacto' },
-    { label: 'Zonas de delivery', href: '/#contacto' },
+    { label: 'Preguntas frecuentes', href: '/contacto' },
+    { label: 'Zonas de delivery', href: '/contacto' },
     { label: 'Términos y condiciones', href: '/terminos' },
     { label: 'Política de privacidad', href: '/privacidad' },
   ],

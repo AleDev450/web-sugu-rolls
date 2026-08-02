@@ -73,6 +73,15 @@
     @apply py-28 sm:py-36 lg:py-44;
   }
 
+  /*
+   * La primera sección de una página convive con el header fijo, que en móvil
+   * mide más que el padding normal y taparía la etiqueta del título. El hero
+   * de la portada no lleva `.section` y reserva su propio espacio.
+   */
+  main > .section:first-child {
+    @apply pt-44 sm:pt-48;
+  }
+
   /* Etiqueta pequeña sobre los títulos de sección */
   .kicker {
     @apply text-[11px] font-semibold uppercase tracking-kicker text-sugu;

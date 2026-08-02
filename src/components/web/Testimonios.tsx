@@ -1,28 +1,40 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Quote, Star } from 'lucide-react';
-import { TESTIMONIOS } from '@/data/productos';
+import { TESTIMONIOS, type Testimonio } from '@/data/productos';
+import { traerTestimonios } from '@/lib/contenido';
 import { TituloSeccion } from './Seccion';
+import { useSeccion } from './useSeccion';
 
 export function Testimonios() {
   const [indice, setIndice] = useState(0);
   const [direccion, setDireccion] = useState(1);
+  const [items, setItems] = useState<Testimonio[]>(TESTIMONIOS);
+  const s = useSeccion('testimonios');
+
+  useEffect(() => {
+    void traerTestimonios().then((t) => {
+      setItems(t);
+      setIndice(0);
+    });
+  }, []);
 
   const mover = (paso: number) => {
     setDireccion(paso);
-    setIndice((i) => (i + paso + TESTIMONIOS.length) % TESTIMONIOS.length);
+    setIndice((i) => (i + paso + items.length) % items.length);
   };
 
-  const actual = TESTIMONIOS[indice];
+  const actual = items[indice];
+  if (!actual) return null;
 
   return (
     <section className="relative border-y border-white/5 bg-night-soft section">
       <div className="pointer-events-none absolute inset-0 pattern-asanoha opacity-50" aria-hidden />
 
       <div className="wrap relative">
-        <TituloSeccion etiqueta="Testimonios" titulo="Lo que dicen" manuscrito="de nosotros" />
+        <TituloSeccion etiqueta={s.etiqueta} titulo={s.titulo} manuscrito={s.manuscrito} />
 
         <div className="relative mx-auto mt-20 max-w-3xl">
           <div className="min-h-[260px] sm:min-h-[220px]">
@@ -71,7 +83,7 @@ export function Testimonios() {
             </button>
 
             <div className="flex gap-2">
-              {TESTIMONIOS.map((_, i) => (
+              {items.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => {

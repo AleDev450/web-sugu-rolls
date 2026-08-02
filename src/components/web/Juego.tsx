@@ -4,13 +4,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Gamepad2, HelpCircle } from 'lucide-react';
+import { lista, texto as leerTexto } from '@/data/secciones';
 import { SITE } from '@/data/site';
 import { Aparecer } from './Seccion';
+import { useSeccion } from './useSeccion';
 
-const PASOS = [
-  { n: '01', texto: 'Ingresa al juego.' },
-  { n: '02', texto: 'Alcanza el puntaje requerido.' },
-  { n: '03', texto: 'Obtén tu premio o cupón.' },
+const PASOS_POR_DEFECTO = [
+  'Ingresa al juego.',
+  'Alcanza el puntaje requerido.',
+  'Compite por el primer lugar y gana el premio sorpresa.',
 ];
 
 /** Personajes que rodean el dispositivo. */
@@ -22,6 +24,9 @@ const MASCOTAS = [
 ];
 
 export function Juego() {
+  const s = useSeccion('juego');
+  const pasos = lista<string>(s.extra, 'pasos', PASOS_POR_DEFECTO);
+
   return (
     <section
       id="juego"
@@ -63,19 +68,18 @@ export function Juego() {
         <Aparecer>
           <span className="inline-flex items-center gap-2.5 rounded-full bg-black/25 px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest">
             <Gamepad2 className="h-4 w-4" />
-            Sugu Game
+            {s.etiqueta}
           </span>
 
           <h2 className="title-xl mt-7 text-balance">
-            Juega y gana con
+            {s.titulo}
             <br />
-            <span className="font-brush text-[1.28em] font-bold leading-[0.75]">Sugu Rolls</span>
+            <span className="font-brush text-[1.28em] font-bold leading-[0.75]">
+              {s.manuscrito}
+            </span>
           </h2>
 
-          <p className="mt-7 max-w-prose text-[17px] leading-[1.75] text-white/85">
-            Combina ingredientes, completa pedidos y desbloquea premios exclusivos. Consigue
-            descuentos, productos gratis y muchas sorpresas.
-          </p>
+          <p className="mt-7 max-w-prose text-[17px] leading-[1.75] text-white/85">{s.bajada}</p>
 
           <div className="mt-11 flex flex-wrap gap-4">
             <Link
@@ -83,24 +87,24 @@ export function Juego() {
               className="inline-flex items-center gap-2.5 rounded-full bg-night px-9 py-4 text-[15px] font-bold text-white transition-all duration-500 ease-premium hover:-translate-y-1 hover:shadow-[0_22px_54px_-14px_rgba(0,0,0,0.9)]"
             >
               <Gamepad2 className="h-4.5 w-4.5" />
-              Jugar ahora
+              {leerTexto(s.extra, 'boton_principal', 'Jugar ahora')}
             </Link>
             <a
               href="#como-funciona"
               className="inline-flex items-center gap-2.5 rounded-full border border-white/35 px-9 py-4 text-[15px] font-semibold text-white transition-all duration-500 ease-premium hover:-translate-y-1 hover:bg-white/10"
             >
               <HelpCircle className="h-4.5 w-4.5" />
-              ¿Cómo funciona?
+              {leerTexto(s.extra, 'boton_secundario', '¿Cómo funciona?')}
             </a>
           </div>
 
           <ol id="como-funciona" className="mt-16 scroll-mt-28 space-y-6">
-            {PASOS.map((paso) => (
-              <li key={paso.n} className="flex items-center gap-5">
+            {pasos.map((paso, i) => (
+              <li key={paso} className="flex items-center gap-5">
                 <span className="flex h-14 w-14 flex-none items-center justify-center rounded-full border-2 border-black/25 bg-black/20 text-base font-extrabold">
-                  {paso.n}
+                  {String(i + 1).padStart(2, '0')}
                 </span>
-                <span className="text-[17px] font-medium">{paso.texto}</span>
+                <span className="text-[17px] font-medium">{paso}</span>
               </li>
             ))}
           </ol>

@@ -1,9 +1,16 @@
 'use client';
 
 import Image from 'next/image';
+import { lista } from '@/data/secciones';
 import { Aparecer } from './Seccion';
+import { useSeccion } from './useSeccion';
 
-const ESTADISTICAS = [
+interface Estadistica {
+  valor: string;
+  texto: string;
+}
+
+const POR_DEFECTO: Estadistica[] = [
   { valor: '+20', texto: 'variedades' },
   { valor: '100%', texto: 'ingredientes seleccionados' },
   { valor: 'Al momento', texto: 'preparación' },
@@ -11,26 +18,25 @@ const ESTADISTICAS = [
 ];
 
 export function Nosotros() {
+  const s = useSeccion('nosotros');
+  const estadisticas = lista<Estadistica>(s.extra, 'estadisticas', POR_DEFECTO);
+
   return (
     <section id="nosotros" className="wrap section scroll-mt-24">
       <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
         <Aparecer>
-          <p className="kicker">Nosotros</p>
+          <p className="kicker">{s.etiqueta}</p>
           <h2 className="title-xl mt-5">
-            Pasión en cada{' '}
+            {s.titulo}{' '}
             <span className="font-brush text-[1.28em] font-bold leading-[0.7] text-sugu">
-              roll
+              {s.manuscrito}
             </span>
           </h2>
 
-          <p className="mt-7 max-w-prose text-[17px] leading-[1.75] text-bone-dim">
-            En Sugu Rolls preparamos cada pedido al momento, combinando ingredientes frescos,
-            recetas propias y mucha pasión. Buscamos que cada roll tenga sabor, personalidad y
-            una presentación que sorprenda.
-          </p>
+          <p className="mt-7 max-w-prose text-[17px] leading-[1.75] text-bone-dim">{s.bajada}</p>
 
           <dl className="mt-14 grid grid-cols-2 gap-x-8 gap-y-10">
-            {ESTADISTICAS.map((e) => (
+            {estadisticas.map((e) => (
               <div key={e.texto}>
                 <dt className="text-4xl font-extrabold tracking-tight text-sugu">{e.valor}</dt>
                 <dd className="mt-2 text-[14px] leading-snug text-bone-dim">{e.texto}</dd>
@@ -42,7 +48,7 @@ export function Nosotros() {
         <Aparecer delay={0.1}>
           <div className="relative aspect-[5/4] overflow-hidden rounded-3xl border border-white/10">
             <Image
-              src="/imagenes/web/nosotros.webp"
+              src={s.imagen || '/imagenes/web/nosotros.webp'}
               alt="Preparación de makis en Sugu Rolls"
               fill
               sizes="(max-width: 1024px) 92vw, 560px"

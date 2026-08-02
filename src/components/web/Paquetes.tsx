@@ -2,24 +2,33 @@
 
 import Image from 'next/image';
 import { Check } from 'lucide-react';
-import { PAQUETES, soles } from '@/data/productos';
+import { useEffect, useState } from 'react';
+import { PAQUETES, soles, type Paquete } from '@/data/productos';
+import { traerPaquetes } from '@/lib/contenido';
 import { useCartStore } from '@/store/useCartStore';
 import { Aparecer, TituloSeccion } from './Seccion';
+import { useSeccion } from './useSeccion';
 
 export function Paquetes() {
   const agregar = useCartStore((s) => s.agregar);
+  const s = useSeccion('paquetes');
+  const [paquetes, setPaquetes] = useState<Paquete[]>(PAQUETES);
+
+  useEffect(() => {
+    void traerPaquetes().then(setPaquetes);
+  }, []);
 
   return (
     <section id="paquetes" className="wrap section scroll-mt-24">
       <TituloSeccion
-        etiqueta="Para compartir"
-        titulo="Paquetes para"
-        manuscrito="compartir"
-        bajada="Elige el paquete perfecto para disfrutar con amigos, familia o compañeros de trabajo."
+        etiqueta={s.etiqueta}
+        titulo={s.titulo}
+        manuscrito={s.manuscrito}
+        bajada={s.bajada}
       />
 
       <div className="mt-20 grid gap-8 lg:grid-cols-3">
-        {PAQUETES.map((paquete, i) => (
+        {paquetes.map((paquete, i) => (
           <Aparecer key={paquete.id} delay={i * 0.08} className="h-full">
             <article
               className={`card card-hover relative flex h-full flex-col overflow-hidden ${

@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
-import { Cart } from '@/components/web/Cart';
 import { Catering } from '@/components/web/Catering';
 import { CateringForm } from '@/components/web/CateringForm';
-import { Footer } from '@/components/web/Footer';
-import { Header } from '@/components/web/Header';
-import { WhatsappFab } from '@/components/web/WhatsappFab';
+import { Pagina } from '@/components/web/Pagina';
 
 export const metadata: Metadata = {
   title: 'Catering',
@@ -14,15 +11,9 @@ export const metadata: Metadata = {
 
 export default function CateringPage() {
   return (
-    <>
-      <Header />
-      <main className="pt-24">
-        <Catering />
-        <CateringForm />
-      </main>
-      <Footer />
-      <Cart />
-      <WhatsappFab />
-    </>
+    <Pagina>
+      <Catering />
+      <CateringForm />
+    </Pagina>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, ShoppingBag, X } from 'lucide-react';
 import { NAV } from '@/data/site';
@@ -9,7 +10,9 @@ import { useCartStore } from '@/store/useCartStore';
 import { Logo } from './Logo';
 
 /**
- * Encabezado fijo: transparente sobre el hero y con fondo negro al bajar.
+ * Encabezado fijo: transparente sobre el hero de la portada y con fondo negro
+ * al bajar. Fuera de la portada arranca ya con fondo, porque hay secciones de
+ * fondo rojo (promociones) donde el botón rojo se perdería.
  * En móvil despliega un panel a pantalla completa.
  */
 export function Header() {
@@ -17,6 +20,8 @@ export function Header() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const abrirCarrito = useCartStore((s) => s.abrir);
   const unidades = useCartStore((s) => s.items.reduce((t, i) => t + i.cantidad, 0));
+  const enPortada = usePathname() === '/';
+  const compacto = scrolled || !enPortada;
 
   useEffect(() => {
     const alScroll = () => setScrolled(window.scrollY > 24);
@@ -37,13 +42,13 @@ export function Header() {
     <>
       <header
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ease-premium ${
-          scrolled
+          compacto
             ? 'border-b border-white/10 bg-night/95 py-3.5 backdrop-blur-xl'
             : 'border-b border-transparent py-7'
         }`}
       >
         <div className="wrap flex items-center justify-between gap-8">
-          <Logo ancho={scrolled ? 100 : 126} prioridad className="transition-all duration-500" />
+          <Logo ancho={compacto ? 100 : 126} prioridad className="transition-all duration-500" />
 
           <nav className="hidden items-center gap-10 lg:flex" aria-label="Principal">
             {NAV.map((item) => (

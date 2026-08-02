@@ -11,6 +11,7 @@ import {
   type Testimonio,
   type Categoria,
 } from '@/data/productos';
+import { SECCIONES, type Seccion, type SeccionId } from '@/data/secciones';
 import { SITE } from '@/data/site';
 
 /**
@@ -137,6 +138,34 @@ function aPaquete(f: FilaPaquete): Paquete {
 }
 
 // --- lectura pública ---
+
+/**
+ * Textos e imágenes de las secciones. Devuelve siempre las nueve: las que la
+ * base de datos no tenga se completan con el contenido local, así una fila
+ * borrada por accidente no deja un hueco en la web.
+ */
+export function traerSecciones(): Promise<Record<SeccionId, Seccion>> {
+  return conRespaldo(async () => {
+    const sb = getSupabase();
+    if (!sb) return SECCIONES;
+
+    const { data, error } = await sb.from('page_sections').select('*');
+    if (error || !data?.length) return SECCIONES;
+
+    const mezcla = { ...SECCIONES };
+    for (const fila of data as Seccion[]) {
+      const local = SECCIONES[fila.id];
+      if (!local) continue;
+      mezcla[fila.id] = {
+        ...local,
+        ...fila,
+        // si `extra` viene vacío desde la BD, se conservan los datos locales
+        extra: fila.extra && Object.keys(fila.extra).length > 0 ? fila.extra : local.extra,
+      };
+    }
+    return mezcla;
+  }, SECCIONES);
+}
 
 export function traerAjustes(): Promise<AjustesSitio> {
   return conRespaldo(async () => {

@@ -37,7 +37,7 @@ export function CartaCliente() {
   ];
 
   return (
-    <section className="wrap pb-24">
+    <section className="wrap section">
       <TituloSeccion
         etiqueta="Carta"
         titulo="Nuestra"

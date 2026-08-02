@@ -4,8 +4,10 @@ import { Clock, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
 import { SITE, whatsappUrl } from '@/data/site';
 import { Aparecer, TituloSeccion } from './Seccion';
 import { RedesSociales } from './RedesSociales';
+import { useSeccion } from './useSeccion';
 
 export function Contacto() {
+  const s = useSeccion('contacto');
   const datos = [
     { icono: MapPin, titulo: 'Dirección', valor: SITE.direccion, href: undefined },
     { icono: Phone, titulo: 'Teléfono', valor: SITE.telefono, href: `tel:${SITE.telefono.replace(/\s/g, '')}` },
@@ -21,10 +23,10 @@ export function Contacto() {
   return (
     <section id="contacto" className="wrap section scroll-mt-24">
       <TituloSeccion
-        etiqueta="Contacto"
-        titulo="Estamos"
-        manuscrito="para ti"
-        bajada="Escríbenos para pedidos, cotizaciones o cualquier consulta."
+        etiqueta={s.etiqueta}
+        titulo={s.titulo}
+        manuscrito={s.manuscrito}
+        bajada={s.bajada}
       />
 
       <div className="mt-20 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">

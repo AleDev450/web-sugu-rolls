@@ -1,35 +1,21 @@
 import { Accesos } from '@/components/web/Accesos';
-import { Cart } from '@/components/web/Cart';
-import { Catering } from '@/components/web/Catering';
-import { Contacto } from '@/components/web/Contacto';
 import { Favoritos } from '@/components/web/Favoritos';
-import { Footer } from '@/components/web/Footer';
-import { Header } from '@/components/web/Header';
 import { Hero } from '@/components/web/Hero';
-import { Juego } from '@/components/web/Juego';
-import { Nosotros } from '@/components/web/Nosotros';
-import { Paquetes } from '@/components/web/Paquetes';
+import { Pagina } from '@/components/web/Pagina';
 import { Testimonios } from '@/components/web/Testimonios';
-import { WhatsappFab } from '@/components/web/WhatsappFab';
 
+/**
+ * Portada: cabecera, las tres puertas de entrada, los favoritos y las
+ * reseñas. El detalle de paquetes, catering, promociones, nosotros y
+ * contacto vive en su propia página.
+ */
 export default function Page() {
   return (
-    <>
-      <Header />
-      <main>
-        <Hero />
-        <Accesos />
-        <Favoritos />
-        <Paquetes />
-        <Catering />
-        <Juego />
-        <Nosotros />
-        <Testimonios />
-        <Contacto />
-      </main>
-      <Footer />
-      <Cart />
-      <WhatsappFab />
-    </>
+    <Pagina>
+      <Hero />
+      <Accesos />
+      <Favoritos />
+      <Testimonios />
+    </Pagina>
   );
 }

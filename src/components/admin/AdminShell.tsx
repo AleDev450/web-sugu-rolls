@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   Boxes,
   ExternalLink,
+  FileText,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -19,6 +20,7 @@ import { Login } from './Login';
 
 const MENU = [
   { href: '/admin', label: 'Resumen', icono: LayoutDashboard },
+  { href: '/admin/paginas', label: 'Páginas', icono: FileText },
   { href: '/admin/productos', label: 'Productos', icono: UtensilsCrossed },
   { href: '/admin/paquetes', label: 'Paquetes', icono: Boxes },
   { href: '/admin/testimonios', label: 'Testimonios', icono: MessageSquareQuote },

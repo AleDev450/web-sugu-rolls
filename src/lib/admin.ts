@@ -164,6 +164,33 @@ export async function guardarAjustes(campos: Record<string, string>) {
   if (error) throw error;
 }
 
+// ---------- secciones de las páginas ----------
+
+export interface SeccionAdmin {
+  id: string;
+  pagina: string;
+  titulo_panel: string;
+  etiqueta: string;
+  titulo: string;
+  manuscrito: string;
+  bajada: string;
+  imagen: string;
+  extra: Record<string, unknown>;
+  orden: number;
+}
+
+export async function listarSecciones(): Promise<SeccionAdmin[]> {
+  const { data, error } = await sb().from('page_sections').select('*').order('orden');
+  if (error) throw error;
+  return (data ?? []) as SeccionAdmin[];
+}
+
+export async function guardarSeccion(s: SeccionAdmin) {
+  const { id, ...campos } = s;
+  const { error } = await sb().from('page_sections').update(campos).eq('id', id);
+  if (error) throw error;
+}
+
 // ---------- códigos del juego ----------
 
 export interface CodigoAdmin {
