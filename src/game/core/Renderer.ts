@@ -51,7 +51,18 @@ export class Renderer {
       antialias: true,
       resolution: Math.min(window.devicePixelRatio || 1, 2),
       autoDensity: true,
-      resizeTo: host,
+      /*
+       * Tamaño fijo, sin `resizeTo`: el host mide siempre el lienzo de diseño
+       * y es el CSS quien lo escala (`transform` en `.phone`).
+       *
+       * `resizeTo` medía el host al arrancar y solo volvía a medirlo con un
+       * `resize` de ventana. En móvil llegaba a medir antes de que el layout
+       * estuviera listo y el canvas se quedaba diminuto en la esquina superior
+       * izquierda: como el input se escucha sobre el canvas, solo se podía
+       * apuntar dentro de ese trozo.
+       */
+      width: DESIGN.width,
+      height: DESIGN.height,
     });
     host.appendChild(this.app.canvas);
 
@@ -108,7 +119,7 @@ export class Renderer {
     const deseada = Math.min((window.devicePixelRatio || 1) * this.escalaCss(), 3);
     if (Math.abs(deseada - this.app.renderer.resolution) < 0.05) return;
 
-    this.app.renderer.resize(canvas.clientWidth, canvas.clientHeight, deseada);
+    this.app.renderer.resize(DESIGN.width, DESIGN.height, deseada);
   };
 
   /** El CSS recalcula `--fit` en el mismo evento: medimos en el frame siguiente. */

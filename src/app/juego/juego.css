@@ -80,6 +80,17 @@
   z-index: 10;
 }
 
+/*
+ * Red de seguridad: el canvas debe cubrir siempre el escenario completo.
+ * Los eventos de puntero se escuchan sobre él, así que si alguna vez se
+ * quedara con otro tamaño, solo se podría apuntar dentro de ese trozo.
+ */
+.stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* ---------- barra HUD con arte (marco-hud.png) ---------- */
 .hud-bar {
   position: absolute;
