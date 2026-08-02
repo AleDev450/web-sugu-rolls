@@ -3,7 +3,13 @@
 import { useRef, useState } from 'react';
 import { TIERS } from '@/game/config/tiers';
 import { assetUrl } from '@/game/assets/manifest';
-import { getTopScores, isValidAccessCode, submitScore } from '@/lib/scores';
+import {
+  CODE_LENGTH,
+  getTopScores,
+  normalizeAccessCode,
+  redeemAccessCode,
+  submitScore,
+} from '@/lib/scores';
 import { useGameStore } from '@/store/useGameStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { TierImage } from './TierImage';
@@ -163,9 +169,10 @@ export function PauseOverlay({
 /**
  * Ventana de código de acceso (imagen ventana_emergente con casillas y
  * botones pintados). El código se teclea en un input invisible sobre las
- * casillas y los dígitos se dibujan encima de cada una.
+ * casillas y los caracteres se dibujan encima de cada una.
  *
- * TODO(BD): el código se valida contra `isValidAccessCode` (fijo por ahora).
+ * Los códigos del panel son ALFANUMÉRICOS en mayúsculas (ver `random_code`),
+ * así que el campo acepta letras y números y el canje va contra la base.
  */
 export function CodeGateOverlay({
   onCancel,
@@ -175,19 +182,25 @@ export function CodeGateOverlay({
   onSuccess: () => void;
 }) {
   const [code, setCode] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // centros medidos de las 6 casillas pintadas, en % del ancho de la imagen
   // (el espaciado no es uniforme: el arte tiene un pelín de perspectiva)
   const cells = [22.0, 32.6, 43.6, 54.6, 65.9, 77.2];
 
-  const tryContinue = () => {
-    if (isValidAccessCode(code)) {
+  const tryContinue = async () => {
+    if (checking) return;
+    setChecking(true);
+    const res = await redeemAccessCode(code);
+    setChecking(false);
+
+    if (res.ok) {
       onSuccess();
       return;
     }
-    setError(true);
+    setError(res.mensaje ?? 'Código incorrecto, inténtalo de nuevo');
     setCode('');
     inputRef.current?.focus();
   };
@@ -209,20 +222,25 @@ export function CodeGateOverlay({
         <input
           ref={inputRef}
           className="code-input"
-          type="tel"
-          inputMode="numeric"
+          type="text"
+          inputMode="text"
           autoFocus
+          autoCapitalize="characters"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          maxLength={CODE_LENGTH}
           value={code}
           onChange={(e) => {
-            setError(false);
-            setCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+            setError(null);
+            setCode(normalizeAccessCode(e.target.value));
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') tryContinue();
+            if (e.key === 'Enter') void tryContinue();
           }}
           aria-label="Código de acceso"
         />
-        {error && <span className="code-error">Código incorrecto, inténtalo de nuevo</span>}
+        {error && <span className="code-error">{error}</span>}
         <button
           className="img-hotspot"
           style={{ left: '15.9%', width: '31.9%', top: '57.3%', height: '6.2%' }}
@@ -232,8 +250,9 @@ export function CodeGateOverlay({
         <button
           className="img-hotspot"
           style={{ left: '50.8%', width: '31.7%', top: '57.3%', height: '6.2%' }}
-          onClick={tryContinue}
+          onClick={() => void tryContinue()}
           aria-label="Continuar"
+          disabled={checking}
         />
       </div>
     </div>

@@ -128,8 +128,16 @@ export class Renderer {
   };
 
   private layout() {
-    const w = this.app.renderer.width / this.app.renderer.resolution;
-    const h = this.app.renderer.height / this.app.renderer.resolution;
+    /*
+     * `renderer.width/height` YA vienen en unidades lógicas (las mismas que se
+     * pasan a `resize`); la `resolution` solo multiplica los píxeles físicos
+     * del canvas. Dividir entre ella encogía el mundo al factor 1/resolution y
+     * lo dejaba pegado a la esquina superior izquierda: en móvil (dpr ~2.3) el
+     * juego se veía al ~43% en la esquina, y como el input se traduce con este
+     * mismo `scale`, tampoco se podía apuntar.
+     */
+    const w = this.app.renderer.width;
+    const h = this.app.renderer.height;
     this.scale = Math.min(w / DESIGN.width, h / DESIGN.height);
     this.offsetX = (w - DESIGN.width * this.scale) / 2;
     this.offsetY = (h - DESIGN.height * this.scale) / 2;
