@@ -52,6 +52,30 @@ const MENSAJES_CANJE: Record<string, string> = {
   CODIGO_EXPIRADO: 'Este código ya venció',
 };
 
+const DEVICE_KEY = 'sugu_device';
+
+/**
+ * Marca estable de este navegador. Va en el canje para que solo quien abrió la
+ * partida pueda retomarla: si otra persona teclea un código ya usado, la base
+ * responde CODIGO_USADO aunque la partida siguiera abierta.
+ *
+ * No identifica a nadie: es un aleatorio guardado en localStorage.
+ */
+function idDeEsteNavegador(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch {
+    // navegación privada con almacenamiento bloqueado: se canjea sin reanudar
+    return null;
+  }
+}
+
 /**
  * Sesión de la partida en curso. La abre el canje y la cierra el game over.
  * No es estado de UI (nadie se repinta por ella), así que vive aquí y no en
@@ -84,7 +108,20 @@ export async function redeemAccessCode(raw: string): Promise<CanjeResultado> {
   const sb = getSupabase();
   if (!sb) return canjeLocal(code);
 
-  const { data, error } = await sb.rpc('redeem_code', { p_code: code });
+  let { data, error } = await sb.rpc('redeem_code', {
+    p_code: code,
+    p_device: idDeEsteNavegador(),
+  });
+
+  /*
+   * PGRST202 = no existe una función con esos argumentos: la base todavía
+   * tiene el `redeem_code` anterior a `p_device`. Se reintenta con la firma
+   * vieja para no dejar sin jugar a nadie mientras se actualiza el esquema
+   * (ojo: hasta entonces un código a medio jugar sí lo puede retomar otro).
+   */
+  if (error?.code === 'PGRST202') {
+    ({ data, error } = await sb.rpc('redeem_code', { p_code: code }));
+  }
   if (error) return canjeLocal(code);
 
   const fila = (Array.isArray(data) ? data[0] : data) as

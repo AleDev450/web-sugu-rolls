@@ -86,6 +86,7 @@ create table if not exists public.game_sessions (
   id           uuid primary key default gen_random_uuid(),
   code_id      uuid not null unique references public.access_codes (id) on delete cascade,
   player_id    uuid references public.profiles (id) on delete set null,
+  device_id    text,
   nickname     text,
   full_name    text,
   phone        text,
@@ -95,11 +96,18 @@ create table if not exists public.game_sessions (
   constraint score_razonable check (score is null or (score >= 0 and score <= 10000000))
 );
 
+-- para bases creadas antes de que existiera la columna
+alter table public.game_sessions
+  add column if not exists device_id text;
+
 comment on table public.game_sessions is
   'Partidas jugadas. Contiene datos personales: solo accesible vía funciones.';
 
 comment on column public.game_sessions.code_id is
   'UNIQUE: un código = una sola partida, no se puede reutilizar.';
+
+comment on column public.game_sessions.device_id is
+  'Marca del navegador que canjeó el código. Solo ese navegador (o el usuario dueño de la sesión) puede retomar la partida: si otra persona teclea un código ya canjeado, se rechaza.';
 
 create index if not exists game_sessions_ranking_idx
   on public.game_sessions (score desc, finished_at asc)
@@ -277,10 +285,16 @@ $$;
 -- acto (FOR UPDATE evita que dos personas canjeen el mismo a la vez) y
 -- devuelve el id de sesión que hará falta para guardar el puntaje.
 --
--- Si el código ya se canjeó pero esa partida nunca se cerró y fue hace poco
--- (ver p_reanudar_min), se devuelve la MISMA sesión: así recargar la página o
--- perder la señal no le quema el código al cliente. Como finish_session solo
--- admite un puntaje por sesión, sigue siendo un código = una puntuación.
+-- UN CÓDIGO CANJEADO NO LO PUEDE USAR OTRA PERSONA. Si el código ya se canjeó
+-- pero esa partida nunca se cerró y fue hace poco (ver p_reanudar_min), se
+-- devuelve la MISMA sesión, pero SOLO a quien la abrió: el usuario dueño de la
+-- sesión, o el mismo navegador (`p_device`). Así recargar la página o perder la
+-- señal no le quema el código al cliente, y a la vez el de al lado no puede
+-- colarse con un código que ya vio usar. Para cualquier otro: CODIGO_USADO.
+--
+-- `p_device` es una marca que el juego guarda en el navegador; no identifica a
+-- nadie, solo distingue "el mismo aparato" de "otro aparato". Si no se manda,
+-- el código no se puede reanudar (se comporta como usado).
 --
 -- Funciona igual para usuarios logueados y para invitados.
 --
@@ -293,9 +307,13 @@ $$;
 --   error = 'CODIGO_USADO'     -> ya se jugó
 --   error = 'CODIGO_EXPIRADO'  -> venció
 -- ---------------------------------------------------------------------
+-- la firma cambió al añadir p_device: se retira la versión anterior
+drop function if exists public.redeem_code(text, integer);
+
 create or replace function public.redeem_code(
   p_code          text,
-  p_reanudar_min  integer default 120
+  p_reanudar_min  integer default 120,
+  p_device        text default null
 )
 returns table (
   ok               boolean,
@@ -313,10 +331,12 @@ as $$
 declare
   v_code     public.access_codes%rowtype;
   v_clean    text;
+  v_device   text;
   v_session  public.game_sessions%rowtype;
   v_new_id   uuid;
   v_profile  public.profiles%rowtype;
   v_hallada  boolean;
+  v_dueno    boolean;
 begin
   ok := false;
   error := null;
@@ -326,7 +346,8 @@ begin
   player_phone := null;
   reanudada := false;
 
-  v_clean := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
+  v_clean  := upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
+  v_device := nullif(trim(coalesce(p_device, '')), '');
 
   if v_clean = '' then
     insert into public.code_attempts (attempted, reason, user_id)
@@ -364,8 +385,18 @@ begin
     where code_id = v_code.id;
     v_hallada := found;
 
-    -- partida abierta y reciente -> se reanuda en vez de rechazar
-    if v_hallada
+    -- ¿lo está reintentando quien lo canjeó? Si no, es otra persona con un
+    -- código ajeno y se rechaza aunque la partida siguiera abierta.
+    -- el coalesce importa: sin él la comparación con un auth.uid() nulo
+    -- devuelve NULL y no un false claro.
+    v_dueno := coalesce(v_hallada, false) and coalesce(
+      (auth.uid() is not null and v_session.player_id = auth.uid())
+      or (v_device is not null and v_session.device_id = v_device),
+      false
+    );
+
+    -- partida propia, abierta y reciente -> se reanuda en vez de rechazar
+    if v_dueno
        and v_session.score is null
        and v_code.redeemed_at > now() - make_interval(mins => greatest(coalesce(p_reanudar_min, 0), 0))
     then
@@ -396,8 +427,8 @@ begin
     select * into v_profile from public.profiles where id = auth.uid();
   end if;
 
-  insert into public.game_sessions (code_id, player_id, nickname, full_name, phone)
-  values (v_code.id, auth.uid(), v_profile.nickname, v_profile.full_name, v_profile.phone)
+  insert into public.game_sessions (code_id, player_id, device_id, nickname, full_name, phone)
+  values (v_code.id, auth.uid(), v_device, v_profile.nickname, v_profile.full_name, v_profile.phone)
   returning id into v_new_id;
 
   ok              := true;
@@ -594,7 +625,7 @@ grant select on public.game_sessions to authenticated;  -- filtrado por RLS
 grant select, update on public.profiles to authenticated;
 
 -- funciones abiertas al jugador (registrado o invitado)
-grant execute on function public.redeem_code(text, integer)                      to anon, authenticated;
+grant execute on function public.redeem_code(text, integer, text)                to anon, authenticated;
 grant execute on function public.finish_session(uuid, integer, text, text, text) to anon, authenticated;
 grant execute on function public.get_ranking(integer)                            to anon, authenticated;
 
@@ -623,10 +654,11 @@ revoke execute on function public.admin_stats() from anon;
 --
 -- c) Prueba el canje (devuelve session_id):
 --
---      select * from public.redeem_code('AB23CD');
+--      select * from public.redeem_code('AB23CD', 120, 'aparato-de-prueba');
 --
---    Vuelve a ejecutarlo: devuelve la MISMA sesión con reanudada = true.
---    Solo dará CODIGO_USADO cuando esa partida ya tenga puntaje.
+--    Vuelve a ejecutarlo con el MISMO p_device: devuelve la misma sesión con
+--    reanudada = true (es el jugador recargando la página). Ejecútalo con otro
+--    p_device y da CODIGO_USADO: nadie más puede entrar con ese código.
 --
 -- d) Cierra la partida con un puntaje:
 --
@@ -655,8 +687,11 @@ revoke execute on function public.admin_stats() from anon;
 -- 7. CÓMO SE LLAMA DESDE EL JUEGO (supabase-js)
 -- =====================================================================
 --
---   // 1) canjear el código
---   const { data, error } = await supabase.rpc('redeem_code', { p_code: '2H7KMP' });
+--   // 1) canjear el código (p_device = marca guardada en el navegador)
+--   const { data, error } = await supabase.rpc('redeem_code', {
+--     p_code:   '2H7KMP',
+--     p_device: idDeEsteNavegador(),
+--   });
 --   const r = data?.[0];
 --   if (r?.ok) {
 --     guardarSessionId(r.session_id);       // hace falta para el paso 2
