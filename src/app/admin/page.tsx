@@ -89,11 +89,11 @@ export default function AdminInicio() {
           <p className="text-[11px] uppercase tracking-widest text-bone-dim">Códigos usados</p>
           <p className="mt-2 text-3xl font-extrabold tracking-tight">{r.codigosUsados}</p>
         </div>
-        <div className="card p-7">
+        <Link href="/admin/ranking" className="card card-hover p-7">
           <p className="text-[11px] uppercase tracking-widest text-bone-dim">Partidas jugadas</p>
           <p className="mt-2 text-3xl font-extrabold tracking-tight">{r.partidas}</p>
-        </div>
-        <div className="card p-7">
+        </Link>
+        <Link href="/admin/ranking" className="card card-hover p-7">
           <p className="flex items-center gap-2 text-[11px] uppercase tracking-widest text-bone-dim">
             <Trophy className="h-3.5 w-3.5 text-sugu" />
             Mejor puntaje
@@ -101,7 +101,7 @@ export default function AdminInicio() {
           <p className="mt-2 text-3xl font-extrabold tracking-tight text-sugu">
             {r.mejorPuntaje?.toLocaleString('es') ?? '—'}
           </p>
-        </div>
+        </Link>
       </div>
     </>
   );

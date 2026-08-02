@@ -1,14 +1,16 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TIERS } from '@/game/config/tiers';
 import { assetUrl } from '@/game/assets/manifest';
 import {
   CODE_LENGTH,
-  getTopScores,
+  getRanking,
   normalizeAccessCode,
   redeemAccessCode,
   submitScore,
+  type DatosJugador,
+  type RankEntry,
 } from '@/lib/scores';
 import { useGameStore } from '@/store/useGameStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -89,8 +91,18 @@ const RANK_ROWS = [
 ];
 
 export function RankingOverlay({ onClose }: { onClose: () => void }) {
-  // se lee una vez al abrir: localStorage no notifica cambios
-  const [top] = useState(() => getTopScores(10));
+  // se consulta una vez al abrir la ventana
+  const [top, setTop] = useState<RankEntry[] | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    void getRanking(RANK_ROWS.length).then((filas) => {
+      if (vivo) setTop(filas);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   return (
     <div className="img-modal">
@@ -102,7 +114,7 @@ export function RankingOverlay({ onClose }: { onClose: () => void }) {
           draggable={false}
         />
         {RANK_ROWS.map((box, i) => {
-          const entry = top[i];
+          const entry = top?.[i];
           if (!entry) return null;
           return (
             <div key={i} className={`rank-row${i < 3 ? ' podium' : ''}`} style={box}>
@@ -111,7 +123,8 @@ export function RankingOverlay({ onClose }: { onClose: () => void }) {
             </div>
           );
         })}
-        {top.length === 0 && (
+        {top === null && <span className="rank-empty">Cargando ranking…</span>}
+        {top?.length === 0 && (
           <span className="rank-empty">Aún no hay partidas registradas</span>
         )}
         <button
@@ -179,7 +192,8 @@ export function CodeGateOverlay({
   onSuccess,
 }: {
   onCancel: () => void;
-  onSuccess: () => void;
+  /** Recibe los datos que la base ya conocía del jugador, si estaba logueado. */
+  onSuccess: (jugador?: DatosJugador) => void;
 }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +211,7 @@ export function CodeGateOverlay({
     setChecking(false);
 
     if (res.ok) {
-      onSuccess();
+      onSuccess(res.jugador);
       return;
     }
     setError(res.mensaje ?? 'Código incorrecto, inténtalo de nuevo');
@@ -263,33 +277,49 @@ export function CodeGateOverlay({
  * Game over con registro de la partida (imagen game_over con campos y
  * botones pintados): nickname, nombre y teléfono + puntaje logrado.
  *
- * TODO(BD): "ENVIAR DATOS" guarda en la cola local (`submitScore`) hasta que
- * exista la tabla en la base de datos.
+ * "ENVIAR DATOS" cierra la sesión abierta por el código con `finish_session`,
+ * que es lo que hace entrar la partida al ranking.
  */
-export function GameOverFormOverlay({ onMenu }: { onMenu: () => void }) {
+export function GameOverFormOverlay({
+  onMenu,
+  datos,
+}: {
+  onMenu: () => void;
+  datos?: DatosJugador;
+}) {
   const score = useGameStore((s) => s.score);
-  const [nickname, setNickname] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [nickname, setNickname] = useState(datos?.nickname ?? '');
+  const [name, setName] = useState(datos?.name ?? '');
+  const [phone, setPhone] = useState(datos?.phone ?? '');
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const send = async () => {
-    if (sent) return;
+    if (sent || sending) return;
     if (!nickname.trim() || !name.trim() || phone.replace(/\D/g, '').length < 6) {
       setFeedback({ ok: false, text: 'Completa nickname, nombre y un teléfono válido' });
       return;
     }
-    await submitScore({
+
+    setSending(true);
+    setFeedback({ ok: true, text: 'Registrando…' });
+    const res = await submitScore({
       nickname: nickname.trim(),
       name: name.trim(),
       phone: phone.trim(),
       score,
       at: new Date().toISOString(),
     });
+    setSending(false);
+
+    if (!res.ok) {
+      setFeedback({ ok: false, text: res.mensaje ?? 'No se pudo registrar tu partida' });
+      return;
+    }
     setSent(true);
     setFeedback({ ok: true, text: '¡Partida registrada!' });
-    setTimeout(onMenu, 1000);
+    setTimeout(onMenu, 1200);
   };
 
   return (
@@ -345,8 +375,9 @@ export function GameOverFormOverlay({ onMenu }: { onMenu: () => void }) {
         <button
           className="img-hotspot"
           style={{ left: '50.5%', width: '28.7%', top: '66.3%', height: '4.6%' }}
-          onClick={send}
+          onClick={() => void send()}
           aria-label="Enviar datos"
+          disabled={sending || sent}
         />
       </div>
     </div>

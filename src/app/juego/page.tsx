@@ -19,9 +19,12 @@ import { useVipStore } from '@/store/useVipStore';
 import { VipBar } from '@/components/VipBar';
 import { startMusic, stopMusic } from '@/game/audio/audio';
 import { useEscalaJuego } from '@/lib/escala';
+import type { DatosJugador } from '@/lib/scores';
 
 export default function Page() {
   const [panel, setPanel] = useState<PanelId>(null);
+  // datos que devuelve el canje: precargan el formulario del game over
+  const [jugador, setJugador] = useState<DatosJugador | undefined>();
   const marco = useEscalaJuego();
 
   const status = useGameStore((s) => s.status);
@@ -40,8 +43,9 @@ export default function Page() {
     if (status === 'gameover') stopMusic();
   }, [status]);
 
-  const play = () => {
+  const play = (datos?: DatosJugador) => {
     setPanel(null);
+    setJugador(datos);
     reset();
     // Dentro del click, para que el navegador permita el autoplay.
     startMusic();
@@ -88,7 +92,9 @@ export default function Page() {
         />
       )}
 
-      {status === 'gameover' && panel === null && <GameOverFormOverlay onMenu={toMenu} />}
+      {status === 'gameover' && panel === null && (
+        <GameOverFormOverlay onMenu={toMenu} datos={jugador} />
+      )}
 
       {panel === 'code' && (
         <CodeGateOverlay onCancel={() => setPanel(null)} onSuccess={play} />

@@ -233,6 +233,71 @@ export async function generarCodigos(cantidad: number, etiqueta: string, venceEl
   return data as { nuevo_codigo: string }[];
 }
 
+// ---------- partidas jugadas (ranking del panel) ----------
+
+/**
+ * Una partida con todo lo que el admin necesita para entregar el premio.
+ * El teléfono y el nombre real solo salen por aquí: el ranking público
+ * (`get_ranking`) devuelve nickname y puntaje y nada más.
+ */
+export interface PartidaAdmin {
+  id: string;
+  nickname: string | null;
+  full_name: string | null;
+  phone: string | null;
+  score: number | null;
+  started_at: string;
+  finished_at: string | null;
+  /** código canjeado para jugar esta partida */
+  codigo: string | null;
+  codigo_creado: string | null;
+  codigo_etiqueta: string | null;
+}
+
+/** Forma cruda de la fila: PostgREST anida el código como objeto o arreglo. */
+type FilaPartida = Omit<PartidaAdmin, 'codigo' | 'codigo_creado' | 'codigo_etiqueta'> & {
+  access_codes:
+    | { code: string; created_at: string; label: string | null }
+    | { code: string; created_at: string; label: string | null }[]
+    | null;
+};
+
+/**
+ * Partidas ordenadas por puntaje. `soloTerminadas` deja fuera las sesiones que
+ * se abrieron pero nunca registraron puntaje (cerró la pestaña a medias).
+ *
+ * El join con `access_codes` funciona por la FK `code_id`; las políticas RLS
+ * exigen `is_admin()` en ambas tablas, así que un no-admin recibe vacío.
+ */
+export async function listarPartidas(
+  soloTerminadas = true,
+  limite = 300
+): Promise<PartidaAdmin[]> {
+  let q = sb()
+    .from('game_sessions')
+    .select(
+      'id, nickname, full_name, phone, score, started_at, finished_at, access_codes(code, created_at, label)'
+    )
+    .order('score', { ascending: false, nullsFirst: false })
+    .order('finished_at', { ascending: true })
+    .limit(limite);
+
+  if (soloTerminadas) q = q.not('score', 'is', null);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as FilaPartida[]).map(({ access_codes, ...p }) => {
+    const cod = Array.isArray(access_codes) ? access_codes[0] : access_codes;
+    return {
+      ...p,
+      codigo: cod?.code ?? null,
+      codigo_creado: cod?.created_at ?? null,
+      codigo_etiqueta: cod?.label ?? null,
+    };
+  });
+}
+
 export async function estadisticas() {
   const { data, error } = await sb().rpc('admin_stats');
   if (error) throw error;

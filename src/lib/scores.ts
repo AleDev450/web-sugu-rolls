@@ -1,10 +1,15 @@
 'use client';
 
 /**
- * Registro de partidas y validación de códigos de acceso.
+ * Puente entre el juego y la base de datos (ver `supabase/schema.sql`).
  *
- * TODO(BD): `submitScore` sigue guardando en localStorage hasta que se enganche
- * con `finish_session`. El canje del código sí va contra Supabase.
+ *   1. canjear el código   -> redeem_code()    abre la sesión de la partida
+ *   2. registrar el puntaje -> finish_session() cierra esa misma sesión
+ *   3. tabla de posiciones  -> get_ranking()    solo nickname y puntaje
+ *
+ * Todo pasa por funciones SECURITY DEFINER: el cliente nunca lee las tablas.
+ * Si no hay Supabase configurado, o alguna función todavía no está desplegada,
+ * se cae a localStorage para que el juego siga siendo jugable.
  */
 
 import { getSupabase } from '@/lib/supabase/client';
@@ -27,24 +32,42 @@ export function normalizeAccessCode(raw: string): string {
  */
 const CODIGO_DEMO = '123456';
 
+/** Datos que la base ya conoce del jugador (si canjeó estando logueado). */
+export interface DatosJugador {
+  nickname?: string;
+  name?: string;
+  phone?: string;
+}
+
 export interface CanjeResultado {
   ok: boolean;
   /** Mensaje listo para pintar en la ventana cuando `ok` es false. */
   mensaje?: string;
-  /** Sesión abierta por el canje; la usará el registro de puntaje (TODO BD). */
-  sessionId?: string;
+  jugador?: DatosJugador;
 }
 
-const MENSAJES: Record<string, string> = {
+const MENSAJES_CANJE: Record<string, string> = {
   CODIGO_INVALIDO: 'Código incorrecto, inténtalo de nuevo',
   CODIGO_USADO: 'Este código ya fue usado',
   CODIGO_EXPIRADO: 'Este código ya venció',
 };
 
+/**
+ * Sesión de la partida en curso. La abre el canje y la cierra el game over.
+ * No es estado de UI (nadie se repinta por ella), así que vive aquí y no en
+ * el store; se limpia al registrar el puntaje para no cerrarla dos veces.
+ */
+let sesionActual: string | null = null;
+
+export function getSessionId(): string | null {
+  return sesionActual;
+}
+
 function canjeLocal(code: string): CanjeResultado {
+  sesionActual = null;
   return code === CODIGO_DEMO
     ? { ok: true }
-    : { ok: false, mensaje: MENSAJES.CODIGO_INVALIDO };
+    : { ok: false, mensaje: MENSAJES_CANJE.CODIGO_INVALIDO };
 }
 
 /**
@@ -55,7 +78,7 @@ function canjeLocal(code: string): CanjeResultado {
 export async function redeemAccessCode(raw: string): Promise<CanjeResultado> {
   const code = normalizeAccessCode(raw);
   if (code.length < CODE_LENGTH) {
-    return { ok: false, mensaje: MENSAJES.CODIGO_INVALIDO };
+    return { ok: false, mensaje: MENSAJES_CANJE.CODIGO_INVALIDO };
   }
 
   const sb = getSupabase();
@@ -65,14 +88,39 @@ export async function redeemAccessCode(raw: string): Promise<CanjeResultado> {
   if (error) return canjeLocal(code);
 
   const fila = (Array.isArray(data) ? data[0] : data) as
-    | { ok: boolean; error: string | null; session_id: string | null }
+    | {
+        ok: boolean;
+        error: string | null;
+        session_id: string | null;
+        player_nickname: string | null;
+        player_name: string | null;
+        player_phone: string | null;
+      }
     | undefined;
   if (!fila) return canjeLocal(code);
 
-  return fila.ok
-    ? { ok: true, sessionId: fila.session_id ?? undefined }
-    : { ok: false, mensaje: MENSAJES[fila.error ?? ''] ?? MENSAJES.CODIGO_INVALIDO };
+  if (!fila.ok) {
+    sesionActual = null;
+    return {
+      ok: false,
+      mensaje: MENSAJES_CANJE[fila.error ?? ''] ?? MENSAJES_CANJE.CODIGO_INVALIDO,
+    };
+  }
+
+  sesionActual = fila.session_id;
+  return {
+    ok: true,
+    jugador: {
+      nickname: fila.player_nickname ?? undefined,
+      name: fila.player_name ?? undefined,
+      phone: fila.player_phone ?? undefined,
+    },
+  };
 }
+
+// ---------------------------------------------------------------------
+// Registro del puntaje
+// ---------------------------------------------------------------------
 
 export interface ScoreSubmission {
   nickname: string;
@@ -82,6 +130,19 @@ export interface ScoreSubmission {
   /** ISO — momento del registro */
   at: string;
 }
+
+export interface RegistroResultado {
+  ok: boolean;
+  mensaje?: string;
+}
+
+const MENSAJES_CIERRE: { patron: string; texto: string }[] = [
+  { patron: 'SESION_YA_CERRADA', texto: 'Esta partida ya fue registrada' },
+  { patron: 'SESION_INVALIDA', texto: 'La partida expiró, vuelve a canjear tu código' },
+  { patron: 'DATOS_INCOMPLETOS', texto: 'Completa nickname, nombre y teléfono' },
+  { patron: 'PUNTAJE_INVALIDO', texto: 'El puntaje no es válido' },
+  { patron: 'NO_AUTORIZADO', texto: 'Esta partida es de otro jugador' },
+];
 
 const PENDING_KEY = 'sugu_pending_scores';
 
@@ -95,19 +156,73 @@ function readPending(): ScoreSubmission[] {
   }
 }
 
-/** Guarda el registro en la cola local; se migrará a la BD cuando exista. */
-export async function submitScore(s: ScoreSubmission): Promise<void> {
+function guardarLocal(s: ScoreSubmission): void {
+  if (typeof window === 'undefined') return;
   const pending = readPending();
   pending.push(s);
   localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
 }
 
 /**
- * Tabla de posiciones. TODO(BD): sustituir por la consulta al ranking global;
- * hoy son las partidas registradas en este dispositivo.
+ * Cierra la partida en la base con `finish_session`. La copia local se guarda
+ * siempre: sirve de respaldo si la red falla y de ranking cuando no hay BD.
  */
-export function getTopScores(limit = 10): ScoreSubmission[] {
+export async function submitScore(s: ScoreSubmission): Promise<RegistroResultado> {
+  guardarLocal(s);
+
+  const sb = getSupabase();
+  if (!sb || !sesionActual) return { ok: true };
+
+  const { error } = await sb.rpc('finish_session', {
+    p_session_id: sesionActual,
+    p_score: s.score,
+    p_nickname: s.nickname,
+    p_full_name: s.name,
+    p_phone: s.phone,
+  });
+
+  if (!error) {
+    sesionActual = null;
+    return { ok: true };
+  }
+
+  const conocido = MENSAJES_CIERRE.find((m) => error.message.includes(m.patron));
+  return {
+    ok: false,
+    mensaje: conocido?.texto ?? 'No se pudo registrar tu partida, inténtalo de nuevo',
+  };
+}
+
+// ---------------------------------------------------------------------
+// Tabla de posiciones
+// ---------------------------------------------------------------------
+
+export interface RankEntry {
+  nickname: string;
+  score: number;
+}
+
+/** Partidas registradas en este dispositivo: respaldo cuando no hay BD. */
+function rankingLocal(limit: number): RankEntry[] {
   return readPending()
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+    .slice(0, limit)
+    .map((s) => ({ nickname: s.nickname, score: s.score }));
+}
+
+/**
+ * Ranking global (`get_ranking`): un jugador ocupa un solo puesto, con su
+ * mejor partida. Devuelve únicamente nickname y puntaje.
+ */
+export async function getRanking(limit = 10): Promise<RankEntry[]> {
+  const sb = getSupabase();
+  if (!sb) return rankingLocal(limit);
+
+  const { data, error } = await sb.rpc('get_ranking', { p_limit: limit });
+  if (error || !Array.isArray(data)) return rankingLocal(limit);
+
+  return (data as { jugador: string | null; puntaje: number }[]).map((r) => ({
+    nickname: r.jugador ?? 'Anónimo',
+    score: r.puntaje,
+  }));
 }
