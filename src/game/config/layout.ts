@@ -39,8 +39,12 @@ export const RULES = {
   /**
    * Derrota "no puede ingresar": ms que una pieza asentada puede quedar por
    * encima de la línea (sobresaliendo de la caja) antes de perder.
+   *
+   * 2026-08-02: 1500 -> 3000. Con segundo y medio no daba tiempo a reaccionar;
+   * ahora el renderer pinta la cuenta atrás para que se pueda intentar
+   * arreglar la pila antes de que llegue a cero.
    */
-  dangerGraceMs: 1500,
+  dangerGraceMs: 3000,
   /**
    * Derrota "se sale": margen fuera de la caja a partir del cual una pieza
    * cuenta como escapada — derrota inmediata, sin gracia.

@@ -1,4 +1,5 @@
 import { Application, Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
+import type { Body } from 'matter-js';
 import gsap from 'gsap';
 import {
   BOARD_BOTTOM,
@@ -37,7 +38,14 @@ export class Renderer {
   private boardGfx = new Graphics();
   private dangerGfx = new Graphics();
   private aimGfx = new Graphics();
+  private autoDropGfx = new Graphics();
+  private debugGfx = new Graphics();
   private ghost: Sprite | null = null;
+  private warnNum: Text | null = null;
+  private warnLabel: Text | null = null;
+
+  /** Vista de colliders: ?debug en la URL, o la tecla D. */
+  private debug = false;
 
   private sprites = new Map<number, Sprite>();
   private scale = 1;
@@ -71,9 +79,16 @@ export class Renderer {
       this.boardLayer,
       this.pieceLayer,
       this.guideLayer,
-      this.fxLayer
+      this.fxLayer,
+      // la barra de lanzamiento va sobre la ficha fantasma, nunca debajo
+      this.autoDropGfx,
+      // encima de todo: los colliders deben verse sobre los sprites
+      this.debugGfx
     );
     this.app.stage.addChild(this.world);
+
+    this.debug = new URLSearchParams(window.location.search).has('debug');
+    window.addEventListener('keydown', this.alTeclear);
 
     this.boardLayer.addChild(this.boardGfx, this.dangerGfx);
     this.guideLayer.addChild(this.aimGfx);
@@ -91,6 +106,7 @@ export class Renderer {
   destroy() {
     window.removeEventListener('resize', this.alRedimensionar);
     window.removeEventListener('orientationchange', this.alRedimensionar);
+    window.removeEventListener('keydown', this.alTeclear);
     gsap.killTweensOf([...this.sprites.values()]);
     this.sprites.clear();
     this.app?.destroy(true, { children: true, texture: false });
@@ -240,7 +256,12 @@ export class Renderer {
   /**
    * Guía de tiro. `autoDropFrac` (0..1) es el avance del temporizador de
    * lanzamiento automático: dibuja una barrita bajo la pieza fantasma que se
-   * va vaciando; en rojo cuando queda poco.
+   * va vaciando.
+   *
+   * La barra se pinta en su propia capa, por encima de la ficha fantasma, con
+   * borde y colores de semáforo (verde -> ámbar -> rojo). Antes iba en la capa
+   * de la guía, con 5px de alto y sin contorno: se perdía contra el arte y no
+   * se distinguía el color, que es justo lo que avisa de que va a soltarse.
    */
   showAim(x: number, tier: number, autoDropFrac = 0) {
     const r = tierAt(tier).radius;
@@ -252,19 +273,23 @@ export class Renderer {
     }
     this.aimGfx.fill({ color: 0xe05a4c, alpha: 0.5 });
 
+    this.autoDropGfx.clear();
     if (autoDropFrac > 0) {
-      const remaining = Math.max(0, 1 - autoDropFrac);
-      const bw = 54;
-      const bh = 5;
-      const by = DESIGN.dropY + r * SPRITE_SCALE + 10;
-      const low = remaining < 0.3;
-      this.aimGfx
-        .roundRect(cx - bw / 2, by, bw, bh, 3)
-        .fill({ color: 0x000000, alpha: 0.35 });
-      if (remaining > 0) {
-        this.aimGfx
-          .roundRect(cx - bw / 2, by, bw * remaining, bh, 3)
-          .fill({ color: low ? 0xe05a4c : 0xf2c14e, alpha: 0.9 });
+      const restante = Math.max(0, 1 - autoDropFrac);
+      const bw = 66;
+      const bh = 9;
+      const by = DESIGN.dropY + r * SPRITE_SCALE + 12;
+      const color = restante > 0.5 ? 0x8bb04a : restante > 0.25 ? 0xf2c14e : 0xe05a4c;
+
+      this.autoDropGfx
+        .roundRect(cx - bw / 2, by, bw, bh, bh / 2)
+        .fill({ color: 0x1a120b, alpha: 0.75 })
+        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.55 });
+
+      if (restante > 0) {
+        this.autoDropGfx
+          .roundRect(cx - bw / 2 + 1.5, by + 1.5, (bw - 3) * restante, bh - 3, (bh - 3) / 2)
+          .fill({ color, alpha: 1 });
       }
     }
 
@@ -283,7 +308,66 @@ export class Renderer {
 
   hideAim() {
     this.aimGfx.clear();
+    this.autoDropGfx.clear();
     if (this.ghost) this.ghost.visible = false;
+  }
+
+  // ---------- aviso de derrota inminente ----------
+
+  /**
+   * Cuenta atrás de la derrota "no cabe": mientras haya una pieza asentada por
+   * encima de la línea roja, avisa los segundos que quedan para que dé tiempo
+   * a fusionar algo y bajar la pila. `null` lo oculta.
+   *
+   * Va en la capa de la guía (sobre las piezas) y late una vez por segundo,
+   * para que se note sin tapar el tablero.
+   */
+  showDangerCountdown(msLeft: number | null) {
+    if (msLeft === null) {
+      if (this.warnNum) this.warnNum.visible = false;
+      if (this.warnLabel) this.warnLabel.visible = false;
+      return;
+    }
+
+    if (!this.warnNum) {
+      this.warnLabel = new Text({
+        text: '¡NO CABE!',
+        style: new TextStyle({
+          fontFamily: 'Trebuchet MS, sans-serif',
+          fontSize: 17,
+          fontWeight: '900',
+          letterSpacing: 2,
+          fill: 0xffffff,
+          stroke: { color: 0x8c1f16, width: 5 },
+        }),
+      });
+      this.warnLabel.anchor.set(0.5);
+      this.warnLabel.position.set(DESIGN.width / 2, BOARD_TOP + 42);
+
+      this.warnNum = new Text({
+        text: '3',
+        style: new TextStyle({
+          fontFamily: 'Trebuchet MS, sans-serif',
+          fontSize: 62,
+          fontWeight: '900',
+          fill: 0xe05a4c,
+          stroke: { color: 0xffffff, width: 6 },
+        }),
+      });
+      this.warnNum.anchor.set(0.5);
+      this.warnNum.position.set(DESIGN.width / 2, BOARD_TOP + 96);
+
+      this.guideLayer.addChild(this.warnLabel, this.warnNum);
+    }
+
+    const segundos = Math.max(1, Math.ceil(msLeft / 1000));
+    // 1 -> 0 dentro de cada segundo: el número entra grande y se asienta
+    const avance = 1 - ((msLeft % 1000) / 1000);
+
+    this.warnNum!.text = String(segundos);
+    this.warnNum!.scale.set(1.35 - 0.35 * Math.min(1, avance * 3));
+    this.warnNum!.visible = true;
+    this.warnLabel!.visible = true;
   }
 
   // ---------- piezas ----------
@@ -329,6 +413,53 @@ export class Renderer {
         onComplete: () => sp.destroy(),
       });
     }
+  }
+
+  // ---------- vista de colisiones (depuración) ----------
+
+  /**
+   * ¿Está encendida la vista de colliders? Se consulta antes de recolectar los
+   * cuerpos para no pagar ese trabajo en cada frame con el juego normal.
+   */
+  get debugVisible(): boolean {
+    return this.debug;
+  }
+
+  setDebug(on: boolean) {
+    this.debug = on;
+    if (!on) this.debugGfx.clear();
+  }
+
+  private alTeclear = (e: KeyboardEvent) => {
+    if (e.key !== 'd' && e.key !== 'D') return;
+    this.debug = !this.debug;
+    if (!this.debug) this.debugGfx.clear();
+  };
+
+  /**
+   * Dibuja las formas REALES con las que choca Matter, no una aproximación:
+   * los vértices de las paredes y el `circleRadius` de cada pieza. Si un
+   * collider no calza con su dibujo, aquí se ve al instante.
+   *
+   * El radio pintado desde el centro marca la rotación del cuerpo.
+   */
+  drawDebug(pieces: Body[], walls: Body[]) {
+    const g = this.debugGfx;
+    g.clear();
+    if (!this.debug) return;
+
+    for (const w of walls) {
+      g.poly(w.vertices.map((v) => ({ x: v.x, y: v.y })));
+    }
+    g.stroke({ width: 1.5, color: 0xff9d3c, alpha: 0.75 });
+
+    for (const p of pieces) {
+      const r = p.circleRadius ?? 0;
+      g.circle(p.position.x, p.position.y, r);
+      g.moveTo(p.position.x, p.position.y);
+      g.lineTo(p.position.x + Math.cos(p.angle) * r, p.position.y + Math.sin(p.angle) * r);
+    }
+    g.stroke({ width: 1.5, color: 0x3cff7a, alpha: 0.9 });
   }
 
   // ---------- efectos ----------

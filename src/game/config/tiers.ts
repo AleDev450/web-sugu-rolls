@@ -31,8 +31,18 @@ export interface Tier {
   id: string;
   name: string;
   kind: TierKind;
-  /** radio del cuerpo físico, en unidades de diseño */
+  /** radio del dibujo, en unidades de diseño */
   radius: number;
+  /**
+   * Radio del collider como fracción de `radius`. Ausente o 1 = el círculo de
+   * colisión coincide con el dibujo.
+   *
+   * Se baja en las piezas cuyo arte no llena el círculo —el onigiri es un
+   * triángulo, los rolls dejan las esquinas vacías— para que se apilen más
+   * juntas y no parezca que chocan contra el aire. NO cambia el tamaño del
+   * sprite: solo la física. Con la tecla D se ve el círculo resultante.
+   */
+  hitScale?: number;
   /** puntos que otorga CREAR esta pieza al fusionar */
   points: number;
   /** clave en ASSETS.sushi */
@@ -53,6 +63,7 @@ export const TIERS: Tier[] = [
     name: 'Onigiri',
     kind: 'onigiri',
     radius: 20,
+    hitScale: 0.88,
     points: 10,
     sprite: '01-onigiri',
     palette: { base: '#fbf6ec', accent: '#e9dcc4', wrap: '#2b3540' },
@@ -63,6 +74,7 @@ export const TIERS: Tier[] = [
     name: 'Gyoza',
     kind: 'gyoza',
     radius: 26,
+    hitScale: 0.9,
     points: 30,
     sprite: '02-gyoza',
     palette: { base: '#f3e6c8', accent: '#dcc79b', wrap: '#c9ad7c' },
@@ -85,6 +97,8 @@ export const TIERS: Tier[] = [
     name: 'Temaki',
     kind: 'futomaki',
     radius: 42,
+    // cono en diagonal: dos esquinas del cuadro quedan completamente vacías
+    hitScale: 0.84,
     points: 100,
     sprite: '04-temaki',
     palette: { base: '#1a2129', accent: '#f2c14e', fill: '#f2c14e' },
@@ -95,6 +109,7 @@ export const TIERS: Tier[] = [
     name: 'Ebi Roll',
     kind: 'roll',
     radius: 50,
+    hitScale: 0.86,
     points: 150,
     sprite: '05-ebi-roll',
     palette: { base: '#fbf6ec', accent: '#f4956b', fill: '#f4956b' },
@@ -106,6 +121,7 @@ export const TIERS: Tier[] = [
     name: 'Poke Bowl',
     kind: 'california',
     radius: 60,
+    hitScale: 0.9,
     points: 210,
     sprite: '06-pokebowl',
     palette: { base: '#fbf6ec', accent: '#f4784f', wrap: '#e6c98f' },
@@ -116,6 +132,7 @@ export const TIERS: Tier[] = [
     name: 'Dragon Roll',
     kind: 'dragon',
     radius: 71,
+    hitScale: 0.86,
     points: 280,
     sprite: '07-dragon-roll',
     palette: { base: '#a4d07a', accent: '#8bb04a', wrap: '#7fae4f' },
@@ -126,6 +143,7 @@ export const TIERS: Tier[] = [
     name: 'Acevichado Roll',
     kind: 'acevichado',
     radius: 83,
+    hitScale: 0.84,
     points: 360,
     sprite: '08-acevichado-roll',
     palette: { base: '#f4b06b', accent: '#f4784f', wrap: '#f2a84e' },
@@ -136,6 +154,7 @@ export const TIERS: Tier[] = [
     name: 'Sugu Especial',
     kind: 'especial',
     radius: 96,
+    hitScale: 0.9,
     points: 450,
     sprite: '09-sugu-especial',
     palette: { base: '#f7d9a0', accent: '#f4784f', wrap: '#e8a04f' },
@@ -146,6 +165,8 @@ export const TIERS: Tier[] = [
     name: 'Sugu Supreme',
     kind: 'supreme',
     radius: 110,
+    // cilindro de esquinas redondeadas: el círculo que lo envuelve sobra mucho
+    hitScale: 0.8,
     points: 550,
     sprite: '10-sugu-supreme',
     palette: { base: '#f2c14e', accent: '#f4784f', wrap: '#d99b28' },
@@ -173,4 +194,13 @@ export function rollSpawnTier(
 
 export function tierAt(index: number): Tier {
   return TIERS[Math.max(0, Math.min(MAX_TIER, index))];
+}
+
+/**
+ * Radio del cuerpo físico. Es el único que debe usar la física; el renderer
+ * dibuja con `radius` a secas, que es el tamaño visible de la pieza.
+ */
+export function hitRadius(index: number): number {
+  const t = tierAt(index);
+  return t.radius * (t.hitScale ?? 1);
 }

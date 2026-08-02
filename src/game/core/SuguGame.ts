@@ -5,6 +5,7 @@ import { VipDirector } from './VipDirector';
 import { loadGameAssets } from '@/game/assets/loader';
 import { play, haptic, unlockAudio } from '@/game/audio/audio';
 import {
+  BOARD_BOTTOM,
   BOARD_LEFT,
   BOARD_RIGHT,
   DANGER_Y,
@@ -12,7 +13,7 @@ import {
   PHYSICS,
   RULES,
 } from '@/game/config/layout';
-import { MAX_TIER, tierAt } from '@/game/config/tiers';
+import { MAX_TIER, TIERS, hitRadius, tierAt } from '@/game/config/tiers';
 import { VIP } from '@/game/config/vip';
 import { useGameStore } from '@/store/useGameStore';
 
@@ -39,8 +40,25 @@ export class SuguGame {
   /** ms que la ficha actual lleva esperando; al llegar a autoDropMs se lanza sola */
   private autoDropMs = 0;
 
-  private dangerSince = 0;
+  /**
+   * Tiempo ACUMULADO en peligro, sumando dtMs del ticker — no un instante de
+   * `performance.now()`.
+   *
+   * Con reloj de pared, el rato que el juego pasa sin correr (en pausa, o con
+   * la pestaña en segundo plano porque bloqueaste el móvil) contaba igual: al
+   * volver, la resta ya superaba la gracia y la partida moría sola, sin que la
+   * pila hubiera cambiado. Sumando dtMs, el contador solo avanza mientras se
+   * está jugando de verdad.
+   */
+  private dangerMs = 0;
   private dangerActive = false;
+  /** último segundo anunciado de la cuenta atrás, para no repetir el aviso */
+  private dangerBeep = 0;
+
+  /** muestrario de colliders abierto: ni se suelta ficha ni se puede perder */
+  private inspeccion = false;
+  /** últimas flechas pulsadas, para detectar el combo del muestrario */
+  private flechas: string[] = [];
 
   private disposed = false;
   private unsubStatus?: () => void;
@@ -87,19 +105,21 @@ export class SuguGame {
   private tick(dtMs: number) {
     if (this.disposed) return;
     const st = useGameStore.getState();
-    const now = performance.now();
 
     if (st.status === 'playing') {
       // KOYA baja la gravedad; el festival la sube un poco
       this.physics.engine.gravity.y = PHYSICS.gravityY * this.director.gravityFactor();
       this.physics.update(dtMs);
       this.director.update(dtMs);
-      this.updateDefeat(now);
+      this.updateDefeat(dtMs);
       this.updateAutoDrop(dtMs);
       this.updateAim();
     }
 
     this.renderer.sync(this.physics.pieces);
+    if (this.renderer.debugVisible) {
+      this.renderer.drawDebug(this.physics.pieces, this.physics.walls);
+    }
   }
 
   /**
@@ -127,7 +147,10 @@ export class SuguGame {
    * - una pieza se SALE del rectángulo -> fin inmediato
    * - una pieza asentada NO CABE (sobresale por la línea) durante la gracia
    */
-  private updateDefeat(now: number) {
+  private updateDefeat(dtMs: number) {
+    // el muestrario apila piezas que no caben a propósito: no se pierde
+    if (this.inspeccion) return;
+
     if (this.physics.escapedPieces().length > 0) {
       this.endRun();
       return;
@@ -137,22 +160,40 @@ export class SuguGame {
 
     if (over && !this.dangerActive) {
       this.dangerActive = true;
-      this.dangerSince = now;
+      this.dangerMs = 0;
+      this.dangerBeep = 0;
       this.renderer.setDanger(true);
     } else if (!over && this.dangerActive) {
       this.dangerActive = false;
-      this.dangerSince = 0;
+      this.dangerMs = 0;
       this.renderer.setDanger(false);
+      this.renderer.showDangerCountdown(null);
     }
 
-    if (this.dangerActive && now - this.dangerSince > RULES.dangerGraceMs) {
+    if (!this.dangerActive) return;
+
+    this.dangerMs += dtMs;
+    const restante = RULES.dangerGraceMs - this.dangerMs;
+    if (restante <= 0) {
       this.endRun();
+      return;
+    }
+
+    // Aviso para que dé tiempo a reaccionar: cuenta atrás en pantalla y un
+    // toque por segundo, que en el móvil es lo que de verdad se nota.
+    this.renderer.showDangerCountdown(restante);
+    const segundo = Math.ceil(restante / 1000);
+    if (segundo !== this.dangerBeep) {
+      this.dangerBeep = segundo;
+      play('combo');
+      haptic(25);
     }
   }
 
   private endRun() {
     this.dangerActive = false;
     this.renderer.setDanger(false);
+    this.renderer.showDangerCountdown(null);
     this.renderer.hideAim();
     play('gameover');
     haptic(60);
@@ -168,10 +209,14 @@ export class SuguGame {
   private clearBoard() {
     this.physics.clearPieces();
     this.dangerActive = false;
-    this.dangerSince = 0;
+    this.dangerMs = 0;
+    this.dangerBeep = 0;
+    this.inspeccion = false;
+    this.flechas = [];
     this.dropLocked = false;
     this.autoDropMs = 0;
     this.renderer.setDanger(false);
+    this.renderer.showDangerCountdown(null);
   }
 
   // ---------- soltar pieza ----------
@@ -271,6 +316,8 @@ export class SuguGame {
     c.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
     window.addEventListener('pointercancel', this.onPointerUp);
+    window.addEventListener('keydown', this.alFlecha);
+    document.addEventListener('visibilitychange', this.alOcultarse);
     c.style.touchAction = 'none';
   }
 
@@ -280,7 +327,98 @@ export class SuguGame {
     c?.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
     window.removeEventListener('pointercancel', this.onPointerUp);
+    window.removeEventListener('keydown', this.alFlecha);
+    document.removeEventListener('visibilitychange', this.alOcultarse);
   }
+
+  // ---------- muestrario de colisiones ----------
+
+  /** ↑ ↑ ↓ ↓ ← ← → → */
+  private static COMBO = [
+    'ArrowUp',
+    'ArrowUp',
+    'ArrowDown',
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowLeft',
+    'ArrowRight',
+    'ArrowRight',
+  ];
+
+  private alFlecha = (e: KeyboardEvent) => {
+    if (!e.key.startsWith('Arrow')) return;
+    const combo = SuguGame.COMBO;
+
+    this.flechas.push(e.key);
+    if (this.flechas.length > combo.length) this.flechas.shift();
+    if (this.flechas.length < combo.length) return;
+    if (!combo.every((k, i) => this.flechas[i] === k)) return;
+
+    this.flechas = [];
+    this.mostrarMuestrario();
+  };
+
+  /**
+   * Vacía el tablero y coloca UNA pieza de cada tier, empaquetadas de mayor a
+   * menor desde el suelo, con la vista de colliders encendida.
+   *
+   * Las posiciones se calculan con el radio del COLLIDER, no con el del
+   * dibujo: así las piezas quedan justo tocándose y se ve de un vistazo cuánto
+   * se solapan los sprites con el `hitScale` de cada una.
+   *
+   * Mientras el muestrario está abierto no se sueltan fichas ni se puede
+   * perder — es para mirar, no para jugar. Se sale empezando otra partida.
+   */
+  private mostrarMuestrario() {
+    if (useGameStore.getState().status !== 'playing') return;
+
+    this.physics.clearPieces();
+    this.inspeccion = true;
+    this.dropLocked = true;
+    this.dangerActive = false;
+    this.dangerMs = 0;
+    this.renderer.setDanger(false);
+    this.renderer.showDangerCountdown(null);
+    this.renderer.hideAim();
+    this.renderer.setDebug(true);
+
+    const margen = 4;
+    const ancho = DESIGN.board.w - margen * 2;
+    const diametro = (tier: number) => hitRadius(tier) * 2;
+    const anchoFila = (fila: number[]) => fila.reduce((s, t) => s + diametro(t), 0);
+
+    // de mayor a menor, cada pieza al primer renglón donde quepa
+    const filas: number[][] = [];
+    for (const tier of TIERS.map((t) => t.index).sort((a, b) => diametro(b) - diametro(a))) {
+      const fila = filas.find((f) => anchoFila(f) + diametro(tier) <= ancho);
+      if (fila) fila.push(tier);
+      else filas.push([tier]);
+    }
+
+    // los renglones se apilan desde el suelo, el más alto abajo
+    let base = BOARD_BOTTOM;
+    for (const fila of filas) {
+      const alto = Math.max(...fila.map(diametro));
+      let x = BOARD_LEFT + margen + (ancho - anchoFila(fila)) / 2;
+      for (const tier of fila) {
+        const r = hitRadius(tier);
+        this.physics.spawn(tier, x + r, base - alto / 2);
+        x += r * 2;
+      }
+      base -= alto;
+    }
+  }
+
+  /**
+   * Bloquear el móvil, atender una llamada o cambiar de app deja al navegador
+   * sin `requestAnimationFrame`: el juego se congela en mitad de la partida.
+   * Se pausa solo para volver a la ventana de pausa, no a un tablero muerto.
+   */
+  private alOcultarse = () => {
+    if (document.visibilityState !== 'hidden') return;
+    const st = useGameStore.getState();
+    if (st.status === 'playing') st.pause();
+  };
 
   private onPointerDown = (e: PointerEvent) => {
     if (useGameStore.getState().status !== 'playing') return;

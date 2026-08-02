@@ -27,10 +27,13 @@ export function normalizeAccessCode(raw: string): string {
 }
 
 /**
- * Código de respaldo para desarrollo: solo sirve cuando no hay Supabase
- * configurado o la función `redeem_code` todavía no está desplegada.
+ * Código de pruebas. Entra al juego sin tocar la base: no canjea nada, no abre
+ * sesión y la partida NO se registra ni sale en el ranking. Sirve para probar
+ * el juego sin gastar códigos reales.
+ *
+ * `random_code` nunca puede generarlo: su alfabeto no tiene 0 ni 1.
  */
-const CODIGO_DEMO = '123456';
+const CODIGO_PRUEBAS = '123456';
 
 /** Datos que la base ya conoce del jugador (si canjeó estando logueado). */
 export interface DatosJugador {
@@ -44,6 +47,8 @@ export interface CanjeResultado {
   /** Mensaje listo para pintar en la ventana cuando `ok` es false. */
   mensaje?: string;
   jugador?: DatosJugador;
+  /** Se entró con el código de pruebas: la partida no se registrará. */
+  prueba?: boolean;
 }
 
 const MENSAJES_CANJE: Record<string, string> = {
@@ -83,30 +88,42 @@ function idDeEsteNavegador(): string | null {
  */
 let sesionActual: string | null = null;
 
+/** La partida en curso se abrió con el código de pruebas. */
+let modoPruebas = false;
+
 export function getSessionId(): string | null {
   return sesionActual;
 }
 
-function canjeLocal(code: string): CanjeResultado {
+export function esModoPruebas(): boolean {
+  return modoPruebas;
+}
+
+function entrarEnPruebas(): CanjeResultado {
   sesionActual = null;
-  return code === CODIGO_DEMO
-    ? { ok: true }
-    : { ok: false, mensaje: MENSAJES_CANJE.CODIGO_INVALIDO };
+  modoPruebas = true;
+  return { ok: true, prueba: true };
 }
 
 /**
- * Canjea el código contra `redeem_code` (un código = una partida). Si Supabase
- * no está configurado —o la función aún no existe en la base— cae al código de
- * demo para no dejar el juego sin entrada.
+ * Canjea el código contra `redeem_code` (un código = una partida).
+ *
+ * `CODIGO_PRUEBAS` corta antes de llegar a la base: entra al juego sin canjear
+ * nada. Si Supabase no está configurado —o la función aún no existe— solo se
+ * puede entrar con ese código, para no dejar el juego sin puerta.
  */
 export async function redeemAccessCode(raw: string): Promise<CanjeResultado> {
   const code = normalizeAccessCode(raw);
+  modoPruebas = false;
+
+  if (code === CODIGO_PRUEBAS) return entrarEnPruebas();
+
   if (code.length < CODE_LENGTH) {
     return { ok: false, mensaje: MENSAJES_CANJE.CODIGO_INVALIDO };
   }
 
   const sb = getSupabase();
-  if (!sb) return canjeLocal(code);
+  if (!sb) return { ok: false, mensaje: MENSAJES_CANJE.CODIGO_INVALIDO };
 
   let { data, error } = await sb.rpc('redeem_code', {
     p_code: code,
@@ -122,7 +139,7 @@ export async function redeemAccessCode(raw: string): Promise<CanjeResultado> {
   if (error?.code === 'PGRST202') {
     ({ data, error } = await sb.rpc('redeem_code', { p_code: code }));
   }
-  if (error) return canjeLocal(code);
+  if (error) return { ok: false, mensaje: MENSAJES_CANJE.CODIGO_INVALIDO };
 
   const fila = (Array.isArray(data) ? data[0] : data) as
     | {
@@ -134,7 +151,7 @@ export async function redeemAccessCode(raw: string): Promise<CanjeResultado> {
         player_phone: string | null;
       }
     | undefined;
-  if (!fila) return canjeLocal(code);
+  if (!fila) return { ok: false, mensaje: MENSAJES_CANJE.CODIGO_INVALIDO };
 
   if (!fila.ok) {
     sesionActual = null;
@@ -171,6 +188,8 @@ export interface ScoreSubmission {
 export interface RegistroResultado {
   ok: boolean;
   mensaje?: string;
+  /** Partida de pruebas: no se guardó en ningún sitio. */
+  prueba?: boolean;
 }
 
 const MENSAJES_CIERRE: { patron: string; texto: string }[] = [
@@ -203,8 +222,15 @@ function guardarLocal(s: ScoreSubmission): void {
 /**
  * Cierra la partida en la base con `finish_session`. La copia local se guarda
  * siempre: sirve de respaldo si la red falla y de ranking cuando no hay BD.
+ *
+ * En modo de pruebas no se guarda NADA —ni en la base ni en el respaldo
+ * local—: esas partidas no deben ensuciar el ranking.
  */
 export async function submitScore(s: ScoreSubmission): Promise<RegistroResultado> {
+  if (modoPruebas) {
+    return { ok: true, prueba: true, mensaje: 'Modo de pruebas: la partida no se registró' };
+  }
+
   guardarLocal(s);
 
   const sb = getSupabase();

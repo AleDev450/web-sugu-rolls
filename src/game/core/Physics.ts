@@ -15,7 +15,7 @@ import {
   PHYSICS,
   RULES,
 } from '@/game/config/layout';
-import { MAX_TIER, tierAt } from '@/game/config/tiers';
+import { MAX_TIER, hitRadius, tierAt } from '@/game/config/tiers';
 
 export interface PieceData {
   uid: number;
@@ -105,6 +105,11 @@ export class Physics {
     );
   }
 
+  /** Paredes y suelo. Solo lo usa la vista de depuración. */
+  get walls(): Body[] {
+    return Composite.allBodies(this.engine.world).filter((b) => b.isStatic);
+  }
+
   /**
    * Cambia el rebote de TODAS las piezas (las presentes y las que nazcan
    * mientras dure el factor). `1` restaura el valor base.
@@ -116,7 +121,7 @@ export class Physics {
 
   spawn(tier: number, x: number, y: number): SuguBody {
     const t = tierAt(tier);
-    const body = Bodies.circle(x, y, t.radius, {
+    const body = Bodies.circle(x, y, hitRadius(tier), {
       restitution: PHYSICS.restitution * this.restitutionFactor,
       friction: PHYSICS.friction,
       frictionStatic: PHYSICS.frictionStatic,
@@ -187,7 +192,7 @@ export class Physics {
       if (now - b.sugu.bornAt < RULES.dangerImmunityMs) return false;
       const speed = Math.hypot(b.velocity.x, b.velocity.y);
       if (speed > PHYSICS.restSpeed) return false;
-      return b.position.y - tierAt(b.sugu.tier).radius < lineY;
+      return b.position.y - hitRadius(b.sugu.tier) < lineY;
     });
   }
 

@@ -5,6 +5,7 @@ import { TIERS } from '@/game/config/tiers';
 import { assetUrl } from '@/game/assets/manifest';
 import {
   CODE_LENGTH,
+  esModoPruebas,
   getRanking,
   normalizeAccessCode,
   redeemAccessCode,
@@ -295,9 +296,12 @@ export function GameOverFormOverlay({
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
 
+  const prueba = esModoPruebas();
+
   const send = async () => {
     if (sent || sending) return;
-    if (!nickname.trim() || !name.trim() || phone.replace(/\D/g, '').length < 6) {
+    // en pruebas no se pide nada: la partida no se guarda en ningún sitio
+    if (!prueba && (!nickname.trim() || !name.trim() || phone.replace(/\D/g, '').length < 6)) {
       setFeedback({ ok: false, text: 'Completa nickname, nombre y un teléfono válido' });
       return;
     }
@@ -318,7 +322,10 @@ export function GameOverFormOverlay({
       return;
     }
     setSent(true);
-    setFeedback({ ok: true, text: '¡Partida registrada!' });
+    setFeedback({
+      ok: true,
+      text: res.prueba ? res.mensaje ?? 'Modo de pruebas' : '¡Partida registrada!',
+    });
     setTimeout(onMenu, 1200);
   };
 
@@ -332,6 +339,7 @@ export function GameOverFormOverlay({
           draggable={false}
         />
         <div className="go-score">{score.toLocaleString('es')}</div>
+        {prueba && <span className="go-prueba">MODO DE PRUEBAS · NO SE REGISTRA</span>}
         <input
           className="go-input"
           style={{ top: '51.7%' }}
