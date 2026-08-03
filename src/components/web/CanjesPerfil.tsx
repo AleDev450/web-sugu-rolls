@@ -9,6 +9,7 @@ import {
   type Canje,
   type Recompensa,
 } from '@/lib/tienda';
+import { SeccionPerfil, Vacio } from './SeccionPerfil';
 
 const ICONO = {
   descuento: Percent,
@@ -77,12 +78,18 @@ export function CanjesPerfil({ saldo, alCanjear }: { saldo: number; alCanjear: (
   };
 
   return (
-    <section className="mt-12">
-      <h2 className="text-xl font-bold tracking-tight">Canjea tus puntos</h2>
-
+    <SeccionPerfil
+      titulo="Canjea tus puntos"
+      icono={Gift}
+      accion={
+        <span className="text-[13px] text-bone-dim">
+          Tienes <b className="text-white">{saldo.toLocaleString('es')}</b> puntos
+        </span>
+      }
+    >
       {aviso && (
         <p
-          className={`mt-4 rounded-xl border px-4 py-3 text-[13px] ${
+          className={`mb-5 rounded-xl border px-4 py-3 text-[13px] ${
             aviso.ok
               ? 'border-emerald-600/40 bg-emerald-600/10 text-emerald-400'
               : 'border-sugu/40 bg-sugu/10 text-sugu'
@@ -93,20 +100,20 @@ export function CanjesPerfil({ saldo, alCanjear }: { saldo: number; alCanjear: (
       )}
 
       {!catalogo ? (
-        <p className="card mt-5 p-12 text-center text-sm text-bone-dim">Cargando canjes…</p>
+        <p className="py-10 text-center text-sm text-bone-dim">Cargando canjes…</p>
       ) : catalogo.length === 0 ? (
-        <p className="card mt-5 p-12 text-center text-sm text-bone-dim">
-          Todavía no hay canjes disponibles. Vuelve pronto.
-        </p>
+        <Vacio icono={Gift} texto="Todavía no hay canjes disponibles. Vuelve pronto." />
       ) : (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {catalogo.map((r) => {
             const Icono = ICONO[r.tipo];
             const alcanza = saldo >= r.costo_puntos;
             return (
               <article
                 key={r.id}
-                className={`card flex flex-col p-6 transition-opacity ${alcanza ? '' : 'opacity-60'}`}
+                className={`flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-opacity ${
+                  alcanza ? '' : 'opacity-55'
+                }`}
               >
                 <header className="flex items-start gap-4">
                   <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-sugu/10">
@@ -141,12 +148,14 @@ export function CanjesPerfil({ saldo, alCanjear }: { saldo: number; alCanjear: (
 
       {mios.length > 0 && (
         <>
-          <h3 className="mt-10 text-lg font-bold tracking-tight">Mis canjes</h3>
+          <h3 className="mt-8 text-[11px] font-bold uppercase tracking-[0.2em] text-bone-dim">
+            Mis canjes
+          </h3>
           <ul className="mt-4 grid gap-3">
             {mios.map((c) => (
               <li
                 key={c.id}
-                className="card flex flex-wrap items-center justify-between gap-4 p-5"
+                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5"
               >
                 <div className="min-w-0">
                   <p className="font-semibold">{c.nombre}</p>
@@ -176,6 +185,6 @@ export function CanjesPerfil({ saldo, alCanjear }: { saldo: number; alCanjear: (
           </ul>
         </>
       )}
-    </section>
+    </SeccionPerfil>
   );
 }

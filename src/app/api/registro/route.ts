@@ -31,7 +31,9 @@ const limpio = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
 export async function POST(req: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const clave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // los proyectos nuevos la llaman `sb_secret_...` (SUPABASE_SECRET_KEY);
+  // los antiguos, service_role. Sirven igual.
+  const clave = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !clave) {
     return NextResponse.json(

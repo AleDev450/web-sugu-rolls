@@ -206,7 +206,7 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
--- Niveles de tarjeta: NORMAL -> ORO -> PLATINO -> BLACK.
+-- Niveles del Sugu Club: BRONCE -> PLATA -> ORO -> PLATINO -> BLACK.
 --
 -- El nivel se calcula con los puntos GANADOS DE POR VIDA (la suma de los
 -- movimientos positivos), NO con el saldo disponible.
@@ -216,8 +216,8 @@ $$;
 -- nivel premia cuánto has comprado y el saldo es lo que te queda por gastar,
 -- que son dos cosas distintas.
 --
--- Con `puntos_por_sol` = 1, los cortes equivalen a S/500, S/1500 y S/3000
--- gastados en total.
+-- Con `puntos_por_sol` = 1, los cortes equivalen a S/300, S/800, S/2000 y
+-- S/4000 gastados en total.
 -- ---------------------------------------------------------------------
 create or replace function public.corte_nivel(p_nivel text)
 returns integer
@@ -225,10 +225,11 @@ language sql
 immutable
 as $$
   select case p_nivel
-    when 'normal'  then 0
-    when 'oro'     then 500
-    when 'platino' then 1500
-    when 'black'   then 3000
+    when 'bronce'  then 0
+    when 'plata'   then 300
+    when 'oro'     then 800
+    when 'platino' then 2000
+    when 'black'   then 4000
   end;
 $$;
 
@@ -255,7 +256,8 @@ as $$
     when coalesce(p_ganados, 0) >= public.corte_nivel('black')   then 'black'
     when coalesce(p_ganados, 0) >= public.corte_nivel('platino') then 'platino'
     when coalesce(p_ganados, 0) >= public.corte_nivel('oro')     then 'oro'
-    else 'normal'
+    when coalesce(p_ganados, 0) >= public.corte_nivel('plata')   then 'plata'
+    else 'bronce'
   end;
 $$;
 
@@ -284,7 +286,8 @@ begin
   nivel := public.nivel_cliente(v_ganados);
 
   siguiente := case nivel
-    when 'normal'  then 'oro'
+    when 'bronce'  then 'plata'
+    when 'plata'   then 'oro'
     when 'oro'     then 'platino'
     when 'platino' then 'black'
     else null

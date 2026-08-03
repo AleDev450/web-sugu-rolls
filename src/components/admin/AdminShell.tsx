@@ -78,7 +78,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     return (
       <Aviso
         titulo="Falta conectar Supabase"
-        texto="Para usar el panel, crea un archivo .env.local con NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY, y ejecuta los scripts de /supabase en el SQL Editor."
+        texto="Para usar el panel, crea un archivo .env.local con NEXT_PUBLIC_SUPABASE_URL y la clave pública del proyecto (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, o NEXT_PUBLIC_SUPABASE_ANON_KEY si es un proyecto antiguo), y ejecuta los scripts de /supabase en el SQL Editor."
       />
     );
   }

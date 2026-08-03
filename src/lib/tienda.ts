@@ -73,8 +73,9 @@ export async function registrarse(d: DatosRegistro) {
   }
 
   console.warn(
-    '[registro] Falta SUPABASE_SERVICE_ROLE_KEY: se usa el alta normal, que envía correo ' +
-      'de confirmación y está sujeta al límite de envíos de Supabase.'
+    '[registro] Falta la clave secreta del servidor (SUPABASE_SECRET_KEY o ' +
+      'SUPABASE_SERVICE_ROLE_KEY): se usa el alta normal, que envía correo de ' +
+      'confirmación y está sujeta al límite de envíos de Supabase.'
   );
 
   // --- respaldo: registro normal, sujeto al ajuste del proyecto ---
@@ -215,7 +216,7 @@ export async function saldoPuntos(): Promise<number> {
   return error ? 0 : Number(data ?? 0);
 }
 
-export type Nivel = 'normal' | 'oro' | 'platino' | 'black';
+export type Nivel = 'bronce' | 'plata' | 'oro' | 'platino' | 'black';
 
 export interface Tarjeta {
   /** puntos disponibles para canjear */
@@ -227,20 +228,35 @@ export interface Tarjeta {
   faltan: number;
 }
 
+/** Cortes en puntos GANADOS de por vida. Deben coincidir con `corte_nivel()`. */
 export const NIVELES: Record<Nivel, { nombre: string; desde: number }> = {
-  normal: { nombre: 'Normal', desde: 0 },
-  oro: { nombre: 'Oro', desde: 500 },
-  platino: { nombre: 'Platino', desde: 1500 },
-  black: { nombre: 'Black', desde: 3000 },
+  bronce: { nombre: 'Bronce', desde: 0 },
+  plata: { nombre: 'Plata', desde: 300 },
+  oro: { nombre: 'Oro', desde: 800 },
+  platino: { nombre: 'Platino', desde: 2000 },
+  black: { nombre: 'Black', desde: 4000 },
 };
+
+export const ORDEN_NIVELES: Nivel[] = ['bronce', 'plata', 'oro', 'platino', 'black'];
+
+/**
+ * Número de socio, estable y legible, derivado del id de la cuenta.
+ *
+ * Se calcula en el cliente a partir del uuid en vez de guardar un correlativo:
+ * no hace falta otra columna y dos personas distintas nunca comparten uuid.
+ */
+export function numeroSocio(id: string): string {
+  const hex = id.replace(/[^0-9a-f]/gi, '').slice(-6);
+  return `SR ${(parseInt(hex, 16) % 1_000_000).toString().padStart(6, '0')}`;
+}
 
 export async function miTarjeta(): Promise<Tarjeta> {
   const vacia: Tarjeta = {
     saldo: 0,
     ganados: 0,
-    nivel: 'normal',
-    siguiente: 'oro',
-    faltan: NIVELES.oro.desde,
+    nivel: 'bronce',
+    siguiente: 'plata',
+    faltan: NIVELES.plata.desde,
   };
 
   const cliente = getSupabase();

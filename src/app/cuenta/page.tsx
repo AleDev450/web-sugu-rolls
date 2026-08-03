@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { Inbox, LogOut, Package, UserRound } from 'lucide-react';
 import { Header } from '@/components/web/Header';
 import { Footer } from '@/components/web/Footer';
 import { Campo, FormIngreso, FormRegistro, campoClase } from '@/components/web/CuentaForms';
-import { TarjetaSugu } from '@/components/web/TarjetaSugu';
+import { EstatusSocio, TarjetaSugu } from '@/components/web/TarjetaSugu';
+import { SeccionPerfil, Vacio } from '@/components/web/SeccionPerfil';
 import { CanjesPerfil } from '@/components/web/CanjesPerfil';
 import {
   ESTADO_PEDIDO,
@@ -184,24 +186,33 @@ function Panel({
       </header>
 
       {tarjeta && (
-        <div className="mt-10 sm:max-w-md">
+        <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
           <TarjetaSugu
             tarjeta={tarjeta}
+            socioId={perfil.id}
             nombre={`${perfil.full_name ?? ''} ${perfil.last_name ?? ''}`.trim() || perfil.nickname}
           />
+          <EstatusSocio tarjeta={tarjeta} />
         </div>
       )}
 
-      {tarjeta && <CanjesPerfil saldo={tarjeta.saldo} alCanjear={alRefrescarTarjeta} />}
+      {/* canjes y pedidos van a la par: uno gasta puntos, el otro los genera */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        {tarjeta && <CanjesPerfil saldo={tarjeta.saldo} alCanjear={alRefrescarTarjeta} />}
 
-      <section className="mt-12">
-        <h2 className="text-xl font-bold tracking-tight">Mis pedidos</h2>
+        <SeccionPerfil titulo="Mis pedidos" icono={Package}>
         {pedidos.length === 0 ? (
-          <p className="card mt-5 p-12 text-center text-sm text-bone-dim">
-            Todavía no has hecho ningún pedido.
-          </p>
+          <Vacio
+            icono={Inbox}
+            texto="Todavía no has hecho ningún pedido."
+            accion={
+              <Link href="/carta" className="btn-primary">
+                Ver la carta
+              </Link>
+            }
+          />
         ) : (
-          <div className="mt-5 grid gap-4">
+          <div className="grid gap-4">
             {pedidos.map((p) => (
               <article key={p.id} className="card p-6">
                 <header className="flex flex-wrap items-center justify-between gap-3">
@@ -238,11 +249,12 @@ function Panel({
             ))}
           </div>
         )}
-      </section>
+        </SeccionPerfil>
+      </div>
 
-      <section className="mt-12">
-        <h2 className="text-xl font-bold tracking-tight">Mis datos</h2>
-        <div className="card mt-5 grid gap-4 p-8 sm:grid-cols-2">
+      <div className="mt-6">
+        <SeccionPerfil titulo="Mis datos" icono={UserRound}>
+          <div className="grid gap-4 sm:grid-cols-2">
           <Campo etiqueta="Nombre">
             <input
               value={datos.full_name}
@@ -282,8 +294,9 @@ function Panel({
             </button>
             {guardado && <span className="text-[13px] text-emerald-400">Datos guardados.</span>}
           </div>
-        </div>
-      </section>
+          </div>
+        </SeccionPerfil>
+      </div>
     </>
   );
 }

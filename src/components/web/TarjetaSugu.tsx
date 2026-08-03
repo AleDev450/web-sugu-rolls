@@ -1,132 +1,229 @@
 'use client';
 
-import { NIVELES, type Nivel, type Tarjeta } from '@/lib/tienda';
+import { Crown, Gift, Sparkles, Ticket } from 'lucide-react';
+import { NIVELES, ORDEN_NIVELES, numeroSocio, type Nivel, type Tarjeta } from '@/lib/tienda';
 
 /**
- * Estilo de cada nivel. Se guarda aparte de la lógica para que cambiar el
- * aspecto de una tarjeta no obligue a tocar el cálculo de niveles.
+ * Aspecto de cada nivel, separado de la lógica para que retocar el diseño no
+ * obligue a tocar el cálculo.
+ *
+ * La progresión es cromática y se lee sin explicaciones: cobre -> acero ->
+ * oro -> platino helado -> negro. Plata y platino se distinguen por
+ * temperatura (gris cálido contra blanco azulado), que es lo que evita que
+ * parezcan el mismo nivel.
  */
 const ESTILO: Record<
   Nivel,
-  { fondo: string; texto: string; tenue: string; borde: string; brillo: string }
+  { fondo: string; texto: string; tenue: string; linea: string; sello: string; brillo: string }
 > = {
-  normal: {
-    fondo: 'linear-gradient(135deg,#6b482c 0%,#3f2718 55%,#241409 100%)',
-    texto: 'text-bone',
-    tenue: 'text-bone-dim',
-    borde: 'border-white/15',
-    brillo: 'rgba(255,255,255,.10)',
+  bronce: {
+    fondo: 'linear-gradient(135deg,#a9703f 0%,#6d4423 52%,#3a2313 100%)',
+    texto: 'text-[#fdf1e3]',
+    tenue: 'text-[#f0d5b8]/70',
+    linea: 'border-[#e0a468]/40',
+    sello: '#e8b177',
+    brillo: 'rgba(255,226,190,.30)',
   },
-  oro: {
-    fondo: 'linear-gradient(135deg,#f2c14e 0%,#b8801d 55%,#7a5310 100%)',
-    texto: 'text-[#2a1a05]',
-    tenue: 'text-[#5a3f0c]',
-    borde: 'border-[#f7d98a]/60',
-    brillo: 'rgba(255,255,255,.42)',
-  },
-  platino: {
-    fondo: 'linear-gradient(135deg,#e9edf2 0%,#a9b4c2 55%,#6f7b8a 100%)',
+  plata: {
+    fondo: 'linear-gradient(135deg,#dfe5ec 0%,#98a3b0 52%,#5f6975 100%)',
     texto: 'text-[#1b2027]',
-    tenue: 'text-[#3d4653]',
-    borde: 'border-white/70',
+    tenue: 'text-[#39424e]',
+    linea: 'border-white/60',
+    sello: '#2b333d',
     brillo: 'rgba(255,255,255,.55)',
   },
+  oro: {
+    fondo: 'linear-gradient(135deg,#f7dc94 0%,#d3a12b 52%,#7d5711 100%)',
+    texto: 'text-[#2b1c04]',
+    tenue: 'text-[#5b4110]',
+    linea: 'border-[#fff0bd]/70',
+    sello: '#4a3308',
+    brillo: 'rgba(255,255,255,.5)',
+  },
+  platino: {
+    fondo: 'linear-gradient(135deg,#ffffff 0%,#dbe6f2 48%,#9db2c9 100%)',
+    texto: 'text-[#141b24]',
+    tenue: 'text-[#33414f]',
+    linea: 'border-white',
+    sello: '#22303d',
+    brillo: 'rgba(255,255,255,.85)',
+  },
   black: {
-    fondo: 'linear-gradient(135deg,#2b2b2f 0%,#131316 55%,#000 100%)',
+    fondo: 'linear-gradient(135deg,#33333a 0%,#141418 52%,#000000 100%)',
     texto: 'text-white',
     tenue: 'text-white/55',
-    borde: 'border-[#d4af37]/50',
-    brillo: 'rgba(212,175,55,.28)',
+    linea: 'border-[#d4af37]/50',
+    sello: '#d4af37',
+    brillo: 'rgba(212,175,55,.30)',
   },
 };
 
+const BENEFICIOS = [
+  { icono: Sparkles, texto: 'Acumulas puntos en cada pedido confirmado' },
+  { icono: Gift, texto: 'Canjeas descuentos y productos del catálogo' },
+  { icono: Ticket, texto: 'Códigos para jugar y entrar al ranking' },
+];
+
 /**
- * Tarjeta de fidelidad del perfil.
+ * Tarjeta del Sugu Club.
  *
- * Muestra dos cifras que la gente confunde y conviene separar bien:
- * el SALDO es lo que puede canjear ahora; los GANADOS son de por vida y son
- * los que suben de nivel. Canjear gasta saldo y nunca baja de categoría.
+ * Muestra dos cifras que la gente confunde y conviene separar: el SALDO es lo
+ * que puede canjear ahora; los GANADOS son de por vida y son los que suben de
+ * nivel. Canjear gasta saldo y nunca baja de categoría.
  */
-export function TarjetaSugu({ tarjeta, nombre }: { tarjeta: Tarjeta; nombre: string }) {
+export function TarjetaSugu({
+  tarjeta,
+  nombre,
+  socioId,
+}: {
+  tarjeta: Tarjeta;
+  nombre: string;
+  socioId: string;
+}) {
   const e = ESTILO[tarjeta.nivel];
-  const meta = tarjeta.siguiente ? NIVELES[tarjeta.siguiente].desde : 0;
   const desde = NIVELES[tarjeta.nivel].desde;
+  const meta = tarjeta.siguiente ? NIVELES[tarjeta.siguiente].desde : 0;
   const avance = tarjeta.siguiente
     ? Math.min(100, Math.max(0, ((tarjeta.ganados - desde) / (meta - desde)) * 100))
     : 100;
 
   return (
-    <div className={`overflow-hidden rounded-3xl border ${e.borde} shadow-2xl`}>
-      <div className="relative p-7 sm:p-8" style={{ backgroundImage: e.fondo }}>
-        {/* destello diagonal: lo que le da el aire de tarjeta física */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -left-1/3 top-0 h-full w-2/3 -skew-x-12"
-          style={{
-            background: `linear-gradient(90deg,transparent,${e.brillo},transparent)`,
-          }}
-        />
+    <div
+      className={`relative overflow-hidden rounded-[28px] border ${e.linea} p-7 shadow-2xl sm:p-8`}
+      style={{ backgroundImage: e.fondo, aspectRatio: '1.62 / 1' }}
+    >
+      {/* destello diagonal: lo que le da el aire de tarjeta física */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -left-1/4 top-0 h-full w-1/2 -skew-x-12"
+        style={{ background: `linear-gradient(90deg,transparent,${e.brillo},transparent)` }}
+      />
 
-        <header className="relative flex items-start justify-between gap-4">
+      <div className="relative flex h-full flex-col justify-between">
+        <header className="flex items-start justify-between gap-4">
           <div>
-            <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${e.tenue}`}>
-              Sugu Rolls
+            <p className={`text-[11px] font-bold uppercase tracking-[0.3em] ${e.tenue}`}>
+              Sugu Club
             </p>
-            <p className={`mt-1 text-2xl font-extrabold tracking-tight ${e.texto}`}>
+            <p className={`mt-1.5 text-3xl font-extrabold tracking-tight ${e.texto}`}>
               {NIVELES[tarjeta.nivel].nombre}
             </p>
           </div>
-          <span
-            className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${e.borde} ${e.tenue}`}
-          >
-            Socio
-          </span>
+          <Crown className="h-7 w-7 flex-none" style={{ color: e.sello }} />
         </header>
 
-        <div className="relative mt-10">
-          <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${e.tenue}`}>
-            Puntos disponibles
-          </p>
-          <p className={`mt-1 text-5xl font-extrabold tabular-nums tracking-tight ${e.texto}`}>
-            {tarjeta.saldo.toLocaleString('es')}
-          </p>
+        <div>
+          <div className="flex items-end gap-3">
+            <p className={`text-5xl font-extrabold leading-none tabular-nums ${e.texto}`}>
+              {tarjeta.saldo.toLocaleString('es')}
+            </p>
+            <p className={`pb-1 text-[11px] font-bold uppercase tracking-[0.2em] ${e.tenue}`}>
+              Puntos
+            </p>
+          </div>
+
+          <div className={`mt-5 border-t pt-4 ${e.linea}`}>
+            {tarjeta.siguiente ? (
+              <>
+                <div className={`flex items-baseline justify-between gap-3 text-[12px] ${e.tenue}`}>
+                  <span>
+                    Te faltan{' '}
+                    <b className={e.texto}>{tarjeta.faltan.toLocaleString('es')}</b> para{' '}
+                    {NIVELES[tarjeta.siguiente].nombre}
+                  </span>
+                  <span className="flex-none tabular-nums">
+                    {tarjeta.ganados.toLocaleString('es')}/{meta.toLocaleString('es')}
+                  </span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/25">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${avance}%`, background: e.sello }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className={`text-[12px] ${e.tenue}`}>
+                Nivel máximo alcanzado. Gracias por ser parte de Sugu Rolls.
+              </p>
+            )}
+          </div>
+
+          <footer className="mt-4 flex items-end justify-between gap-4">
+            <p className={`truncate text-[13px] font-bold uppercase tracking-wide ${e.texto}`}>
+              {nombre}
+            </p>
+            <p className={`flex-none font-mono text-[11px] tracking-widest ${e.tenue}`}>
+              {numeroSocio(socioId)}
+            </p>
+          </footer>
         </div>
-
-        <footer className={`relative mt-8 text-[13px] font-semibold ${e.texto}`}>
-          {nombre}
-        </footer>
       </div>
+    </div>
+  );
+}
 
-      <div className="bg-night-2 p-6">
-        {tarjeta.siguiente ? (
-          <>
-            <div className="flex items-baseline justify-between gap-4 text-[13px]">
-              <span className="text-bone-dim">
-                Te faltan <b className="text-white">{tarjeta.faltan.toLocaleString('es')}</b> puntos
-                para {NIVELES[tarjeta.siguiente].nombre}
-              </span>
-              <span className="flex-none tabular-nums text-bone-dim">
-                {tarjeta.ganados.toLocaleString('es')} / {meta.toLocaleString('es')}
-              </span>
-            </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-sugu transition-all duration-700"
-                style={{ width: `${avance}%` }}
-              />
-            </div>
-          </>
-        ) : (
-          <p className="text-[13px] text-bone-dim">
-            Estás en el nivel más alto. Gracias por ser parte de Sugu Rolls.
-          </p>
-        )}
+/** Panel lateral: nivel actual, escalera completa y qué da ser socio. */
+export function EstatusSocio({ tarjeta }: { tarjeta: Tarjeta }) {
+  const actual = ORDEN_NIVELES.indexOf(tarjeta.nivel);
 
-        <p className="mt-4 text-[12px] leading-relaxed text-white/40">
-          El nivel se calcula con los puntos que has ganado en total, así que canjear nunca te baja
-          de categoría.
+  return (
+    <div className="card flex h-full flex-col p-7">
+      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-bone-dim">Tu estatus</p>
+
+      <p className="mt-3 text-3xl font-extrabold tracking-tight">
+        {NIVELES[tarjeta.nivel].nombre}
+      </p>
+      <p className="mt-1 text-[13px] text-bone-dim">
+        {tarjeta.ganados.toLocaleString('es')} puntos ganados en total
+      </p>
+
+      {/* la escalera completa: ver los cinco niveles es lo que da ganas de subir */}
+      <ol className="mt-6 space-y-2.5">
+        {ORDEN_NIVELES.map((n, i) => {
+          const alcanzado = i <= actual;
+          return (
+            <li
+              key={n}
+              className={`flex items-center justify-between gap-3 text-[13px] ${
+                alcanzado ? 'text-white' : 'text-bone-dim/60'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <span
+                  className="h-2 w-2 flex-none rounded-full"
+                  style={{ background: alcanzado ? ESTILO[n].sello : 'rgba(255,255,255,.18)' }}
+                />
+                <span className={i === actual ? 'font-bold' : ''}>{NIVELES[n].nombre}</span>
+              </span>
+              <span className="flex-none tabular-nums">
+                {NIVELES[n].desde.toLocaleString('es')}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+
+      <div className="mt-7 border-t border-white/10 pt-6">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-bone-dim">
+          Beneficios de ser socio
         </p>
+        <ul className="mt-4 space-y-3">
+          {BENEFICIOS.map(({ icono: Icono, texto }) => (
+            <li key={texto} className="flex items-start gap-3 text-[13px] text-bone-dim">
+              <span className="mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-lg bg-sugu/10">
+                <Icono className="h-3.5 w-3.5 text-sugu" />
+              </span>
+              {texto}
+            </li>
+          ))}
+        </ul>
       </div>
+
+      <p className="mt-6 text-[12px] leading-relaxed text-white/35">
+        El nivel se calcula con los puntos que has ganado en total, así que canjear nunca te baja
+        de categoría.
+      </p>
     </div>
   );
 }
