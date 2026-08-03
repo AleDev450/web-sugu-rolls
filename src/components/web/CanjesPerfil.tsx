@@ -111,31 +111,38 @@ export function CanjesPerfil({ saldo, alCanjear }: { saldo: number; alCanjear: (
             return (
               <article
                 key={r.id}
-                className={`flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-opacity ${
-                  alcanza ? '' : 'opacity-55'
-                }`}
+                className="flex flex-col justify-between gap-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/20"
               >
-                <header className="flex items-start gap-4">
-                  <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-sugu/10">
-                    <Icono className="h-5 w-5 text-sugu" />
+                <header className="flex items-start gap-3.5">
+                  <span className="grid h-10 w-10 flex-none place-items-center rounded-xl border border-white/10 bg-white/[0.03]">
+                    <Icono className="h-4.5 w-4.5 text-sugu" aria-hidden />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="font-bold">{r.nombre}</h3>
-                    <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">
+                    <h3 className="text-[15px] font-bold leading-tight">{r.nombre}</h3>
+                    <p className="mt-1 text-[12.5px] leading-snug text-bone-dim">
                       {r.descripcion}
                     </p>
                   </div>
                 </header>
 
-                <footer className="mt-6 flex items-center justify-between gap-4">
-                  <span className="text-sm font-bold tabular-nums">
+                <footer className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-[15px] font-bold tabular-nums">
                     {r.costo_puntos.toLocaleString('es')}{' '}
                     <span className="text-[12px] font-normal text-bone-dim">puntos</span>
                   </span>
+                  {/*
+                    Deshabilitado con borde y texto atenuado, no con opacidad
+                    global: bajarle la opacidad al botón rojo lo dejaba
+                    ilegible sobre el fondo negro.
+                  */}
                   <button
                     onClick={() => void pedir(r)}
                     disabled={!alcanza || trabajando === r.id}
-                    className="btn-primary px-6 py-2.5 text-[13px] disabled:pointer-events-none disabled:opacity-40"
+                    className={
+                      alcanza
+                        ? 'btn-primary !px-6 !py-2.5 text-[13px]'
+                        : 'cursor-not-allowed rounded-full border border-white/10 px-5 py-2.5 text-[13px] text-bone-dim'
+                    }
                   >
                     {trabajando === r.id ? 'Canjeando…' : alcanza ? 'Canjear' : 'Te faltan puntos'}
                   </button>

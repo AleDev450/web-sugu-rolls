@@ -118,6 +118,141 @@
     @apply hover:-translate-y-2 hover:border-sugu/40
            hover:shadow-[0_36px_90px_-30px_rgba(227,19,35,0.6)];
   }
+
+  /* ---------------------------------------------------------------
+     Sugu Club — tarjeta de socio
+     ---------------------------------------------------------------
+     El fondo es negro carbón en TODOS los niveles: lo único que cambia
+     es el metal, y por eso vive en variables. Así subir de nivel se
+     percibe como un acabado distinto de la misma tarjeta, no como otra
+     tarjeta, que es justo la sensación de un programa de fidelidad.
+  */
+  .sugu-card {
+    --metal: #c98b4b;
+    --metal-claro: #f0c48a;
+    --metal-tenue: rgb(201 139 75 / 0.5);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid var(--metal-tenue);
+    background:
+      radial-gradient(120% 90% at 88% 8%, rgb(201 139 75 / 0.13), transparent 60%),
+      radial-gradient(90% 70% at 6% 96%, rgb(227 19 35 / 0.1), transparent 62%),
+      linear-gradient(148deg, #17140f 0%, #0b0b0c 46%, #050505 100%);
+    box-shadow:
+      0 28px 60px -28px rgb(0 0 0 / 0.9),
+      0 0 0 1px rgb(255 255 255 / 0.03) inset,
+      0 1px 0 rgb(255 255 255 / 0.06) inset;
+  }
+
+  /* Seigaiha: ondas concéntricas, casi imperceptibles, solo en una esquina */
+  .sugu-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      radial-gradient(circle at 50% 100%, transparent 0 9px, var(--metal) 9px 10px, transparent 10px),
+      radial-gradient(circle at 50% 100%, transparent 0 4px, var(--metal) 4px 5px, transparent 5px);
+    background-size: 30px 15px;
+    background-position: 0 0;
+    opacity: 0.09;
+    -webkit-mask-image: radial-gradient(80% 85% at 100% 0%, #000 0%, transparent 72%);
+    mask-image: radial-gradient(80% 85% at 100% 0%, #000 0%, transparent 72%);
+  }
+
+  /* Veta metálica diagonal: da el reflejo del metal cepillado */
+  .sugu-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+      104deg,
+      transparent 34%,
+      rgb(255 255 255 / 0.05) 47%,
+      rgb(255 255 255 / 0.01) 55%,
+      transparent 66%
+    );
+  }
+
+  .sugu-card--plata {
+    --metal: #c4cdd8;
+    --metal-claro: #f2f6fa;
+    --metal-tenue: rgb(196 205 216 / 0.5);
+  }
+  .sugu-card--oro {
+    --metal: #e0b13c;
+    --metal-claro: #ffe49b;
+    --metal-tenue: rgb(224 177 60 / 0.55);
+  }
+  .sugu-card--platino {
+    --metal: #e8eef5;
+    --metal-claro: #ffffff;
+    --metal-tenue: rgb(232 238 245 / 0.6);
+  }
+  .sugu-card--black {
+    --metal: #9b9ba1;
+    --metal-claro: #e9e9ee;
+    --metal-tenue: rgb(155 155 161 / 0.42);
+  }
+
+  .sugu-metal {
+    color: var(--metal-claro);
+  }
+  .sugu-metal-tenue {
+    color: var(--metal);
+  }
+  .sugu-hairline {
+    border-color: var(--metal-tenue);
+  }
+
+  /* Chapa del nivel: contorno metálico, nunca un bloque de color */
+  .sugu-chip {
+    border: 1px solid var(--metal-tenue);
+    color: var(--metal-claro);
+    background: rgb(255 255 255 / 0.03);
+  }
+
+  /* Barra de progreso: carril gris oscuro y avance en rojo Sugu */
+  .sugu-barra {
+    height: 6px;
+    border-radius: 999px;
+    background: #232326;
+    overflow: hidden;
+  }
+  .sugu-barra > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--sugu-deep), var(--sugu));
+    box-shadow: 0 0 12px rgb(227 19 35 / 0.45);
+    transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Fila de la escalera de niveles del panel de estatus */
+  .sugu-nivel-punto {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.16);
+    flex: none;
+  }
+  .sugu-nivel-activo .sugu-nivel-punto {
+    background: var(--sugu);
+    box-shadow: 0 0 0 3px rgb(227 19 35 / 0.18);
+  }
+
+  /* Campo de formulario del perfil */
+  .campo-perfil {
+    @apply w-full rounded-xl border border-white/10 bg-night px-4 py-3 text-sm text-bone
+           outline-none transition-colors placeholder:text-white/25;
+  }
+  .campo-perfil:focus {
+    border-color: var(--sugu);
+    box-shadow: 0 0 0 3px rgb(227 19 35 / 0.15);
+  }
 }
 
 @layer utilities {

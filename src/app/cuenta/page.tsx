@@ -1,14 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Inbox, LogOut, Package, UserRound } from 'lucide-react';
 import { Header } from '@/components/web/Header';
 import { Footer } from '@/components/web/Footer';
-import { Campo, FormIngreso, FormRegistro, campoClase } from '@/components/web/CuentaForms';
+import { Campo, FormIngreso, FormRegistro } from '@/components/web/CuentaForms';
 import { EstatusSocio, TarjetaSugu } from '@/components/web/TarjetaSugu';
 import { SeccionPerfil, Vacio } from '@/components/web/SeccionPerfil';
 import { CanjesPerfil } from '@/components/web/CanjesPerfil';
+import { useCartStore } from '@/store/useCartStore';
 import {
   ESTADO_PEDIDO,
   guardarPerfil,
@@ -67,7 +67,12 @@ export default function CuentaPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-4xl px-6 pb-24 pt-32 sm:pt-40">
+      {/*
+        Contenedor del panel: 1180px con 20px de aire a cada lado. El anterior
+        (max-w-4xl, 896px) dejaba la tarjeta pequeña y desaprovechaba la
+        pantalla en escritorio.
+      */}
+      <main className="mx-auto w-[calc(100%-40px)] max-w-[1180px] pb-24 pt-28 sm:pt-36">
         {cargando ? (
           <p className="py-24 text-center text-sm text-bone-dim">Cargando…</p>
         ) : !perfil ? (
@@ -150,6 +155,7 @@ function Panel({
     phone: perfil.phone ?? '',
     address: perfil.address ?? '',
   });
+  const abrirCarrito = useCartStore((s) => s.abrir);
   const [guardado, setGuardado] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -166,27 +172,31 @@ function Panel({
 
   return (
     <>
-      <header className="flex flex-wrap items-end justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-extrabold tracking-tight sm:text-3xl">
             Hola, {perfil.full_name || perfil.nickname}
           </h1>
-          {correo && <p className="mt-1.5 text-sm text-bone-dim">{correo}</p>}
+          {correo && <p className="mt-1 truncate text-[13px] text-bone-dim">{correo}</p>}
         </div>
         <button
           onClick={async () => {
             await salir();
             alRecargar();
           }}
-          className="inline-flex items-center gap-2 text-[13px] text-bone-dim transition-colors hover:text-sugu"
+          className="inline-flex flex-none items-center gap-2 rounded-full border border-white/10 px-4 py-2.5 text-[13px] text-bone-dim transition-colors hover:border-sugu/50 hover:text-sugu focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sugu"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4" aria-hidden />
           Cerrar sesión
         </button>
       </header>
 
+      {/*
+        65 / 35 en escritorio. El panel se estira a la altura de la tarjeta con
+        `items-stretch`, que es lo que evita el hueco vacío que quedaba debajo.
+      */}
       {tarjeta && (
-        <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="mt-7 grid items-stretch gap-6 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
           <TarjetaSugu
             tarjeta={tarjeta}
             socioId={perfil.id}
@@ -197,7 +207,7 @@ function Panel({
       )}
 
       {/* canjes y pedidos van a la par: uno gasta puntos, el otro los genera */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      <div className="mt-6 grid items-stretch gap-6 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
         {tarjeta && <CanjesPerfil saldo={tarjeta.saldo} alCanjear={alRefrescarTarjeta} />}
 
         <SeccionPerfil titulo="Mis pedidos" icono={Package}>
@@ -206,9 +216,9 @@ function Panel({
             icono={Inbox}
             texto="Todavía no has hecho ningún pedido."
             accion={
-              <Link href="/carta" className="btn-primary">
-                Ver la carta
-              </Link>
+              <button onClick={abrirCarrito} className="btn-primary !px-7 !py-3 text-[14px]">
+                Pedir ahora
+              </button>
             }
           />
         ) : (
@@ -259,28 +269,28 @@ function Panel({
             <input
               value={datos.full_name}
               onChange={(e) => setDatos({ ...datos, full_name: e.target.value })}
-              className={campoClase}
+              className="campo-perfil"
             />
           </Campo>
           <Campo etiqueta="Apellido">
             <input
               value={datos.last_name}
               onChange={(e) => setDatos({ ...datos, last_name: e.target.value })}
-              className={campoClase}
+              className="campo-perfil"
             />
           </Campo>
           <Campo etiqueta="Teléfono">
             <input
               value={datos.phone}
               onChange={(e) => setDatos({ ...datos, phone: e.target.value })}
-              className={campoClase}
+              className="campo-perfil"
             />
           </Campo>
           <Campo etiqueta="Dirección de entrega">
             <input
               value={datos.address}
               onChange={(e) => setDatos({ ...datos, address: e.target.value })}
-              className={campoClase}
+              className="campo-perfil"
             />
           </Campo>
 
