@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, ShoppingBag, X } from 'lucide-react';
+import { Menu, ShoppingBag, User, X } from 'lucide-react';
 import { NAV } from '@/data/site';
+import { miPerfil } from '@/lib/tienda';
 import { useCartStore } from '@/store/useCartStore';
 import { Logo } from './Logo';
 
@@ -20,8 +21,16 @@ export function Header() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const abrirCarrito = useCartStore((s) => s.abrir);
   const unidades = useCartStore((s) => s.items.reduce((t, i) => t + i.cantidad, 0));
-  const enPortada = usePathname() === '/';
+  const [haySesion, setHaySesion] = useState(false);
+  const ruta = usePathname();
+  const enPortada = ruta === '/';
   const compacto = scrolled || !enPortada;
+
+  // se recomprueba al cambiar de página: entrar o salir de la cuenta navega,
+  // y si no el botón se quedaría con el texto anterior
+  useEffect(() => {
+    void miPerfil().then((p) => setHaySesion(p !== null));
+  }, [ruta]);
 
   useEffect(() => {
     const alScroll = () => setScrolled(window.scrollY > 24);
@@ -64,6 +73,19 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-2.5">
+            {/*
+              Entrada a la cuenta. La misma pantalla sirve para registrarse y
+              para entrar, así que el texto cambia según haya sesión: quien no
+              tiene cuenta ve una invitación, no un "mi cuenta" que no es suyo.
+            */}
+            <Link
+              href="/cuenta"
+              className="hidden items-center gap-2 rounded-full border border-white/15 px-5 py-3.5 text-[14px] font-medium text-bone-dim transition-colors hover:border-white/40 hover:text-white sm:inline-flex"
+            >
+              <User className="h-4.5 w-4.5" />
+              {haySesion ? 'Mi cuenta' : 'Registrarme'}
+            </Link>
+
             <button
               onClick={abrirCarrito}
               className="btn-primary relative !px-7 !py-3.5 text-[14px]"
@@ -127,7 +149,15 @@ export function Header() {
               ))}
             </nav>
 
-            <div className="wrap mt-8">
+            <div className="wrap mt-8 space-y-3">
+              <Link
+                href="/cuenta"
+                onClick={() => setMenuAbierto(false)}
+                className="btn-ghost w-full"
+              >
+                <User className="h-4.5 w-4.5" />
+                {haySesion ? 'Mi cuenta y mis puntos' : 'Crear mi cuenta'}
+              </Link>
               <Link
                 href="/juego"
                 onClick={() => setMenuAbierto(false)}
