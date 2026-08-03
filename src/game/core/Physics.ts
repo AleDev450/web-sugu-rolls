@@ -38,6 +38,8 @@ export interface MergeEvent {
 
 export interface PhysicsCallbacks {
   onMerge: (e: MergeEvent) => void;
+  /** dos Sugu Supreme se juntaron: se anulan y no nace nada */
+  onSupremePair: (p: { x: number; y: number }) => void;
 }
 
 /**
@@ -159,11 +161,23 @@ export class Physics {
       if (!('sugu' in a) || !('sugu' in b)) continue;
       if (a.sugu.consumed || b.sugu.consumed) continue;
       if (a.sugu.tier !== b.sugu.tier) continue;
-      if (a.sugu.tier >= MAX_TIER) continue;
 
       const tier = a.sugu.tier;
       const x = (a.position.x + b.position.x) / 2;
       const y = (a.position.y + b.position.y) / 2;
+
+      /*
+       * El Supreme es el final de la cadena y SE QUEDA en el tablero: es lo
+       * que hace que la partida acumule presión en vez de vaciarse sola. La
+       * única forma de sacarlo es juntar dos, que se anulan entre sí sin
+       * crear nada — la jugada mejor pagada del juego.
+       */
+      if (tier >= MAX_TIER) {
+        this.remove(a);
+        this.remove(b);
+        this.cbs.onSupremePair({ x, y });
+        continue;
+      }
 
       // Heredar algo de inercia para que la pieza nueva no quede clavada.
       const vx = (a.velocity.x + b.velocity.x) / 2;

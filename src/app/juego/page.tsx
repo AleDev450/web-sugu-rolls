@@ -17,7 +17,7 @@ import {
 import { useGameStore, hydrateFromStorage } from '@/store/useGameStore';
 import { useVipStore } from '@/store/useVipStore';
 import { VipBar } from '@/components/VipBar';
-import { startMusic, stopMusic } from '@/game/audio/audio';
+import { preloadMusic, startMusic, stopMusic } from '@/game/audio/audio';
 import { useEscalaJuego } from '@/lib/escala';
 import type { DatosJugador } from '@/lib/scores';
 
@@ -36,6 +36,8 @@ export default function Page() {
 
   useEffect(() => {
     hydrateFromStorage();
+    // se descarga mientras el jugador mira el menú; suena al pulsar JUGAR
+    preloadMusic();
   }, []);
 
   // La música sigue sonando en pausa; se corta al terminar la partida.

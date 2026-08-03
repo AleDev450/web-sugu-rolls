@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 /** Piezas compartidas por las pantallas del panel. */
@@ -123,6 +123,74 @@ export function Modal({
         <div className="p-6">{children}</div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Confirmación para acciones que no se pueden deshacer. Obliga a teclear una
+ * palabra: un "¿seguro?" con un solo clic se acepta sin leerlo, y aquí lo que
+ * se borra no vuelve.
+ */
+export function ConfirmarPeligro({
+  abierto,
+  titulo,
+  descripcion,
+  palabra = 'BORRAR',
+  textoBoton,
+  trabajando = false,
+  alCerrar,
+  alConfirmar,
+}: {
+  abierto: boolean;
+  titulo: string;
+  descripcion: ReactNode;
+  palabra?: string;
+  textoBoton: string;
+  trabajando?: boolean;
+  alCerrar: () => void;
+  alConfirmar: () => void;
+}) {
+  const [texto, setTexto] = useState('');
+
+  useEffect(() => {
+    if (!abierto) setTexto('');
+  }, [abierto]);
+
+  return (
+    <Modal abierto={abierto} titulo={titulo} alCerrar={alCerrar}>
+      <div className="space-y-5 text-sm">
+        <div className="rounded-xl border border-sugu/40 bg-sugu/10 p-4 leading-relaxed">
+          {descripcion}
+        </div>
+
+        <label className="block">
+          <span className="mb-2 block text-[13px]">
+            Escribe <span className="font-mono font-bold text-sugu">{palabra}</span> para
+            confirmar
+          </span>
+          <input
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            className={`${claseCampo} font-mono tracking-widest`}
+            autoComplete="off"
+          />
+        </label>
+
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={alCerrar} className="btn-ghost">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={alConfirmar}
+            disabled={texto.trim().toUpperCase() !== palabra || trabajando}
+            className="btn-primary disabled:pointer-events-none disabled:opacity-40"
+          >
+            {trabajando ? 'Borrando…' : textoBoton}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

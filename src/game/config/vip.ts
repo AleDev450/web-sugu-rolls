@@ -7,6 +7,17 @@
  */
 
 import { DESIGN } from './layout';
+import { SPAWN_MAX_TIER } from './tiers';
+
+/**
+ * Tier mínimo que un cliente puede pedir.
+ *
+ * Se ata a `SPAWN_MAX_TIER`: ningún pedido puede ser algo que caiga solo del
+ * cielo (onigiri, gyoza, hosomaki, temaki). Siempre hay que fusionar para
+ * servirlo — que es la gracia de tener clientes. Si algún día cambia la tabla
+ * de spawn, el suelo se mueve solo.
+ */
+export const MIN_ORDER_TIER = SPAWN_MAX_TIER + 1;
 
 export const VIP = {
   /** ms hasta la primera visita de la partida (engancha pronto) */
@@ -20,26 +31,35 @@ export const VIP = {
   enterMs: 1_100,
   leaveMs: 1_500,
 
-  /** espera del pedido según tier pedido: base + extra por nivel */
-  waitMs: (tier: number) => 22_000 + tier * 6_000,
+  /**
+   * Espera del pedido según tier pedido: base + extra por nivel.
+   *
+   * 2026-08-03: 22.000 + tier*6.000 -> 14.000 + tier*4.500. Con la regla nueva
+   * todos los pedidos son de tier 4 o más, así que se caía siempre en los
+   * tiempos más largos de la fórmula vieja: 46-58 s por cliente, de sobra para
+   * cualquiera. Ahora van de 32 a 41 s y hay que ir a por el pedido en serio.
+   */
+  waitMs: (tier: number) => 14_000 + tier * 4_500,
 
   /**
    * Dificultad de pedidos por puntuación: hasta qué tier puede pedir.
-   * Al inicio piden comidas simples; con más puntos, platos avanzados
-   * (tope: Poke Bowl, tier 5 — como pide el brief).
+   * El suelo siempre es MIN_ORDER_TIER (Ebi Roll), así que el primer cliente
+   * ya obliga a fusionar; con más puntos suben a Poke Bowl y Dragon Roll.
    */
   orderMaxTierByScore: [
-    { score: 0, maxTier: 1 },
-    { score: 400, maxTier: 2 },
-    { score: 1_000, maxTier: 3 },
-    { score: 2_200, maxTier: 4 },
-    { score: 4_000, maxTier: 5 },
+    { score: 0, maxTier: 4 },
+    { score: 3_000, maxTier: 5 },
+    { score: 10_000, maxTier: 6 },
   ] as const,
   /** prob. de pedir el tier máximo permitido (si no, uno menos) */
   orderTopTierProb: 0.55,
 
-  /** puntos por atender bien un pedido */
-  rewardPoints: (tier: number) => 120 + tier * 60,
+  /**
+   * Puntos por atender bien un pedido. Curva más empinada que la original
+   * (120 + tier*60): ahora todo pedido exige fusionar, así que el trabajo de
+   * servirlo es mucho mayor y la recompensa tiene que acompañar.
+   */
+  rewardPoints: (tier: number) => 200 + tier * 140,
 
   /** dónde se para el cliente, en coordenadas de diseño (para el vuelo de la pieza) */
   standX: 96,
@@ -77,14 +97,19 @@ export const VIP = {
   },
 } as const;
 
-/** Tier a pedir dado el score actual. */
+/**
+ * Tier a pedir dado el score actual.
+ *
+ * El suelo se aplica DESPUÉS de la resta del `- 1`: si no, con máximo 4 el 45%
+ * de los pedidos serían temaki, que cae solo y se sirve sin fusionar nada.
+ */
 export function rollOrderTier(score: number, rand: () => number = Math.random): number {
   let max: number = VIP.orderMaxTierByScore[0].maxTier;
   for (const band of VIP.orderMaxTierByScore) {
     if (score >= band.score) max = band.maxTier;
   }
-  if (max <= 0) return 0;
-  return rand() < VIP.orderTopTierProb ? max : max - 1;
+  const tier = rand() < VIP.orderTopTierProb ? max : max - 1;
+  return Math.max(MIN_ORDER_TIER, tier);
 }
 
 /** Tier del regalo de COOKY. */

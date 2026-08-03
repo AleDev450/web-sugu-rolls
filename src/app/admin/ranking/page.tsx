@@ -1,9 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
-import { listarPartidas, type PartidaAdmin } from '@/lib/admin';
-import { Aviso, Cargando, Encabezado, Interruptor } from '@/components/admin/ui';
+import { Download, RefreshCw, Trash2 } from 'lucide-react';
+import { listarPartidas, resetearRanking, type PartidaAdmin } from '@/lib/admin';
+import {
+  Aviso,
+  Cargando,
+  ConfirmarPeligro,
+  Encabezado,
+  Interruptor,
+} from '@/components/admin/ui';
 
 /** Medallas de los tres primeros puestos. */
 const PODIO = ['🥇', '🥈', '🥉'];
@@ -18,6 +24,8 @@ const fecha = (iso: string | null) =>
 export default function RankingAdmin() {
   const [items, setItems] = useState<PartidaAdmin[] | null>(null);
   const [soloTerminadas, setSoloTerminadas] = useState(true);
+  const [confirmar, setConfirmar] = useState(false);
+  const [reseteando, setReseteando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
   const cargar = async (terminadas: boolean) => {
@@ -34,6 +42,20 @@ export default function RankingAdmin() {
   useEffect(() => {
     void cargar(soloTerminadas);
   }, [soloTerminadas]);
+
+  const resetear = async () => {
+    setReseteando(true);
+    try {
+      const n = await resetearRanking();
+      setAviso({ tipo: 'ok', texto: `Ranking a cero: se borraron ${n} partidas.` });
+      void cargar(soloTerminadas);
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setReseteando(false);
+      setConfirmar(false);
+    }
+  };
 
   const descargar = () => {
     if (!items?.length) return;
@@ -73,7 +95,15 @@ export default function RankingAdmin() {
             : 'Cargando partidas…'
         }
         accion={
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setConfirmar(true)}
+              className="btn-ghost disabled:pointer-events-none disabled:opacity-40"
+              disabled={!items?.length}
+            >
+              <Trash2 className="h-4 w-4" />
+              Resetear ranking
+            </button>
             <button onClick={() => void cargar(soloTerminadas)} className="btn-ghost">
               <RefreshCw className="h-4 w-4" />
               Actualizar
@@ -167,6 +197,29 @@ export default function RankingAdmin() {
           )}
         </div>
       )}
+
+      <ConfirmarPeligro
+        abierto={confirmar}
+        titulo="Resetear ranking"
+        textoBoton="Resetear ranking"
+        trabajando={reseteando}
+        alCerrar={() => setConfirmar(false)}
+        alConfirmar={resetear}
+        descripcion={
+          <>
+            <p>
+              Se borran <b>todas las partidas jugadas</b> y la tabla queda a cero, tanto aquí
+              como en el ranking que ven los jugadores. También se limpia la bitácora de
+              intentos de canje.
+            </p>
+            <p className="mt-3">
+              Los códigos <b>no se tocan</b>: los que ya se canjearon siguen marcados como
+              usados, para que nadie vuelva a jugar con un código gastado.
+            </p>
+            <p className="mt-3">Esto no se puede deshacer.</p>
+          </>
+        }
+      />
     </>
   );
 }

@@ -223,14 +223,37 @@ export async function listarCodigos(limite = 200): Promise<CodigoAdmin[]> {
   return (data ?? []) as CodigoAdmin[];
 }
 
-export async function generarCodigos(cantidad: number, etiqueta: string, venceEl?: string) {
+/**
+ * Genera un lote. Los códigos NO caducan nunca: `p_expires_at` va siempre en
+ * null. Un cliente que se guarda el código un mes tiene que poder jugarlo.
+ */
+export async function generarCodigos(cantidad: number, etiqueta: string) {
   const { data, error } = await sb().rpc('generate_access_codes', {
     p_count: cantidad,
     p_label: etiqueta || null,
-    p_expires_at: venceEl || null,
+    p_expires_at: null,
   });
   if (error) throw error;
   return data as { nuevo_codigo: string }[];
+}
+
+/**
+ * Borra códigos. Con `soloSinUsar` en false arrastra también las partidas de
+ * los códigos canjeados (la FK es ON DELETE CASCADE). Devuelve cuántos borró.
+ */
+export async function borrarCodigos(soloSinUsar: boolean): Promise<number> {
+  const { data, error } = await sb().rpc('admin_borrar_codigos', {
+    p_solo_sin_usar: soloSinUsar,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+/** Deja el ranking a cero. No libera los códigos ya canjeados. */
+export async function resetearRanking(): Promise<number> {
+  const { data, error } = await sb().rpc('admin_reset_ranking');
+  if (error) throw error;
+  return Number(data ?? 0);
 }
 
 // ---------- partidas jugadas (ranking del panel) ----------

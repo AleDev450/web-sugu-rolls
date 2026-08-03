@@ -540,6 +540,70 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
+-- PANEL: borrar códigos.
+--
+-- OJO: `game_sessions.code_id` tiene ON DELETE CASCADE, así que borrar un
+-- código canjeado BORRA TAMBIÉN SU PARTIDA y con ella su puesto en el ranking.
+-- Por eso el modo por defecto es solo los que nunca se usaron.
+--
+--   select public.admin_borrar_codigos(true);   -- solo los sin usar
+--   select public.admin_borrar_codigos(false);  -- todos + sus partidas
+-- ---------------------------------------------------------------------
+create or replace function public.admin_borrar_codigos(p_solo_sin_usar boolean default true)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_borrados integer;
+begin
+  if not public.is_admin() then
+    raise exception 'NO_AUTORIZADO' using hint = 'Solo un administrador puede borrar códigos';
+  end if;
+
+  if p_solo_sin_usar then
+    delete from public.access_codes where redeemed_at is null;
+  else
+    delete from public.access_codes;
+  end if;
+
+  get diagnostics v_borrados = row_count;
+  return v_borrados;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
+-- PANEL: dejar el ranking a cero.
+--
+-- Borra TODAS las partidas jugadas y la bitácora de intentos. Los códigos NO
+-- se tocan: los que ya se canjearon siguen marcados como usados, para que
+-- nadie pueda volver a jugar con un código que ya gastó.
+--
+--   select public.admin_reset_ranking();
+-- ---------------------------------------------------------------------
+create or replace function public.admin_reset_ranking()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_borradas integer;
+begin
+  if not public.is_admin() then
+    raise exception 'NO_AUTORIZADO' using hint = 'Solo un administrador puede resetear el ranking';
+  end if;
+
+  delete from public.game_sessions;
+  get diagnostics v_borradas = row_count;
+
+  delete from public.code_attempts;
+  return v_borradas;
+end;
+$$;
+
+-- ---------------------------------------------------------------------
 -- PANEL: resumen para el administrador.
 -- ---------------------------------------------------------------------
 create or replace function public.admin_stats()
@@ -629,10 +693,14 @@ grant execute on function public.get_ranking(integer)                           
 grant execute on function public.generate_access_codes(integer, text, timestamptz, integer) to authenticated;
 grant execute on function public.admin_stats() to authenticated;
 grant execute on function public.is_admin()    to anon, authenticated;
+grant execute on function public.admin_borrar_codigos(boolean) to authenticated;
+grant execute on function public.admin_reset_ranking()         to authenticated;
 
 revoke execute on function public.random_code(integer) from anon, authenticated;
 revoke execute on function public.generate_access_codes(integer, text, timestamptz, integer) from anon;
 revoke execute on function public.admin_stats() from anon;
+revoke execute on function public.admin_borrar_codigos(boolean) from anon;
+revoke execute on function public.admin_reset_ranking()         from anon;
 
 -- =====================================================================
 -- 6. PUESTA EN MARCHA

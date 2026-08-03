@@ -11,6 +11,7 @@ import {
   DANGER_Y,
   DESIGN,
   PHYSICS,
+  RAMPA,
   RULES,
 } from '@/game/config/layout';
 import { MAX_TIER, TIERS, hitRadius, tierAt } from '@/game/config/tiers';
@@ -55,6 +56,9 @@ export class SuguGame {
   /** último segundo anunciado de la cuenta atrás, para no repetir el aviso */
   private dangerBeep = 0;
 
+  /** ms JUGADOS de la partida en curso; alimenta la rampa de dificultad */
+  private runMs = 0;
+
   /** muestrario de colliders abierto: ni se suelta ficha ni se puede perder */
   private inspeccion = false;
   /** últimas flechas pulsadas, para detectar el combo del muestrario */
@@ -69,6 +73,7 @@ export class SuguGame {
 
     this.physics = new Physics({
       onMerge: (e) => this.handleMerge(e),
+      onSupremePair: (p) => this.handleSupremePair(p),
     });
 
     this.director = new VipDirector({
@@ -107,8 +112,10 @@ export class SuguGame {
     const st = useGameStore.getState();
 
     if (st.status === 'playing') {
-      // KOYA baja la gravedad; el festival la sube un poco
-      this.physics.engine.gravity.y = PHYSICS.gravityY * this.director.gravityFactor();
+      this.runMs += dtMs;
+      // la rampa sube con los minutos; KOYA la baja, el festival la sube algo
+      this.physics.engine.gravity.y =
+        PHYSICS.gravityY * this.director.gravityFactor() * this.rampaGravedad();
       this.physics.update(dtMs);
       this.director.update(dtMs);
       this.updateDefeat(dtMs);
@@ -120,6 +127,15 @@ export class SuguGame {
     if (this.renderer.debugVisible) {
       this.renderer.drawDebug(this.physics.pieces, this.physics.walls);
     }
+  }
+
+  /**
+   * Multiplicador de gravedad por tiempo jugado: 1 al empezar, sube lineal
+   * hasta `RAMPA.maxGravityMul` a los `RAMPA.fullAtMs` y ahí se queda.
+   */
+  private rampaGravedad(): number {
+    const avance = Math.min(1, this.runMs / RAMPA.fullAtMs);
+    return 1 + (RAMPA.maxGravityMul - 1) * avance;
   }
 
   /**
@@ -208,6 +224,7 @@ export class SuguGame {
 
   private clearBoard() {
     this.physics.clearPieces();
+    this.runMs = 0;
     this.dangerActive = false;
     this.dangerMs = 0;
     this.dangerBeep = 0;
@@ -277,21 +294,29 @@ export class SuguGame {
   }
 
   /**
-   * Crear el Sugu Supreme no termina la partida: se celebra, la pieza
-   * desaparece del tablero y se sigue jugando. Solo se pierde cuando la caja
-   * se desborda.
+   * Crear el Sugu Supreme no termina la partida ni limpia el tablero: se
+   * celebra y la pieza SE QUEDA, ocupando su sitio y con el aro dorado que la
+   * distingue. Para sacarla del tablero hay que juntar dos.
    */
   private celebrateSupreme(body: SuguBody) {
     play('festival');
     haptic(30);
     this.renderer.confetti(30);
-    gsap.delayedCall(0.6, () => {
-      if (this.disposed || body.sugu.consumed) return;
-      const { x, y } = body.position;
-      this.physics.remove(body);
-      this.renderer.burst(x, y, 0xf2c14e, 26);
-      this.renderer.flash(x, y, 0xf2c14e, tierAt(MAX_TIER).radius + 24);
-    });
+    const { x, y } = body.position;
+    this.renderer.flash(x, y, 0xf2c14e, tierAt(MAX_TIER).radius + 24);
+  }
+
+  /** Dos Supreme juntos: se anulan, y es el mayor premio de la partida. */
+  private handleSupremePair({ x, y }: { x: number; y: number }) {
+    const puntos = Math.round(RULES.supremePairPoints * this.director.scoreMultiplier());
+    useGameStore.getState().addScore(puntos);
+
+    play('win');
+    haptic(60);
+    this.renderer.floatScore(x, y, puntos);
+    this.renderer.flash(x, y, 0xf2c14e, tierAt(MAX_TIER).radius + 44);
+    this.renderer.burst(x, y, 0xf2c14e, 34);
+    this.renderer.confetti(34);
   }
 
   /**

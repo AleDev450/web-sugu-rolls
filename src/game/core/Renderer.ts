@@ -9,7 +9,7 @@ import {
   DANGER_Y,
   DESIGN,
 } from '@/game/config/layout';
-import { tierAt } from '@/game/config/tiers';
+import { MAX_TIER, tierAt } from '@/game/config/tiers';
 import { getTierTexture } from '@/game/art/textures';
 import { getTexture } from '@/game/assets/loader';
 import type { SuguBody } from './Physics';
@@ -45,6 +45,7 @@ export class Renderer {
   private fxLayer = new Container();
   private guideLayer = new Container();
 
+  private auraGfx = new Graphics();
   private boardGfx = new Graphics();
   private dangerGfx = new Graphics();
   private aimGfx = new Graphics();
@@ -101,7 +102,8 @@ export class Renderer {
       DEBUG_COLISIONES && new URLSearchParams(window.location.search).has('debug');
     if (DEBUG_COLISIONES) window.addEventListener('keydown', this.alTeclear);
 
-    this.boardLayer.addChild(this.boardGfx, this.dangerGfx);
+    // el aro va DETRÁS de las piezas: no debe taparle la cara al Supreme
+    this.boardLayer.addChild(this.boardGfx, this.dangerGfx, this.auraGfx);
     this.guideLayer.addChild(this.aimGfx);
 
     this.drawBackground();
@@ -424,6 +426,43 @@ export class Renderer {
         onComplete: () => sp.destroy(),
       });
     }
+
+    this.drawAuras(bodies);
+  }
+
+  /**
+   * Aro dorado alrededor de cada Sugu Supreme.
+   *
+   * No es adorno: desde que el Supreme se queda en el tablero, hay que poder
+   * localizarlo de un vistazo para emparejarlo, y entre tanta pieza grande se
+   * confunde con el Sugu Especial (96 de radio contra 110). Con dos o más en
+   * juego el aro late más fuerte y más rápido: es la pista de que se pueden
+   * juntar.
+   */
+  private drawAuras(bodies: SuguBody[]) {
+    this.auraGfx.clear();
+
+    const supremes = bodies.filter((b) => b.sugu.tier === MAX_TIER);
+    if (supremes.length === 0) return;
+
+    const hayPareja = supremes.length >= 2;
+    const ritmo = hayPareja ? 170 : 300;
+    const pulso = 0.5 + 0.5 * Math.sin(performance.now() / ritmo);
+    const r = tierAt(MAX_TIER).radius * SPRITE_SCALE;
+
+    for (const b of supremes) {
+      this.auraGfx.circle(b.position.x, b.position.y, r + 9 + pulso * 5);
+    }
+    this.auraGfx.fill({ color: 0xf2c14e, alpha: (hayPareja ? 0.16 : 0.1) + pulso * 0.1 });
+
+    for (const b of supremes) {
+      this.auraGfx.circle(b.position.x, b.position.y, r + 3 + pulso * 4);
+    }
+    this.auraGfx.stroke({
+      width: hayPareja ? 4 + pulso * 2.5 : 3,
+      color: 0xf2c14e,
+      alpha: 0.5 + pulso * 0.45,
+    });
   }
 
   // ---------- vista de colisiones (depuración) ----------

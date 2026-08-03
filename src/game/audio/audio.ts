@@ -53,24 +53,64 @@ function musicOn() {
 }
 
 /**
+ * Crea el Howl de la música y empieza a descargarla, sin sonar.
+ *
+ * Se llama al entrar a /juego para que el mp3 (2.7 MB) esté listo antes de que
+ * el jugador pulse JUGAR: así se puede usar Web Audio en vez de streaming.
+ */
+function prepararMusica(): Howl | null {
+  if (musicBroken) return null;
+  if (music) return music;
+
+  /*
+   * `html5: false` = Web Audio. El mp3 se decodifica una vez y el bucle lo
+   * hace el propio grafo de audio, sin cortes.
+   *
+   * Antes iba con `html5: true` (streaming) para arrancar sin esperar la
+   * descarga. El precio era el bucle: el elemento <audio> llega al final,
+   * dispara `ended` y el navegador tiene que volver a buscar y rellenar el
+   * búfer — de ahí el silencio largo antes de que volviera a empezar. Con la
+   * descarga adelantada ya no hace falta ese compromiso.
+   */
+  music = new Howl({ src: [MUSIC_SRC], loop: true, volume: 0.35, html5: false });
+
+  music.once('loaderror', () => {
+    musicBroken = true;
+    music = null;
+    musicId = undefined;
+  });
+
+  // Red de seguridad: si algún navegador ignora el loop, se relanza a mano.
+  music.on('end', () => {
+    if (!musicWanted || !musicOn() || !music || musicId === undefined) return;
+    if (!music.playing(musicId)) music.play(musicId);
+  });
+
+  return music;
+}
+
+/** Adelanta la descarga de la música. Llamar al montar la pantalla del juego. */
+export function preloadMusic() {
+  prepararMusica();
+}
+
+/**
  * Música de fondo en loop. Llamar desde un gesto del usuario (click en JUGAR)
- * para que el navegador permita el autoplay. `html5: true` hace streaming del
- * mp3 y arranca sin esperar la descarga completa.
+ * para que el navegador permita el autoplay.
  */
 export function startMusic() {
   musicWanted = true;
-  if (musicBroken || !musicOn()) return;
-  if (!music) {
-    music = new Howl({ src: [MUSIC_SRC], loop: true, volume: 0.35, html5: true });
-    music.once('loaderror', () => {
-      musicBroken = true;
-      music = null;
-      musicId = undefined;
-    });
-  }
-  if (musicId === undefined) musicId = music.play();
-  else if (!music.playing(musicId)) music.play(musicId);
-  if (musicRate !== 1) music.rate(musicRate, musicId);
+  if (!musicOn()) return;
+
+  const m = prepararMusica();
+  if (!m) return;
+
+  if (musicId === undefined) musicId = m.play();
+  else if (!m.playing(musicId)) m.play(musicId);
+
+  // el loop también por id: pasarlo solo en el constructor no siempre basta
+  m.loop(true, musicId);
+  if (musicRate !== 1) m.rate(musicRate, musicId);
 }
 
 export function stopMusic() {

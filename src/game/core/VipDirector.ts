@@ -325,14 +325,31 @@ export class VipDirector {
         break;
 
       case 'clear-small': {
-        // la pieza más pequeña (tier más bajo; a igualdad, la más antigua)
-        const target = [...physics.pieces].sort(
-          (a, b) => a.sugu.tier - b.sugu.tier || a.sugu.uid - b.sugu.uid
-        )[0];
-        if (target) {
-          renderer.flash(target.position.x, target.position.y, colorNum, 40);
-          physics.remove(target);
-        }
+        /*
+         * CHIMMY rescata la pieza pequeña MÁS ENTERRADA (onigiri o gyoza).
+         *
+         * Las pequeñas de arriba las puede fusionar el jugador; las que quedan
+         * atrapadas al fondo entre piezas grandes son peso muerto que ya no se
+         * puede juntar con nada. Sacar una de ahí es un rescate de verdad y,
+         * de paso, todo lo de encima baja y compacta la pila.
+         *
+         * Si ya no queda ninguna pequeña, cae al tier más bajo que haya —
+         * también la más enterrada— para que el poder nunca salga en blanco.
+         */
+        const piezas = physics.pieces;
+        if (piezas.length === 0) break;
+
+        const tierMin = Math.min(...piezas.map((b) => b.sugu.tier));
+        const limite = Math.max(tierMin, 1);
+        const candidatas = piezas.filter((b) => b.sugu.tier <= limite);
+
+        // la más enterrada = la de mayor y (más abajo en pantalla)
+        const target = candidatas.reduce((peor, b) =>
+          b.position.y > peor.position.y ? b : peor
+        );
+
+        renderer.flash(target.position.x, target.position.y, colorNum, 40);
+        physics.remove(target);
         break;
       }
 

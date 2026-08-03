@@ -61,6 +61,30 @@ export const RULES = {
   dangerImmunityMs: 900,
   /** ms que dura la ventana de combo */
   comboWindowMs: 1500,
+  /**
+   * Premio por juntar dos Sugu Supreme. Es la jugada más difícil del juego:
+   * hay que completar dos cadenas enteras teniéndolas a la vez en el tablero,
+   * ocupando sitio. Crear UN supreme da 550.
+   */
+  supremePairPoints: 3000,
+} as const;
+
+/**
+ * Rampa de dificultad por tiempo de partida: la gravedad sube poco a poco, así
+ * que las piezas caen más rápido y queda menos margen para apuntar y corregir.
+ *
+ * Se mide con tiempo JUGADO, no con reloj de pared: la pausa y los ratos con
+ * la pestaña en segundo plano no cuentan (mismo criterio que la cuenta atrás
+ * de derrota). Nadie gana dificultad por dejar el móvil encima de la mesa.
+ *
+ * Se multiplica con los factores de los poderes: KOYA (x0.45) sigue siendo un
+ * alivio real aunque la rampa esté al tope, y el festival (x1.12) encima.
+ */
+export const RAMPA = {
+  /** ms de juego hasta llegar al tope */
+  fullAtMs: 10 * 60_000,
+  /** multiplicador de gravedad en el tope */
+  maxGravityMul: 1.6,
 } as const;
 
 /** Física (Matter.js) — un solo sitio para tunear el "feel". */

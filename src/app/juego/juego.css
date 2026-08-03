@@ -159,14 +159,30 @@
   height: auto;
 }
 
+/*
+ * Colección y pausa, apilados en el margen derecho.
+ *
+ * Iban en fila justo bajo la barra: ocupaban de x=388 a x=468 del diseño y la
+ * caja llega hasta x=430, así que tapaban la esquina superior derecha del
+ * tablero — al apuntar a la derecha, la ficha desaparecía detrás de ellos.
+ * En columna y pegados al borde caben en la franja oscura que sobra fuera de
+ * la vitrina, sin robarle ni un píxel a la zona de tiro.
+ */
 .hud-btns {
   position: absolute;
   top: 100%;
-  right: 2.5%;
+  right: 1.2%;
   margin-top: 6px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 7px;
   pointer-events: auto;
+}
+
+.hud-btns .icon-btn {
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
 }
 
 /* ---------- HUD (fallback sin arte) ---------- */
