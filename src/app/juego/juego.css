@@ -813,13 +813,6 @@
   50% { transform: scale(1.05) translateY(-1px); }
 }
 
-.vip-name {
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  color: var(--cream);
-  text-shadow: 0 1px 0 var(--wood-dark), 0 0 8px rgba(0, 0, 0, 0.7);
-}
 
 /* --- globo del pedido --- */
 .vip-bubble {

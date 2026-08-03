@@ -57,7 +57,6 @@ function Walker() {
   const visit = useVipStore((s) => s.visit);
   if (!visit) return null;
 
-  const char = bt21ById(visit.charId);
   const pct = Math.max(0, Math.min(100, (visit.remainingMs / visit.waitMs) * 100));
   const low = visit.remainingMs < visit.waitMs * 0.25;
   const vars = {
@@ -80,8 +79,9 @@ function Walker() {
       )}
       {visit.phase === 'happy' && <div className="vip-emote">💜</div>}
       {visit.phase === 'sad' && <div className="vip-emote">💧</div>}
+      {/* el nombre del personaje va solo como texto alternativo: el cliente se
+          reconoce por su cara, y el cartel ensuciaba la franja de abajo */}
       <Bt21Face id={visit.charId} size={72} className="vip-face" />
-      <div className="vip-name">{char.name}</div>
     </div>
   );
 }

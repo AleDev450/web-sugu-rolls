@@ -26,6 +26,16 @@ import type { SuguBody } from './Physics';
  * 1.18 a 1.05 — con 18% las piezas se veían solapadas al apilarse.
  */
 const SPRITE_SCALE = 1.05;
+
+/**
+ * Interruptor maestro de la vista de colliders (los círculos verdes).
+ *
+ * En false no se enciende por nada: ni con la tecla D, ni con `?debug` en la
+ * URL, ni desde el muestrario. Ponlo en true cuando toque volver a ajustar
+ * los `hitScale` de `tiers.ts` y todo vuelve a funcionar.
+ */
+const DEBUG_COLISIONES = false;
+
 export class Renderer {
   app!: Application;
   private world = new Container();
@@ -87,8 +97,9 @@ export class Renderer {
     );
     this.app.stage.addChild(this.world);
 
-    this.debug = new URLSearchParams(window.location.search).has('debug');
-    window.addEventListener('keydown', this.alTeclear);
+    this.debug =
+      DEBUG_COLISIONES && new URLSearchParams(window.location.search).has('debug');
+    if (DEBUG_COLISIONES) window.addEventListener('keydown', this.alTeclear);
 
     this.boardLayer.addChild(this.boardGfx, this.dangerGfx);
     this.guideLayer.addChild(this.aimGfx);
@@ -426,8 +437,8 @@ export class Renderer {
   }
 
   setDebug(on: boolean) {
-    this.debug = on;
-    if (!on) this.debugGfx.clear();
+    this.debug = on && DEBUG_COLISIONES;
+    if (!this.debug) this.debugGfx.clear();
   }
 
   private alTeclear = (e: KeyboardEvent) => {
