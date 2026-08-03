@@ -23,12 +23,32 @@ export function Campo({
   );
 }
 
-/** Mensajes de Supabase Auth traducidos a algo que un cliente entienda. */
+/**
+ * Mensajes de Supabase Auth traducidos a algo que un cliente entienda.
+ *
+ * Las reglas van de más específica a más general y NINGUNA es un cajón de
+ * sastre. Antes había un `includes('email')` al final que se tragaba
+ * cualquier error con esa palabra —el límite de envíos, por ejemplo— y lo
+ * mostraba como "correo inválido", mandando a la gente a revisar un dato que
+ * estaba perfecto. Si algo no encaja, se dice que no se pudo y el detalle
+ * real se deja en la consola.
+ */
 function traducir(mensaje: string): string {
   const m = mensaje.toLowerCase();
-  if (m.includes('already registered') || m.includes('already been registered')) {
+
+  if (
+    m.includes('already registered') ||
+    m.includes('already been registered') ||
+    m.includes('ya tiene una cuenta')
+  ) {
     return 'Ese correo ya tiene una cuenta. Inicia sesión.';
   }
+
+  // Supabase limita los correos que envía por hora en el plan gratuito
+  if (m.includes('rate limit') || m.includes('security purposes') || m.includes('too many')) {
+    return 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.';
+  }
+
   /*
    * Sale cuando el proyecto tiene activada la confirmación por correo y el
    * cliente no ha abierto el enlace. Se apaga en Supabase:
@@ -37,9 +57,16 @@ function traducir(mensaje: string): string {
   if (m.includes('not confirmed')) {
     return 'Tu correo aún no está confirmado. Abre el enlace que te enviamos.';
   }
-  if (m.includes('invalid login')) return 'Correo o contraseña incorrectos.';
+
+  if (m.includes('invalid login') || m.includes('invalid credentials')) {
+    return 'Correo o contraseña incorrectos.';
+  }
+  if (m.includes('invalid email') || m.includes('email address is invalid')) {
+    return 'Revisa el correo, no parece válido.';
+  }
   if (m.includes('password')) return 'La contraseña debe tener al menos 6 caracteres.';
-  if (m.includes('email')) return 'Revisa el correo, no parece válido.';
+
+  console.error('[cuenta] error sin traducir:', mensaje);
   return 'No se pudo completar. Inténtalo de nuevo.';
 }
 

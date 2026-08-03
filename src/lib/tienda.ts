@@ -72,6 +72,11 @@ export async function registrarse(d: DatosRegistro) {
     throw new Error(fallo.mensaje ?? 'No se pudo crear la cuenta.');
   }
 
+  console.warn(
+    '[registro] Falta SUPABASE_SERVICE_ROLE_KEY: se usa el alta normal, que envía correo ' +
+      'de confirmación y está sujeta al límite de envíos de Supabase.'
+  );
+
   // --- respaldo: registro normal, sujeto al ajuste del proyecto ---
   const { data, error } = await sb().auth.signUp({
     email: d.correo.trim(),
