@@ -47,8 +47,32 @@ export interface Perfil {
 /**
  * Alta de cliente. Los datos van en `user_metadata` y el trigger
  * `handle_new_user` los copia a `profiles` al crearse la cuenta.
+ *
+ * Pasa por `/api/registro`, que crea la cuenta YA CONFIRMADA desde el
+ * servidor: así no se envía ningún correo y el cliente entra en el acto.
+ * Si esa ruta no está configurada (falta la clave de servicio), cae al
+ * registro normal de Supabase para no dejar la web sin alta.
  */
 export async function registrarse(d: DatosRegistro) {
+  const res = await fetch('/api/registro', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(d),
+  });
+
+  if (res.ok) {
+    // nace confirmada: se entra directo, sin buzón de por medio
+    await ingresar(d.correo, d.clave);
+    return { confirmar: false };
+  }
+
+  const fallo = (await res.json().catch(() => ({}))) as { error?: string; mensaje?: string };
+
+  if (fallo.error !== 'SIN_CONFIGURAR') {
+    throw new Error(fallo.mensaje ?? 'No se pudo crear la cuenta.');
+  }
+
+  // --- respaldo: registro normal, sujeto al ajuste del proyecto ---
   const { data, error } = await sb().auth.signUp({
     email: d.correo.trim(),
     password: d.clave,
@@ -62,11 +86,8 @@ export async function registrarse(d: DatosRegistro) {
     },
   });
   if (error) throw error;
-  /*
-   * Si el proyecto pide confirmar el correo, `session` viene null: la cuenta
-   * existe pero todavía no hay sesión. Se devuelve para que la pantalla sepa
-   * si mandar al cliente a su cuenta o a revisar el buzón.
-   */
+
+  // sin sesión = el proyecto exige confirmar el correo
   return { confirmar: !data.session };
 }
 

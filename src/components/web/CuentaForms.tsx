@@ -29,6 +29,14 @@ function traducir(mensaje: string): string {
   if (m.includes('already registered') || m.includes('already been registered')) {
     return 'Ese correo ya tiene una cuenta. Inicia sesión.';
   }
+  /*
+   * Sale cuando el proyecto tiene activada la confirmación por correo y el
+   * cliente no ha abierto el enlace. Se apaga en Supabase:
+   * Authentication -> Providers -> Email -> "Confirm email".
+   */
+  if (m.includes('not confirmed')) {
+    return 'Tu correo aún no está confirmado. Abre el enlace que te enviamos.';
+  }
   if (m.includes('invalid login')) return 'Correo o contraseña incorrectos.';
   if (m.includes('password')) return 'La contraseña debe tener al menos 6 caracteres.';
   if (m.includes('email')) return 'Revisa el correo, no parece válido.';
