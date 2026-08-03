@@ -562,10 +562,12 @@ begin
     raise exception 'NO_AUTORIZADO' using hint = 'Solo un administrador puede borrar códigos';
   end if;
 
+  -- el `where true` no filtra nada: está para que el modo seguro de Postgres
+  -- (sql_safe_updates) no rechace el borrado por venir sin WHERE
   if p_solo_sin_usar then
     delete from public.access_codes where redeemed_at is null;
   else
-    delete from public.access_codes;
+    delete from public.access_codes where true;
   end if;
 
   get diagnostics v_borrados = row_count;
@@ -595,10 +597,11 @@ begin
     raise exception 'NO_AUTORIZADO' using hint = 'Solo un administrador puede resetear el ranking';
   end if;
 
-  delete from public.game_sessions;
+  -- `where true` por el modo seguro de Postgres, que rechaza DELETE sin WHERE
+  delete from public.game_sessions where true;
   get diagnostics v_borradas = row_count;
 
-  delete from public.code_attempts;
+  delete from public.code_attempts where true;
   return v_borradas;
 end;
 $$;

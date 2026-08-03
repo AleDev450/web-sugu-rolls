@@ -321,6 +321,106 @@ export async function listarPartidas(
   });
 }
 
+// ---------- pedidos de la tienda ----------
+
+export type EstadoPedido = 'pendiente' | 'pagado' | 'entregado' | 'cancelado';
+
+export interface PedidoAdmin {
+  id: string;
+  numero: number;
+  estado: EstadoPedido;
+  total: number;
+  nombre: string;
+  telefono: string;
+  direccion: string;
+  nota: string | null;
+  correo: string | null;
+  puntos: number;
+  creado: string;
+  pagado: string | null;
+  items: { nombre: string; precio: number; cantidad: number }[];
+}
+
+export async function listarPedidos(estado?: EstadoPedido): Promise<PedidoAdmin[]> {
+  const { data, error } = await sb().rpc('admin_pedidos', {
+    p_estado: estado ?? null,
+    p_limit: 200,
+  });
+  if (error) throw error;
+  return ((data ?? []) as PedidoAdmin[]).map((p) => ({ ...p, total: Number(p.total) }));
+}
+
+/** Confirma el pago y acredita los puntos. Devuelve cuántos se dieron. */
+export async function confirmarPago(id: string): Promise<number> {
+  const { data, error } = await sb().rpc('admin_confirmar_pago', { p_order: id });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+export async function cambiarEstadoPedido(id: string, estado: EstadoPedido) {
+  const { error } = await sb().rpc('admin_estado_pedido', { p_order: id, p_estado: estado });
+  if (error) throw error;
+}
+
+// ---------- canjes por puntos ----------
+
+export interface CanjeAdmin {
+  id: string;
+  nombre: string;
+  tipo: 'descuento' | 'producto' | 'juego';
+  costo_puntos: number;
+  codigo: string | null;
+  estado: 'disponible' | 'usado' | 'entregado';
+  cliente: string;
+  telefono: string | null;
+  correo: string | null;
+  creado: string;
+}
+
+export async function listarCanjes(): Promise<CanjeAdmin[]> {
+  const { data, error } = await sb().rpc('admin_canjes', { p_limit: 200 });
+  if (error) throw error;
+  return (data ?? []) as CanjeAdmin[];
+}
+
+export async function cambiarEstadoCanje(id: string, estado: CanjeAdmin['estado']) {
+  const { error } = await sb().rpc('admin_estado_canje', { p_canje: id, p_estado: estado });
+  if (error) throw error;
+}
+
+export interface RecompensaAdmin {
+  id?: string;
+  nombre: string;
+  descripcion: string;
+  tipo: 'descuento' | 'producto' | 'juego';
+  costo_puntos: number;
+  porcentaje: number | null;
+  product_id: string | null;
+  imagen: string;
+  activo: boolean;
+  orden: number;
+}
+
+export async function listarRecompensasAdmin(): Promise<RecompensaAdmin[]> {
+  const { data, error } = await sb().from('rewards').select('*').order('orden');
+  if (error) throw error;
+  return (data ?? []) as RecompensaAdmin[];
+}
+
+export async function guardarRecompensa(r: RecompensaAdmin) {
+  const { id, ...campos } = r;
+  const q = id
+    ? sb().from('rewards').update(campos).eq('id', id)
+    : sb().from('rewards').insert(campos);
+  const { error } = await q;
+  if (error) throw error;
+}
+
+export async function borrarRecompensa(id: string) {
+  const { error } = await sb().from('rewards').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function estadisticas() {
   const { data, error } = await sb().rpc('admin_stats');
   if (error) throw error;

@@ -5,8 +5,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import { soles } from '@/data/productos';
 import { useCartStore } from '@/store/useCartStore';
+import { Checkout } from './Checkout';
 
-/** Panel lateral del carrito. El pedido se cierra por WhatsApp. */
+/**
+ * Panel lateral del carrito. El cierre normal es `Checkout` (crea el pedido en
+ * la base y acumula puntos); WhatsApp queda como salida secundaria para quien
+ * no quiera crearse una cuenta.
+ */
 export function Cart() {
   const { items, abierto, cerrar, quitar, cambiarCantidad, vaciar } = useCartStore();
   const total = items.reduce((t, i) => t + i.precio * i.cantidad, 0);
@@ -117,11 +122,13 @@ export function Cart() {
                     <span className="text-2xl font-bold text-sugu">{soles(total)}</span>
                   </div>
 
+                  <Checkout />
+
                   <a
                     href={mensajeWhatsapp()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-primary w-full"
+                    className="btn-ghost mt-2 w-full"
                   >
                     Pedir por WhatsApp
                   </a>

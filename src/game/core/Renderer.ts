@@ -45,7 +45,8 @@ export class Renderer {
   private fxLayer = new Container();
   private guideLayer = new Container();
 
-  private auraGfx = new Graphics();
+  private auraLayer = new Container();
+  private auras = new Map<number, Sprite>();
   private boardGfx = new Graphics();
   private dangerGfx = new Graphics();
   private aimGfx = new Graphics();
@@ -89,6 +90,9 @@ export class Renderer {
       this.bgLayer,
       this.boardLayer,
       this.pieceLayer,
+      // el brillo del Supreme va SOBRE la pieza: en modo aditivo ilumina el
+      // propio dibujo, en vez de asomar por detrás como un halo
+      this.auraLayer,
       this.guideLayer,
       this.fxLayer,
       // la barra de lanzamiento va sobre la ficha fantasma, nunca debajo
@@ -102,8 +106,7 @@ export class Renderer {
       DEBUG_COLISIONES && new URLSearchParams(window.location.search).has('debug');
     if (DEBUG_COLISIONES) window.addEventListener('keydown', this.alTeclear);
 
-    // el aro va DETRÁS de las piezas: no debe taparle la cara al Supreme
-    this.boardLayer.addChild(this.boardGfx, this.dangerGfx, this.auraGfx);
+    this.boardLayer.addChild(this.boardGfx, this.dangerGfx);
     this.guideLayer.addChild(this.aimGfx);
 
     this.drawBackground();
@@ -122,6 +125,7 @@ export class Renderer {
     window.removeEventListener('keydown', this.alTeclear);
     gsap.killTweensOf([...this.sprites.values()]);
     this.sprites.clear();
+    this.auras.clear();
     this.app?.destroy(true, { children: true, texture: false });
   }
 
@@ -431,38 +435,56 @@ export class Renderer {
   }
 
   /**
-   * Aro dorado alrededor de cada Sugu Supreme.
+   * Brillo dorado del Sugu Supreme.
    *
    * No es adorno: desde que el Supreme se queda en el tablero, hay que poder
    * localizarlo de un vistazo para emparejarlo, y entre tanta pieza grande se
-   * confunde con el Sugu Especial (96 de radio contra 110). Con dos o más en
-   * juego el aro late más fuerte y más rápido: es la pista de que se pueden
+   * confunde con el Sugu Especial (96 de radio contra 110).
+   *
+   * Es una COPIA del propio sprite en modo aditivo, encima de la pieza y
+   * teñida de oro. Al usar la misma textura, el brillo sigue la silueta del
+   * maki: ilumina el dibujo en vez de dibujarle un aro alrededor. Con dos o
+   * más en juego late más fuerte y más rápido — la pista de que se pueden
    * juntar.
    */
   private drawAuras(bodies: SuguBody[]) {
-    this.auraGfx.clear();
-
     const supremes = bodies.filter((b) => b.sugu.tier === MAX_TIER);
-    if (supremes.length === 0) return;
+    const vivos = new Set<number>();
 
-    const hayPareja = supremes.length >= 2;
-    const ritmo = hayPareja ? 170 : 300;
-    const pulso = 0.5 + 0.5 * Math.sin(performance.now() / ritmo);
-    const r = tierAt(MAX_TIER).radius * SPRITE_SCALE;
+    if (supremes.length > 0) {
+      const hayPareja = supremes.length >= 2;
+      const pulso = 0.5 + 0.5 * Math.sin(performance.now() / (hayPareja ? 170 : 320));
+      const base = tierAt(MAX_TIER).radius * 2 * SPRITE_SCALE;
 
-    for (const b of supremes) {
-      this.auraGfx.circle(b.position.x, b.position.y, r + 9 + pulso * 5);
+      for (const b of supremes) {
+        const uid = b.sugu.uid;
+        vivos.add(uid);
+
+        let brillo = this.auras.get(uid);
+        if (!brillo) {
+          brillo = new Sprite(getTierTexture(MAX_TIER));
+          brillo.anchor.set(0.5);
+          brillo.blendMode = 'add';
+          brillo.tint = 0xf2c14e;
+          this.auraLayer.addChild(brillo);
+          this.auras.set(uid, brillo);
+        }
+
+        // apenas más grande que la pieza: el sobrante desborda por el contorno
+        const d = base * (1.02 + pulso * 0.04);
+        brillo.width = d;
+        brillo.height = d;
+        brillo.position.set(b.position.x, b.position.y);
+        brillo.rotation = b.angle;
+        brillo.alpha = (hayPareja ? 0.3 : 0.18) + pulso * (hayPareja ? 0.34 : 0.22);
+      }
     }
-    this.auraGfx.fill({ color: 0xf2c14e, alpha: (hayPareja ? 0.16 : 0.1) + pulso * 0.1 });
 
-    for (const b of supremes) {
-      this.auraGfx.circle(b.position.x, b.position.y, r + 3 + pulso * 4);
+    for (const [uid, brillo] of this.auras) {
+      if (vivos.has(uid)) continue;
+      this.auras.delete(uid);
+      brillo.destroy();
     }
-    this.auraGfx.stroke({
-      width: hayPareja ? 4 + pulso * 2.5 : 3,
-      color: 0xf2c14e,
-      alpha: 0.5 + pulso * 0.45,
-    });
   }
 
   // ---------- vista de colisiones (depuración) ----------
