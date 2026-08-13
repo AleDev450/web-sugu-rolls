@@ -24,6 +24,8 @@ export interface ProductoAdmin {
   orden: number;
   /** cantidades a la venta con su precio; vacío = precio único */
   presentaciones: { piezas: number; precio: number }[];
+  /** grupos de personalización; vacío = producto simple */
+  opciones: { titulo: string; min: number; max: number; opciones: string[] }[];
 }
 
 export interface PaqueteAdmin {
@@ -453,7 +455,13 @@ export interface PedidoAdmin {
   puntos: number;
   creado: string;
   pagado: string | null;
-  items: { nombre: string; precio: number; cantidad: number }[];
+  items: {
+    nombre: string;
+    precio: number;
+    cantidad: number;
+    /** lo elegido en un producto configurable */
+    opciones?: Record<string, string[]>;
+  }[];
 }
 
 export async function listarPedidos(estado?: EstadoPedido): Promise<PedidoAdmin[]> {

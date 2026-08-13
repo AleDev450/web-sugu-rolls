@@ -3,15 +3,15 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { ImagePlus, Loader2, X } from 'lucide-react';
-import { IMAGEN_PRODUCTO, subirImagenProducto } from '@/lib/imagenes';
+import { DESTINOS, subirImagen, type TipoImagen } from '@/lib/imagenes';
 
 /**
  * Campo de imagen con subida.
  *
  * Muestra la foto actual y permite reemplazarla eligiendo un archivo. El
- * recorte y la compresión los hace `subirImagenProducto` en el navegador, así
- * que da igual que llegue una foto de móvil de 5 MB: siempre se guarda a
- * 1200x900 en WebP.
+ * recorte y la compresión los hace `subirImagen` en el navegador, así que da
+ * igual que llegue una foto de móvil de 5 MB: siempre se guarda en WebP con
+ * la proporción del sitio donde se va a ver (ver `DESTINOS`).
  *
  * La ruta sigue siendo editable a mano debajo, porque las imágenes que ya
  * existen en `/public` se referencian por ruta y no están en el almacén.
@@ -19,12 +19,16 @@ import { IMAGEN_PRODUCTO, subirImagenProducto } from '@/lib/imagenes';
 export function SubirImagen({
   valor,
   nombreBase,
+  tipo = 'producto',
   alCambiar,
 }: {
   valor: string;
   nombreBase: string;
+  /** decide carpeta y proporción del recorte (ver DESTINOS) */
+  tipo?: TipoImagen;
   alCambiar: (url: string) => void;
 }) {
+  const destino = DESTINOS[tipo];
   const input = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +39,7 @@ export function SubirImagen({
     setSubiendo(true);
     setError(null);
     try {
-      const { url, pesoKB } = await subirImagenProducto(archivo, nombreBase || 'producto');
+      const { url, pesoKB } = await subirImagen(archivo, nombreBase || tipo, tipo);
       alCambiar(url);
       setPeso(pesoKB);
     } catch (e) {
@@ -100,7 +104,7 @@ export function SubirImagen({
           </div>
 
           <p className="mt-2 text-[11px] leading-relaxed text-white/40">
-            Se recorta y comprime sola a {IMAGEN_PRODUCTO.ancho}×{IMAGEN_PRODUCTO.alto} en WebP.
+            Se recorta y comprime sola a {destino.ancho}×{destino.alto} en WebP.
             Sube la foto más grande que tengas: cuanto mejor el original, mejor el resultado.
           </p>
 

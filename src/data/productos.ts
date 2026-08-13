@@ -34,6 +34,22 @@ export interface Presentacion {
   precio: number;
 }
 
+/**
+ * Grupo de personalización: base, toppings, proteína, salsas…
+ *
+ * `min: 0` = el grupo es opcional. `min > 0` = obligatorio, hay que marcar
+ * al menos esas. `max` es el tope de opciones que se pueden marcar.
+ */
+export interface GrupoOpciones {
+  titulo: string;
+  min: number;
+  max: number;
+  opciones: string[];
+}
+
+/** Lo elegido por el cliente, indexado por título de grupo. */
+export type OpcionesElegidas = Record<string, string[]>;
+
 export interface Producto {
   id: string;
   nombre: string;
@@ -51,6 +67,11 @@ export interface Producto {
    * el código, ni siquiera el 5 y el 10.
    */
   presentaciones?: Presentacion[];
+  /**
+   * Grupos de personalización. Vacío o ausente = producto simple, que se
+   * añade al carrito de un clic sin pasar por el configurador.
+   */
+  opciones?: GrupoOpciones[];
 }
 
 /** Mismo orden y textos que la migración 009; la base manda sobre esto. */

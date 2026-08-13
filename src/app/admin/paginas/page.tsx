@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ExternalLink, Pencil } from 'lucide-react';
 import { guardarSeccion, listarSecciones, type SeccionAdmin } from '@/lib/admin';
+import { SubirImagen } from '@/components/admin/SubirImagen';
 import { PAGINAS } from '@/data/secciones';
 import {
   Aviso,
@@ -177,11 +178,12 @@ export default function PaginasAdmin() {
             </Campo>
 
             <Campo etiqueta="Imagen" ancho="completo">
-              <input
-                value={edicion.imagen}
-                onChange={(e) => setEdicion({ ...edicion, imagen: e.target.value })}
-                className={claseCampo}
-                placeholder="/imagenes/web/hero-makis.webp"
+              <SubirImagen
+                valor={edicion.imagen}
+                nombreBase={edicion.id}
+                /* el hero es cuadrado; el resto de secciones, 5:4 */
+                tipo={edicion.id === 'hero' ? 'hero' : 'seccion'}
+                alCambiar={(url) => setEdicion({ ...edicion, imagen: url })}
               />
             </Campo>
 

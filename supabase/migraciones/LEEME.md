@@ -33,3 +33,6 @@ Cuando corras una, márcala aquí:
 | `007-presentaciones-de-producto.sql` | Precios por cantidad (por 5, por 10…) editables | ☐ |
 | `008-cargar-presentaciones.sql` | Deja todos los productos en 5/15, 10/25 y 20/45 | ☐ |
 | `009-categorias-nuevas.sql` | Onigiri, Temaki, Handroll, Burrito Roll, calientes y salsas | ☐ |
+| `010-opciones-de-producto.sql` | Productos configurables por grupos de opciones | ☐ |
+| `011-opciones-pokebowl.sql` | Carga base, toppings, proteína y salsas en los bowls | ☐ |
+| `012-imagenes-de-contenido.sql` | Subir imágenes también en paquetes y secciones | ☐ |

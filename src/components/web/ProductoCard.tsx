@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Check, Plus } from 'lucide-react';
-import { soles, type Producto } from '@/data/productos';
+import { soles, type Producto, type OpcionesElegidas } from '@/data/productos';
 import { useCartStore } from '@/store/useCartStore';
+import { Configurador } from './Configurador';
 
 const COLOR_ETIQUETA: Record<string, string> = {
   'Más pedido': 'bg-sugu text-white',
@@ -30,14 +31,21 @@ export function ProductoCard({ producto }: { producto: Producto }) {
   const presentacion = presentaciones[elegida];
   const precio = presentacion?.precio ?? producto.precio;
 
+  /** Productos configurables (bowls): el botón abre el armador. */
+  const configurable = (producto.opciones?.length ?? 0) > 0;
+  const [armando, setArmando] = useState(false);
+
   useEffect(() => () => void (temporizador.current && clearTimeout(temporizador.current)), []);
 
-  const alAgregar = () => {
-    agregar(producto, presentacion?.piezas, presentacion?.precio);
+  const confirmar = (opciones?: OpcionesElegidas) => {
+    agregar(producto, presentacion?.piezas, presentacion?.precio, opciones);
+    setArmando(false);
     setAgregado(true);
     if (temporizador.current) clearTimeout(temporizador.current);
     temporizador.current = setTimeout(() => setAgregado(false), 1400);
   };
+
+  const alAgregar = () => (configurable ? setArmando(true) : confirmar());
 
   return (
     <article className="card card-hover group flex h-full flex-col overflow-hidden">
@@ -106,6 +114,17 @@ export function ProductoCard({ producto }: { producto: Producto }) {
           </button>
         </div>
       </div>
+
+      {configurable && (
+        <Configurador
+          producto={producto}
+          precio={precio}
+          piezas={presentacion?.piezas}
+          abierto={armando}
+          alCerrar={() => setArmando(false)}
+          alConfirmar={confirmar}
+        />
+      )}
     </article>
   );
 }

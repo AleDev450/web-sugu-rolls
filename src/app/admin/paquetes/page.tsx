@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { borrar, guardarPaquete, listarPaquetes, type PaqueteAdmin } from '@/lib/admin';
+import { SubirImagen } from '@/components/admin/SubirImagen';
 import { soles } from '@/data/productos';
 import {
   Aviso,
@@ -52,6 +53,8 @@ export default function PaquetesAdmin() {
       await guardarPaquete({
         ...edicion,
         slug: edicion.slug || edicion.nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        // las líneas en blanco se descartan aquí, no mientras se escribe
+        incluye: edicion.incluye.map((l) => l.trim()).filter(Boolean),
       });
       setEdicion(null);
       setAviso({ tipo: 'ok', texto: 'Paquete guardado.' });
@@ -199,25 +202,29 @@ export default function PaquetesAdmin() {
             </Campo>
 
             <Campo etiqueta="Qué incluye (una línea por ítem)" ancho="completo">
+              {/*
+                Al escribir NO se filtran las líneas vacías. Antes sí, y eso
+                impedía añadir ítems: al pulsar Enter la línea nueva estaba
+                vacía, el filtro la borraba en el acto y el cursor volvía
+                arriba. Las vacías se descartan al guardar, en `enviar`.
+              */}
               <textarea
-                rows={3}
+                rows={4}
                 value={edicion.incluye.join('\n')}
                 onChange={(e) =>
-                  setEdicion({
-                    ...edicion,
-                    incluye: e.target.value.split('\n').filter((l) => l.trim()),
-                  })
+                  setEdicion({ ...edicion, incluye: e.target.value.split('\n') })
                 }
-                className={`${claseCampo} resize-none`}
+                className={claseCampo}
                 placeholder={'40 piezas\n4 sabores a elección\n2 bebidas'}
               />
             </Campo>
 
-            <Campo etiqueta="Ruta de la imagen" ancho="completo">
-              <input
-                value={edicion.imagen}
-                onChange={(e) => setEdicion({ ...edicion, imagen: e.target.value })}
-                className={claseCampo}
+            <Campo etiqueta="Imagen del paquete" ancho="completo">
+              <SubirImagen
+                valor={edicion.imagen}
+                nombreBase={edicion.slug || edicion.nombre}
+                tipo="paquete"
+                alCambiar={(url) => setEdicion({ ...edicion, imagen: url })}
               />
             </Campo>
 

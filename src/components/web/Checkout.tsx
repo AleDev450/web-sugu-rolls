@@ -42,7 +42,12 @@ export function Checkout() {
       const { numero } = await crearPedido(
         // el id de línea puede llevar sufijo de presentación; se manda el
         // slug real y las piezas por separado
-        items.map((i) => ({ slug: i.slug, piezas: i.piezas, cantidad: i.cantidad })),
+        items.map((i) => ({
+          slug: i.slug,
+          piezas: i.piezas,
+          cantidad: i.cantidad,
+          opciones: i.opciones,
+        })),
         direccion,
         nota
       );

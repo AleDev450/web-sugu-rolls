@@ -2,6 +2,7 @@
 
 import { getSupabase } from '@/lib/supabase/client';
 import {
+  type GrupoOpciones,
   PRODUCTOS,
   PAQUETES,
   TESTIMONIOS,
@@ -142,6 +143,7 @@ interface FilaProducto {
   activo: boolean;
   orden: number;
   presentaciones: { piezas: number | string; precio: number | string }[] | null;
+  opciones: GrupoOpciones[] | null;
 }
 
 interface FilaPaquete {
@@ -182,6 +184,11 @@ function aProducto(f: FilaProducto): Producto {
       .map((p) => ({ piezas: Number(p.piezas), precio: Number(p.precio) }))
       .filter((p) => p.piezas > 0 && p.precio >= 0)
       .sort((a, b) => a.piezas - b.piezas),
+    // se descartan los grupos mal formados: un grupo sin opciones dejaría
+    // el configurador bloqueado sin nada que elegir
+    opciones: (f.opciones ?? []).filter(
+      (g) => g?.titulo && Array.isArray(g.opciones) && g.opciones.length > 0
+    ),
   };
 }
 

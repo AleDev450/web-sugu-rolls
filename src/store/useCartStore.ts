@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SITE, whatsappUrl } from '@/data/site';
 import { ajustesEnCache } from '@/lib/useAjustes';
-import { soles, type Producto } from '@/data/productos';
+import { soles, type OpcionesElegidas, type Producto } from '@/data/productos';
 
 /**
  * Carrito de compras. Por ahora el pedido se cierra por WhatsApp; cuando
@@ -27,22 +27,44 @@ export interface ItemCarrito {
   cantidad: number;
   /** presentación elegida; ausente en los productos de precio único */
   piezas?: number;
+  /** lo elegido en cada grupo si el producto es configurable */
+  opciones?: OpcionesElegidas;
 }
 
-/** Arma la clave de línea a partir del producto y la presentación. */
-export function claveItem(slug: string, piezas?: number): string {
-  return piezas ? `${slug}#${piezas}` : slug;
+/** Arma la clave de línea a partir del producto, presentación y opciones. */
+export function claveItem(
+  slug: string,
+  piezas?: number,
+  opciones?: OpcionesElegidas
+): string {
+  const base = piezas ? `${slug}#${piezas}` : slug;
+  if (!opciones || Object.keys(opciones).length === 0) return base;
+
+  /*
+   * Dos bowls con distinto relleno son dos líneas distintas y no deben
+   * sumarse. Se ordenan grupos y opciones para que elegir "palta, choclo" y
+   * "choclo, palta" dé la misma clave: es el mismo bowl.
+   */
+  const firma = Object.keys(opciones)
+    .sort()
+    .map((g) => `${g}=${[...opciones[g]].sort().join('+')}`)
+    .join('|');
+  return `${base}@${firma}`;
 }
 
 interface CartState {
   items: ItemCarrito[];
   abierto: boolean;
 
-  /** `piezas` solo cuando el producto se vende por presentaciones */
+  /**
+   * `piezas` solo en productos con presentaciones; `opciones` solo en los
+   * configurables (bowls). Sin ninguno de los dos, se comporta como siempre.
+   */
   agregar: (
     p: Pick<Producto, 'id' | 'nombre' | 'precio' | 'imagen'>,
     piezas?: number,
-    precioPresentacion?: number
+    precioPresentacion?: number,
+    opciones?: OpcionesElegidas
   ) => void;
   quitar: (id: string) => void;
   cambiarCantidad: (id: string, cantidad: number) => void;
@@ -65,9 +87,9 @@ export const useCartStore = create<CartState>()(
        * No abre el panel a propósito: abrirlo en cada clic tapa la carta y
        * corta la compra. El aviso es el contador del header.
        */
-      agregar: (p, piezas, precioPresentacion) =>
+      agregar: (p, piezas, precioPresentacion, opciones) =>
         set((s) => {
-          const id = claveItem(p.id, piezas);
+          const id = claveItem(p.id, piezas, opciones);
           const existente = s.items.find((i) => i.id === id);
           if (existente) {
             return {

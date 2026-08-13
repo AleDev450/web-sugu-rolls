@@ -78,6 +78,13 @@ export function Cart() {
 
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate font-semibold">{item.nombre}</h3>
+                        {/* lo elegido en un bowl: sin esto dos líneas del mismo
+                            producto se ven idénticas y no se sabe cuál es cuál */}
+                        {item.opciones && Object.keys(item.opciones).length > 0 && (
+                          <p className="mt-0.5 text-[11px] leading-snug text-white/45">
+                            {Object.values(item.opciones).flat().join(', ')}
+                          </p>
+                        )}
                         <p className="mt-0.5 text-sm font-bold text-sugu">
                           {soles(item.precio)}
                         </p>

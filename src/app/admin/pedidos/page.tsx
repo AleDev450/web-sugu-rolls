@@ -165,13 +165,29 @@ export default function PedidosAdmin() {
 
                 <ul className="space-y-1.5 text-[13px]">
                   {p.items.map((i, n) => (
-                    <li key={n} className="flex justify-between gap-4">
-                      <span>
-                        <span className="text-bone-dim">{i.cantidad}×</span> {i.nombre}
-                      </span>
-                      <span className="flex-none tabular-nums text-bone-dim">
-                        {soles(Number(i.precio) * i.cantidad)}
-                      </span>
+                    <li key={n}>
+                      <div className="flex justify-between gap-4">
+                        <span>
+                          <span className="text-bone-dim">{i.cantidad}×</span> {i.nombre}
+                        </span>
+                        <span className="flex-none tabular-nums text-bone-dim">
+                          {soles(Number(i.precio) * i.cantidad)}
+                        </span>
+                      </div>
+
+                      {/* lo que hay que preparar: por grupo, no todo junto */}
+                      {i.opciones && Object.keys(i.opciones).length > 0 && (
+                        <ul className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                          {Object.entries(i.opciones)
+                            .filter(([, v]) => v.length > 0)
+                            .map(([grupo, valores]) => (
+                              <li key={grupo} className="text-[12px] text-bone-dim">
+                                <span className="text-white/40">{grupo}:</span>{' '}
+                                {valores.join(', ')}
+                              </li>
+                            ))}
+                        </ul>
+                      )}
                     </li>
                   ))}
                 </ul>

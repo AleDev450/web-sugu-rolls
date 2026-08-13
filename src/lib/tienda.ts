@@ -186,7 +186,12 @@ export const ESTADO_PEDIDO: Record<Pedido['estado'], string> = {
  * base leyendo `products`, así que da igual lo que se manipule en el cliente.
  */
 export async function crearPedido(
-  items: { slug: string; piezas?: number; cantidad: number }[],
+  items: {
+    slug: string;
+    piezas?: number;
+    cantidad: number;
+    opciones?: Record<string, string[]>;
+  }[],
   direccion: string,
   nota: string
 ): Promise<{ numero: number; total: number }> {

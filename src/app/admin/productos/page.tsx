@@ -10,6 +10,7 @@ import {
   listarProductos,
   type ProductoAdmin,
 } from '@/lib/admin';
+import { GruposOpciones } from '@/components/admin/GruposOpciones';
 import { Presentaciones } from '@/components/admin/Presentaciones';
 import { SubirImagen } from '@/components/admin/SubirImagen';
 import { soles } from '@/data/productos';
@@ -37,6 +38,7 @@ const NUEVO: ProductoAdmin = {
   activo: true,
   orden: 0,
   presentaciones: [],
+  opciones: [],
 };
 
 export default function ProductosAdmin() {
@@ -312,6 +314,13 @@ export default function ProductosAdmin() {
                 valor={edicion.presentaciones ?? []}
                 precioBase={edicion.precio}
                 alCambiar={(presentaciones) => setEdicion({ ...edicion, presentaciones })}
+              />
+            </Campo>
+
+            <Campo etiqueta="Grupos de personalización (bases, toppings…)" ancho="completo">
+              <GruposOpciones
+                valor={edicion.opciones ?? []}
+                alCambiar={(opciones) => setEdicion({ ...edicion, opciones })}
               />
             </Campo>
 
