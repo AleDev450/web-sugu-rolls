@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Boxes, KeyRound, MessageSquareQuote, Trophy, UtensilsCrossed } from 'lucide-react';
-import { estadisticas, listarPaquetes, listarProductos, listarTestimonios } from '@/lib/admin';
+import { Boxes, KeyRound, Trophy, UtensilsCrossed } from 'lucide-react';
+import { estadisticas, listarPaquetes, listarProductos } from '@/lib/admin';
 import { Cargando, Encabezado } from '@/components/admin/ui';
 
 interface Resumen {
   productos: number;
   paquetes: number;
-  testimonios: number;
   codigosDisponibles: number;
   codigosUsados: number;
   partidas: number;
@@ -21,17 +20,15 @@ export default function AdminInicio() {
 
   useEffect(() => {
     (async () => {
-      const [productos, paquetes, testimonios] = await Promise.all([
+      const [productos, paquetes] = await Promise.all([
         listarProductos().catch(() => []),
         listarPaquetes().catch(() => []),
-        listarTestimonios().catch(() => []),
       ]);
       const stats = await estadisticas().catch(() => null);
 
       setR({
         productos: productos.length,
         paquetes: paquetes.length,
-        testimonios: testimonios.length,
         codigosDisponibles: Number(stats?.codigos_disponibles ?? 0),
         codigosUsados: Number(stats?.codigos_usados ?? 0),
         partidas: Number(stats?.partidas_jugadas ?? 0),
@@ -45,12 +42,6 @@ export default function AdminInicio() {
   const tarjetas = [
     { titulo: 'Productos', valor: r.productos, icono: UtensilsCrossed, href: '/admin/productos' },
     { titulo: 'Paquetes', valor: r.paquetes, icono: Boxes, href: '/admin/paquetes' },
-    {
-      titulo: 'Testimonios',
-      valor: r.testimonios,
-      icono: MessageSquareQuote,
-      href: '/admin/testimonios',
-    },
     {
       titulo: 'Códigos sin usar',
       valor: r.codigosDisponibles,

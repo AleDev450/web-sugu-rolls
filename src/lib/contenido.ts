@@ -46,6 +46,11 @@ export interface AjustesSitio {
   mod_juego: boolean;
   /** Interruptor maestro: apaga la web y deja solo /juego. */
   solo_juego: boolean;
+
+  /** Textos legales en Markdown ligero. Vacío = página aún sin redactar. */
+  terminos: string;
+  privacidad: string;
+  legales_actualizado: string | null;
 }
 
 /** Rutas que controla cada bandera, para filtrar menús y proteger páginas. */
@@ -88,6 +93,9 @@ const AJUSTES_LOCALES: AjustesSitio = {
   mod_cuenta: true,
   mod_juego: true,
   solo_juego: false,
+  terminos: '',
+  privacidad: '',
+  legales_actualizado: null,
 };
 
 /** ¿Hay backend configurado? */
@@ -190,17 +198,22 @@ export function traerSecciones(): Promise<Record<SeccionId, Seccion>> {
     if (!sb) return SECCIONES;
 
     const { data, error } = await sb.from('page_sections').select('*');
-    if (error || !data?.length) return SECCIONES;
+    if (error || !data) return SECCIONES;
 
     const mezcla = { ...SECCIONES };
     for (const fila of data as Seccion[]) {
+      /*
+       * `local` puede no existir: una sección creada en la base que todavía no
+       * está en el archivo. Antes se descartaba en silencio y editarla desde
+       * el panel no tenía ningún efecto en la web.
+       */
       const local = SECCIONES[fila.id];
-      if (!local) continue;
       mezcla[fila.id] = {
-        ...local,
+        ...(local ?? {}),
         ...fila,
         // si `extra` viene vacío desde la BD, se conservan los datos locales
-        extra: fila.extra && Object.keys(fila.extra).length > 0 ? fila.extra : local.extra,
+        extra:
+          fila.extra && Object.keys(fila.extra).length > 0 ? fila.extra : (local?.extra ?? {}),
       };
     }
     return mezcla;
@@ -228,7 +241,7 @@ export function traerCategorias(): Promise<Categoria[]> {
       .select('id, nombre, descripcion')
       .eq('activa', true)
       .order('orden');
-    if (error || !data?.length) return CATEGORIAS;
+    if (error || !data) return CATEGORIAS;
     return data as Categoria[];
   }, CATEGORIAS);
 }
@@ -243,7 +256,14 @@ export function traerProductos(): Promise<Producto[]> {
       .select('*')
       .eq('activo', true)
       .order('orden');
-    if (error || !data?.length) return PRODUCTOS;
+    /*
+     * Solo se cae al contenido local si la CONSULTA FALLA (sin backend, sin
+     * permisos, tablas sin crear). Una tabla vacía es una respuesta legítima:
+     * antes se trataba como error y la web seguía mostrando los productos de
+     * ejemplo, así que borrar el último producto desde el panel no se veía.
+     */
+    if (error) return PRODUCTOS;
+    if (!data) return PRODUCTOS;
     return (data as FilaProducto[]).map(aProducto);
   }, PRODUCTOS);
 }
@@ -264,7 +284,7 @@ export function traerPaquetes(): Promise<Paquete[]> {
       .select('*')
       .eq('activo', true)
       .order('orden');
-    if (error || !data?.length) return PAQUETES;
+    if (error || !data) return PAQUETES;
     return (data as FilaPaquete[]).map(aPaquete);
   }, PAQUETES);
 }
@@ -279,7 +299,7 @@ export function traerTestimonios(): Promise<Testimonio[]> {
       .select('*')
       .eq('activo', true)
       .order('orden');
-    if (error || !data?.length) return TESTIMONIOS;
+    if (error || !data) return TESTIMONIOS;
     return (data as FilaTestimonio[]).map((f) => ({
       nombre: f.nombre,
       comentario: f.comentario,

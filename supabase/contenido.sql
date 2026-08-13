@@ -294,3 +294,26 @@ set telefono  = '+51 997 516 391',
     correo    = 'Sugurollsperu@gmail.com',
     direccion = 'Juan Pablo Fernandini 1195, Pueblo Libre 15084'
 where id = 1;
+
+-- =====================================================================
+-- PÁGINAS LEGALES
+-- =====================================================================
+--
+-- Términos y política de privacidad. Van como texto largo en site_settings
+-- porque son dos documentos sueltos que se editan enteros de una vez: una
+-- tabla con secciones sería complicarlo sin ganar nada.
+--
+-- El texto se guarda en Markdown ligero (### para títulos, - para viñetas) y
+-- la web lo pinta; así el admin no necesita saber HTML ni se corre el riesgo
+-- de que pegue etiquetas que rompan la página.
+-- =====================================================================
+
+alter table public.site_settings
+  add column if not exists terminos            text not null default '',
+  add column if not exists privacidad          text not null default '',
+  add column if not exists legales_actualizado date;
+
+comment on column public.site_settings.terminos is
+  'Términos y condiciones en Markdown ligero. Se muestra en /terminos.';
+comment on column public.site_settings.privacidad is
+  'Política de privacidad en Markdown ligero. Se muestra en /privacidad.';

@@ -2,7 +2,6 @@ import { Accesos } from '@/components/web/Accesos';
 import { Favoritos } from '@/components/web/Favoritos';
 import { Hero } from '@/components/web/Hero';
 import { Pagina } from '@/components/web/Pagina';
-import { Testimonios } from '@/components/web/Testimonios';
 
 /**
  * Portada: cabecera, las tres puertas de entrada, los favoritos y las
@@ -15,7 +14,6 @@ export default function Page() {
       <Hero />
       <Accesos />
       <Favoritos />
-      <Testimonios />
     </Pagina>
   );
 }

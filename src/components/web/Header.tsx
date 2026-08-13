@@ -143,7 +143,7 @@ export function Header() {
               </button>
             </div>
 
-            <nav className="wrap mt-8 flex flex-col gap-1" aria-label="Principal móvil">
+            <nav className="wrap mt-4 flex flex-col" aria-label="Principal móvil">
               {menu.map((item, i) => (
                 <motion.div
                   key={item.href}
@@ -154,7 +154,7 @@ export function Header() {
                   <Link
                     href={item.href}
                     onClick={() => setMenuAbierto(false)}
-                    className="block border-b border-white/10 py-4 text-2xl font-semibold text-white transition-colors hover:text-sugu"
+                    className="block border-b border-white/10 py-3 text-base font-semibold text-white transition-colors hover:text-sugu"
                   >
                     {item.label}
                   </Link>
@@ -162,7 +162,7 @@ export function Header() {
               ))}
             </nav>
 
-            <div className="wrap mt-8 space-y-3">
+            <div className="wrap mt-6 space-y-3">
               {verCuenta && (
                 <Link
                   href="/cuenta"

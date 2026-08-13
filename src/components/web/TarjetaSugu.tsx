@@ -47,16 +47,16 @@ export function TarjetaSugu({
 
   return (
     <article
-      className={`sugu-card ${METAL[tarjeta.nivel]} flex flex-col justify-between gap-8 p-6 sm:p-8`}
+      className={`sugu-card ${METAL[tarjeta.nivel]} flex flex-col justify-between gap-6 p-5 sm:gap-8 sm:p-8`}
     >
       <header className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Image
             src="/imagenes/web/logo.webp"
             alt=""
             width={92}
             height={72}
-            className="h-auto w-[68px] select-none sm:w-[86px]"
+            className="h-auto w-[54px] select-none sm:w-[86px]"
           />
           <span className="sugu-metal-tenue text-[11px] font-bold uppercase tracking-[0.32em] sm:text-[13px]">
             Sugu Club
@@ -71,19 +71,21 @@ export function TarjetaSugu({
         </div>
       </header>
 
-      <div className="flex items-center gap-5 sm:gap-7">
+      <div className="flex items-center gap-4 sm:gap-7">
         {/* filete rojo: el único acento de color de la zona central */}
-        <span aria-hidden className="h-16 w-1 flex-none rounded-full bg-sugu sm:h-20" />
+        <span aria-hidden className="h-14 w-1 flex-none rounded-full bg-sugu sm:h-20" />
         <div className="min-w-0">
           <p className="flex items-baseline gap-3">
-            <span className="text-5xl font-extrabold leading-none tabular-nums text-bone sm:text-6xl">
+            <span className="text-4xl font-extrabold leading-none tabular-nums text-bone sm:text-6xl">
               {tarjeta.saldo.toLocaleString('es')}
             </span>
-            <span className="sugu-metal-tenue text-[10px] font-bold uppercase tracking-[0.24em] sm:text-[12px]">
-              Puntos Sugu
+            <span className="sugu-metal-tenue text-[10px] font-bold uppercase leading-tight tracking-[0.2em] sm:text-[11px]">
+              Puntos
+              <br />
+              para canjear
             </span>
           </p>
-          <p className="sugu-metal mt-3 truncate text-lg font-bold uppercase tracking-[0.12em] sm:text-xl">
+          <p className="sugu-metal mt-2 truncate text-base font-bold uppercase tracking-[0.12em] sm:mt-3 sm:text-xl">
             {nombre}
           </p>
         </div>
@@ -93,10 +95,11 @@ export function TarjetaSugu({
         {tarjeta.siguiente ? (
           <>
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <p className="text-[13px] text-bone-dim">
+              <p className="text-[12.5px] text-bone-dim">
                 Te faltan{' '}
-                <b className="font-bold text-bone">{tarjeta.faltan.toLocaleString('es')}</b> puntos
-                para {NIVELES[tarjeta.siguiente].nombre}
+                <b className="font-bold text-bone">{tarjeta.faltan.toLocaleString('es')}</b>{' '}
+                <span className="whitespace-nowrap">puntos de nivel</span> para{' '}
+                {NIVELES[tarjeta.siguiente].nombre}
               </p>
               <p className="flex-none text-[13px] tabular-nums text-bone-dim">
                 <b className="font-bold text-bone">{tarjeta.ganados.toLocaleString('es')}</b> /{' '}
@@ -113,7 +116,16 @@ export function TarjetaSugu({
           </p>
         )}
 
-        <p className="sugu-metal-tenue mt-4 text-right font-mono text-[11px] tracking-[0.22em]">
+        {/*
+          Las dos cifras son distintas y confundirlas frustra: arriba está lo
+          que puede GASTAR, aquí abajo lo ACUMULADO de por vida, que es lo
+          único que sube de nivel. Canjear baja la primera y nunca la segunda.
+        */}
+        <p className="mt-3 text-[11px] leading-relaxed text-bone-dim/70">
+          Canjear gasta tus puntos disponibles, pero no baja tu nivel.
+        </p>
+
+        <p className="sugu-metal-tenue mt-3 text-right font-mono text-[11px] tracking-[0.22em]">
           {numeroSocio(socioId)}
         </p>
       </footer>

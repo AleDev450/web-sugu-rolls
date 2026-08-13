@@ -73,7 +73,6 @@ export const FOOTER_LINKS = {
     { label: 'Juega y gana', href: '/juego' },
   ],
   ayuda: [
-    { label: 'Preguntas frecuentes', href: '/contacto' },
     { label: 'Zonas de delivery', href: '/contacto' },
     { label: 'Términos y condiciones', href: '/terminos' },
     { label: 'Política de privacidad', href: '/privacidad' },

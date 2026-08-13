@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Nosotros } from '@/components/web/Nosotros';
 import { Pagina } from '@/components/web/Pagina';
-import { Testimonios } from '@/components/web/Testimonios';
 
 export const metadata: Metadata = {
   alternates: { canonical: '/nosotros' },
@@ -14,7 +13,6 @@ export default function NosotrosPage() {
   return (
     <Pagina>
       <Nosotros />
-      <Testimonios />
     </Pagina>
   );
 }

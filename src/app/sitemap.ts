@@ -23,6 +23,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
       { ruta: '/nosotros', prioridad: 0.5, frecuencia: 'monthly' },
       { ruta: '/contacto', prioridad: 0.6, frecuencia: 'monthly' },
       { ruta: '/juego', prioridad: 0.7, frecuencia: 'monthly' },
+      { ruta: '/terminos', prioridad: 0.2, frecuencia: 'monthly' },
+      { ruta: '/privacidad', prioridad: 0.2, frecuencia: 'monthly' },
     ];
 
   return paginas.map(({ ruta, prioridad, frecuencia }) => ({

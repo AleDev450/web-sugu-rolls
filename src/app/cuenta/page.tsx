@@ -72,7 +72,11 @@ export default function CuentaPage() {
         (max-w-4xl, 896px) dejaba la tarjeta pequeña y desaprovechaba la
         pantalla en escritorio.
       */}
-      <main className="mx-auto w-[calc(100%-40px)] max-w-[1180px] pb-24 pt-28 sm:pt-36">
+      {/*
+        pt-36 en móvil: el header es fijo y con el logo mide ~120px de alto.
+        Con pt-28 (112px) el saludo quedaba justo debajo y se veía tapado.
+      */}
+      <main className="mx-auto w-[calc(100%-40px)] max-w-[1180px] pb-24 pt-36 sm:pt-40">
         {cargando ? (
           <p className="py-24 text-center text-sm text-bone-dim">Cargando…</p>
         ) : !perfil ? (
