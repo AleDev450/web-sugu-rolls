@@ -31,3 +31,5 @@ Cuando corras una, márcala aquí:
 | `005-ajuste-manual-de-puntos.sql` | Sumar y restar puntos a mano; corrige el cálculo de nivel | ☐ |
 | `006-imagenes-de-productos.sql` | Almacén para subir fotos de la carta desde el panel | ☐ |
 | `007-presentaciones-de-producto.sql` | Precios por cantidad (por 5, por 10…) editables | ☐ |
+| `008-cargar-presentaciones.sql` | Deja todos los productos en 5/15, 10/25 y 20/45 | ☐ |
+| `009-categorias-nuevas.sql` | Onigiri, Temaki, Handroll, Burrito Roll, calientes y salsas | ☐ |

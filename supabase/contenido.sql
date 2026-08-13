@@ -53,10 +53,16 @@ create table if not exists public.categories (
 );
 
 insert into public.categories (id, nombre, descripcion, orden) values
-  ('makis',    'Makis',    'Nuestros rolls preparados al momento', 1),
-  ('bowls',    'Bowls',    'Arroz, proteína y toppings en un tazón', 2),
-  ('entradas', 'Entradas', 'Para empezar o compartir', 3),
-  ('bebidas',  'Bebidas',  'Refrescos y limonadas de la casa', 4)
+  ('makis',           'Makis',           'Nuestros rolls preparados al momento',        1),
+  ('burrito-roll',    'Burrito Roll',    'Rolls grandes tipo burrito, para comer solo', 2),
+  ('handroll',        'Handroll',        'Conos de alga rellenos, listos para la mano', 3),
+  ('temaki',          'Temaki',          'Conos rellenos al estilo tradicional',        4),
+  ('onigiri',         'Onigiri',         'Bolas de arroz rellenas',                     5),
+  ('bowls',           'Bowls',           'Arroz, proteína y toppings en un tazón',      6),
+  ('platos-calientes','Platos calientes','Salteados y frituras recién hechos',          7),
+  ('entradas',        'Entradas',        'Para empezar o compartir',                    8),
+  ('salsas-extras',   'Salsas y extras', 'Para acompañar y subir de nivel tu pedido',   9),
+  ('bebidas',         'Bebidas',         'Refrescos y limonadas de la casa',           10)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------

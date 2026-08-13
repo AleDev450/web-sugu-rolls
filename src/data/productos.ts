@@ -5,7 +5,22 @@
  * solo depende de la forma de los datos, no de su origen.
  */
 
-export type CategoriaId = 'makis' | 'bowls' | 'entradas' | 'bebidas';
+/**
+ * Ids de categoría. La lista viva está en la tabla `categories` y se edita
+ * desde el panel; esta unión es el respaldo local y solo tiene que incluir
+ * las que existan ahí para que los tipos no mientan.
+ */
+export type CategoriaId =
+  | 'makis'
+  | 'burrito-roll'
+  | 'handroll'
+  | 'temaki'
+  | 'onigiri'
+  | 'bowls'
+  | 'platos-calientes'
+  | 'entradas'
+  | 'salsas-extras'
+  | 'bebidas';
 
 export interface Categoria {
   id: CategoriaId;
@@ -38,10 +53,33 @@ export interface Producto {
   presentaciones?: Presentacion[];
 }
 
+/** Mismo orden y textos que la migración 009; la base manda sobre esto. */
 export const CATEGORIAS: Categoria[] = [
   { id: 'makis', nombre: 'Makis', descripcion: 'Nuestros rolls preparados al momento' },
+  {
+    id: 'burrito-roll',
+    nombre: 'Burrito Roll',
+    descripcion: 'Rolls grandes tipo burrito, para comer solo',
+  },
+  {
+    id: 'handroll',
+    nombre: 'Handroll',
+    descripcion: 'Conos de alga rellenos, listos para la mano',
+  },
+  { id: 'temaki', nombre: 'Temaki', descripcion: 'Conos rellenos al estilo tradicional' },
+  { id: 'onigiri', nombre: 'Onigiri', descripcion: 'Bolas de arroz rellenas' },
   { id: 'bowls', nombre: 'Bowls', descripcion: 'Arroz, proteína y toppings en un tazón' },
+  {
+    id: 'platos-calientes',
+    nombre: 'Platos calientes',
+    descripcion: 'Salteados y frituras recién hechos',
+  },
   { id: 'entradas', nombre: 'Entradas', descripcion: 'Para empezar o compartir' },
+  {
+    id: 'salsas-extras',
+    nombre: 'Salsas y extras',
+    descripcion: 'Para acompañar y subir de nivel tu pedido',
+  },
   { id: 'bebidas', nombre: 'Bebidas', descripcion: 'Refrescos y limonadas de la casa' },
 ];
 
