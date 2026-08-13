@@ -251,7 +251,18 @@ export class SuguGame {
       this.director.festivalActive ? VIP.festival.spawnWeights : undefined
     );
     const r = tierAt(tier).radius;
-    const x = Math.max(BOARD_LEFT + r + 2, Math.min(BOARD_RIGHT - r - 2, this.aimX));
+    /*
+     * Micro-desvío al soltar: la puntería no se mueve sola entre lanzamientos,
+     * así que sin esto dos fichas seguidas caen en la MISMA vertical exacta y
+     * se apilan en equilibrio perfecto. Es poco más de un píxel — no se nota
+     * al apuntar, pero basta para que el contacto no sea perfectamente
+     * centrado y la pila se acomode como lo haría de verdad.
+     */
+    const desvio = (Math.random() - 0.5) * PHYSICS.spawnJitter;
+    const x = Math.max(
+      BOARD_LEFT + r + 2,
+      Math.min(BOARD_RIGHT - r - 2, this.aimX + desvio)
+    );
 
     const body = this.physics.spawn(tier, x, DESIGN.dropY);
     st.unlockTier(tier);

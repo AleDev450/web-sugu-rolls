@@ -102,4 +102,22 @@ export const PHYSICS = {
   velocityIterations: 6,
   /** velocidad por debajo de la cual una pieza cuenta como "asentada" */
   restSpeed: 0.45,
+
+  /*
+   * ROMPER EL APILADO PERFECTO
+   *
+   * Un círculo que cae recto sobre otro círculo queda en equilibrio perfecto.
+   * En el mundo real ese equilibrio es inestable y la pieza rueda; en la
+   * simulación, sin ninguna asimetría que lo rompa, se queda clavado. Como la
+   * puntería no se mueve sola entre lanzamientos y una fusión nace justo en el
+   * punto medio de las dos piezas, soltar siempre en el mismo sitio creaba una
+   * columna que se fusionaba sola indefinidamente: el tablero nunca se llenaba.
+   *
+   * Estos dos números meten la asimetría mínima para que eso no pase, sin
+   * tocar dónde cae la ficha: el jugador sigue soltando donde apunta.
+   */
+  /** desplazamiento aleatorio del punto de suelta, en px de diseño */
+  spawnJitter: 1.2,
+  /** empujón horizontal aleatorio que recibe la pieza recién fusionada */
+  mergeKick: 0.7,
 } as const;

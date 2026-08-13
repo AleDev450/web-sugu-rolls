@@ -179,8 +179,16 @@ export class Physics {
         continue;
       }
 
-      // Heredar algo de inercia para que la pieza nueva no quede clavada.
-      const vx = (a.velocity.x + b.velocity.x) / 2;
+      /*
+       * Hereda algo de inercia para que la pieza nueva no quede clavada, y se
+       * le suma un empujón lateral aleatorio.
+       *
+       * Ese empujón es lo que impide farmear una columna: sin él, la fusión
+       * nace exactamente en el punto medio de dos piezas alineadas, o sea en
+       * la misma vertical de siempre, y la torre se regenera sola.
+       */
+      const vx =
+        (a.velocity.x + b.velocity.x) / 2 + (Math.random() - 0.5) * PHYSICS.mergeKick;
       const vy = (a.velocity.y + b.velocity.y) / 2;
 
       this.remove(a);
