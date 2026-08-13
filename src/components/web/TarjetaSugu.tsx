@@ -24,6 +24,52 @@ const BENEFICIOS = [
 ];
 
 /**
+ * Progreso hacia el siguiente nivel.
+ *
+ * Se saca a su propio componente porque en móvil NO va dentro del carné: con
+ * la barra dentro, la tarjeta crecía tanto de alto que dejaba de parecer una
+ * tarjeta. En pantallas pequeñas se pinta debajo, como una tira aparte.
+ */
+export function ProgresoNivel({
+  tarjeta,
+  className = '',
+}: {
+  tarjeta: Tarjeta;
+  className?: string;
+}) {
+  if (!tarjeta.siguiente) {
+    return (
+      <p className={`text-[13px] text-bone-dim ${className}`}>
+        Nivel máximo alcanzado. Gracias por ser parte de Sugu Rolls.
+      </p>
+    );
+  }
+
+  const desde = NIVELES[tarjeta.nivel].desde;
+  const meta = NIVELES[tarjeta.siguiente].desde;
+  const avance = Math.min(100, Math.max(0, ((tarjeta.ganados - desde) / (meta - desde)) * 100));
+
+  return (
+    <div className={className}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-[12.5px] text-bone-dim">
+          Te faltan <b className="font-bold text-bone">{tarjeta.faltan.toLocaleString('es')}</b>{' '}
+          <span className="whitespace-nowrap">puntos de nivel</span> para{' '}
+          {NIVELES[tarjeta.siguiente].nombre}
+        </p>
+        <p className="flex-none text-[13px] tabular-nums text-bone-dim">
+          <b className="font-bold text-bone">{tarjeta.ganados.toLocaleString('es')}</b> /{' '}
+          {meta.toLocaleString('es')}
+        </p>
+      </div>
+      <div className="sugu-barra mt-3" role="presentation">
+        <span style={{ width: `${avance}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/**
  * Carné del Sugu Club.
  *
  * Muestra dos cifras que la gente confunde y conviene separar: el SALDO es lo
@@ -39,12 +85,6 @@ export function TarjetaSugu({
   nombre: string;
   socioId: string;
 }) {
-  const desde = NIVELES[tarjeta.nivel].desde;
-  const meta = tarjeta.siguiente ? NIVELES[tarjeta.siguiente].desde : 0;
-  const avance = tarjeta.siguiente
-    ? Math.min(100, Math.max(0, ((tarjeta.ganados - desde) / (meta - desde)) * 100))
-    : 100;
-
   return (
     <article
       className={`sugu-card ${METAL[tarjeta.nivel]} flex flex-col justify-between gap-6 p-5 sm:gap-8 sm:p-8`}
@@ -91,41 +131,15 @@ export function TarjetaSugu({
         </div>
       </div>
 
-      <footer className="sugu-hairline border-t pt-5">
-        {tarjeta.siguiente ? (
-          <>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <p className="text-[12.5px] text-bone-dim">
-                Te faltan{' '}
-                <b className="font-bold text-bone">{tarjeta.faltan.toLocaleString('es')}</b>{' '}
-                <span className="whitespace-nowrap">puntos de nivel</span> para{' '}
-                {NIVELES[tarjeta.siguiente].nombre}
-              </p>
-              <p className="flex-none text-[13px] tabular-nums text-bone-dim">
-                <b className="font-bold text-bone">{tarjeta.ganados.toLocaleString('es')}</b> /{' '}
-                {meta.toLocaleString('es')}
-              </p>
-            </div>
-            <div className="sugu-barra mt-3" role="presentation">
-              <span style={{ width: `${avance}%` }} />
-            </div>
-          </>
-        ) : (
-          <p className="text-[13px] text-bone-dim">
-            Nivel máximo alcanzado. Gracias por ser parte de Sugu Rolls.
-          </p>
-        )}
+      <footer className="sugu-hairline border-t pt-4 sm:pt-5">
+        {/* el progreso solo cabe dentro del carné a partir de tablet */}
+        <ProgresoNivel tarjeta={tarjeta} className="hidden sm:block" />
 
-        {/*
-          Las dos cifras son distintas y confundirlas frustra: arriba está lo
-          que puede GASTAR, aquí abajo lo ACUMULADO de por vida, que es lo
-          único que sube de nivel. Canjear baja la primera y nunca la segunda.
-        */}
-        <p className="mt-3 text-[11px] leading-relaxed text-bone-dim/70">
+        <p className="hidden text-[11px] leading-relaxed text-bone-dim/70 sm:mt-3 sm:block">
           Canjear gasta tus puntos disponibles, pero no baja tu nivel.
         </p>
 
-        <p className="sugu-metal-tenue mt-3 text-right font-mono text-[11px] tracking-[0.22em]">
+        <p className="sugu-metal-tenue text-right font-mono text-[11px] tracking-[0.22em] sm:mt-3">
           {numeroSocio(socioId)}
         </p>
       </footer>

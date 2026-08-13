@@ -5,7 +5,7 @@ import { Inbox, LogOut, Package, UserRound } from 'lucide-react';
 import { Header } from '@/components/web/Header';
 import { Footer } from '@/components/web/Footer';
 import { Campo, FormIngreso, FormRegistro } from '@/components/web/CuentaForms';
-import { EstatusSocio, TarjetaSugu } from '@/components/web/TarjetaSugu';
+import { EstatusSocio, ProgresoNivel, TarjetaSugu } from '@/components/web/TarjetaSugu';
 import { SeccionPerfil, Vacio } from '@/components/web/SeccionPerfil';
 import { CanjesPerfil } from '@/components/web/CanjesPerfil';
 import { useCartStore } from '@/store/useCartStore';
@@ -199,19 +199,34 @@ function Panel({
         65 / 35 en escritorio. El panel se estira a la altura de la tarjeta con
         `items-stretch`, que es lo que evita el hueco vacío que quedaba debajo.
       */}
+      {/*
+        Móvil: carné, luego el progreso como tira aparte, luego el estatus.
+        Tablet (md) ya reparte en dos columnas; a partir de lg va el 65/35.
+        El progreso sale del carné en móvil para que no crezca de alto.
+      */}
       {tarjeta && (
-        <div className="mt-7 grid items-stretch gap-6 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
-          <TarjetaSugu
-            tarjeta={tarjeta}
-            socioId={perfil.id}
-            nombre={`${perfil.full_name ?? ''} ${perfil.last_name ?? ''}`.trim() || perfil.nickname}
-          />
+        <div className="mt-7 grid items-stretch gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
+          <div className="flex flex-col gap-4">
+            <TarjetaSugu
+              tarjeta={tarjeta}
+              socioId={perfil.id}
+              nombre={
+                `${perfil.full_name ?? ''} ${perfil.last_name ?? ''}`.trim() || perfil.nickname
+              }
+            />
+            <div className="card p-5 sm:hidden">
+              <ProgresoNivel tarjeta={tarjeta} />
+              <p className="mt-3 text-[11px] leading-relaxed text-bone-dim/70">
+                Canjear gasta tus puntos disponibles, pero no baja tu nivel.
+              </p>
+            </div>
+          </div>
           <EstatusSocio tarjeta={tarjeta} />
         </div>
       )}
 
       {/* canjes y pedidos van a la par: uno gasta puntos, el otro los genera */}
-      <div className="mt-6 grid items-stretch gap-6 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
+      <div className="mt-4 grid items-stretch gap-4 sm:mt-6 sm:gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
         {tarjeta && <CanjesPerfil saldo={tarjeta.saldo} alCanjear={alRefrescarTarjeta} />}
 
         <SeccionPerfil titulo="Mis pedidos" icono={Package}>
@@ -266,7 +281,7 @@ function Panel({
         </SeccionPerfil>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-4 sm:mt-6">
         <SeccionPerfil titulo="Mis datos" icono={UserRound}>
           <div className="grid gap-4 sm:grid-cols-2">
           <Campo etiqueta="Nombre">

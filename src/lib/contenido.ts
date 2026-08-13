@@ -115,7 +115,14 @@ export function hayBackend(): boolean {
 async function conRespaldo<T>(consulta: () => Promise<T>, respaldo: T): Promise<T> {
   try {
     return await consulta();
-  } catch {
+  } catch (e) {
+    /*
+     * El respaldo evita que la web se rompa, pero callar el motivo hacía
+     * imposible entender por qué el panel guardaba y la web no cambiaba:
+     * se veía contenido de ejemplo sin ninguna pista. Ahora queda en la
+     * consola del navegador.
+     */
+    console.error('[contenido] consulta fallida, se usa el contenido local:', e);
     return respaldo;
   }
 }

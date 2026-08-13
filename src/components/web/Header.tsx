@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, ShoppingBag, User, X } from 'lucide-react';
+import { LogOut, Menu, ShoppingBag, User, X } from 'lucide-react';
 import { NAV } from '@/data/site';
-import { miPerfil } from '@/lib/tienda';
+import { salir } from '@/lib/tienda';
 import { moduloActivo, traerAjustes, type AjustesSitio } from '@/lib/contenido';
+import { getSupabase } from '@/lib/supabase/client';
 import { useCartStore } from '@/store/useCartStore';
 import { Logo } from './Logo';
 
@@ -29,10 +30,23 @@ export function Header() {
   const enPortada = ruta === '/';
   const compacto = scrolled || !enPortada;
 
-  // se recomprueba al cambiar de página: entrar o salir de la cuenta navega,
-  // y si no el botón se quedaría con el texto anterior
+  /*
+   * La sesión se mira en Auth, no en `profiles`.
+   *
+   * Antes se usaba `miPerfil()`, que además de la sesión necesita que exista
+   * la fila del perfil: si faltaba, el menú decía "Crear mi cuenta" a alguien
+   * que ya había entrado. `onAuthStateChange` además reacciona al instante al
+   * entrar o salir, sin esperar a cambiar de página.
+   */
   useEffect(() => {
-    void miPerfil().then((p) => setHaySesion(p !== null));
+    const cliente = getSupabase();
+    if (!cliente) return;
+
+    void cliente.auth.getSession().then(({ data }) => setHaySesion(!!data.session));
+    const { data: sub } = cliente.auth.onAuthStateChange((_e, sesion) =>
+      setHaySesion(!!sesion)
+    );
+    return () => sub.subscription.unsubscribe();
   }, [ruta]);
 
   useEffect(() => {
@@ -172,6 +186,18 @@ export function Header() {
                   <User className="h-4.5 w-4.5" />
                   {haySesion ? 'Mi cuenta y mis puntos' : 'Crear mi cuenta'}
                 </Link>
+              )}
+              {haySesion && (
+                <button
+                  onClick={async () => {
+                    await salir();
+                    setMenuAbierto(false);
+                  }}
+                  className="flex w-full items-center justify-center gap-2 py-3 text-[13px] text-bone-dim transition-colors hover:text-sugu"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Cerrar sesión
+                </button>
               )}
               {verJuego && (
                 <Link

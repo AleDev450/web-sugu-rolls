@@ -15,6 +15,7 @@ import {
   Settings,
   SlidersHorizontal,
   ShoppingBag,
+  Users,
   Trophy,
   UtensilsCrossed,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ import { Login } from './Login';
 const MENU = [
   { href: '/admin', label: 'Resumen', icono: LayoutDashboard },
   { href: '/admin/pedidos', label: 'Pedidos', icono: ShoppingBag },
+  { href: '/admin/usuarios', label: 'Usuarios', icono: Users },
   { href: '/admin/paginas', label: 'Páginas', icono: FileText },
   { href: '/admin/productos', label: 'Productos', icono: UtensilsCrossed },
   { href: '/admin/paquetes', label: 'Paquetes', icono: Boxes },

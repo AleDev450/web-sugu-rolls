@@ -27,3 +27,4 @@ Cuando corras una, márcala aquí:
 | `001-sugu-club-cinco-niveles.sql` | Bronce y Plata; los niveles pasan de 4 a 5 | ☐ |
 | `002-antitrampas-puntaje.sql` | Techo de puntaje según el tiempo jugado | ☐ |
 | `003-legales-editables.sql` | Términos y privacidad editables desde el panel | ☐ |
+| `004-usuarios-panel.sql` | Listado paginado de usuarios con su nivel de tarjeta | ☐ |

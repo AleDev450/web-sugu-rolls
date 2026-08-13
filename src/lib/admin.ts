@@ -60,6 +60,28 @@ function sb() {
   return cliente;
 }
 
+/**
+ * Comprueba que una escritura haya tocado alguna fila.
+ *
+ * ESTO ES IMPORTANTE: cuando una política RLS bloquea un UPDATE, PostgREST no
+ * devuelve error — responde "correcto, 0 filas". Sin esta comprobación el
+ * panel decía "Guardado" y en la base no cambiaba nada, que es justo el
+ * síntoma de "guardo en el dashboard y la web no se entera".
+ *
+ * Por eso todas las escrituras piden las filas de vuelta con `.select()`: si
+ * no vuelve ninguna, es que la base rechazó el cambio.
+ */
+function exigirFilas(filas: unknown[] | null, error: { message: string } | null) {
+  if (error) throw error;
+  if (!filas || filas.length === 0) {
+    throw new Error(
+      'La base de datos rechazó el cambio: no se modificó ninguna fila. ' +
+        'Suele ser que la cuenta no está marcada como administradora ' +
+        '(profiles.is_admin = true).'
+    );
+  }
+}
+
 // ---------- sesión ----------
 
 export async function iniciarSesion(correo: string, clave: string) {
@@ -135,8 +157,8 @@ export async function guardarProducto(p: ProductoAdmin) {
   const q = id
     ? sb().from('products').update(campos).eq('id', id)
     : sb().from('products').insert(campos);
-  const { error } = await q;
-  if (error) throw error;
+  const { data, error } = await q.select('id');
+  exigirFilas(data, error);
 }
 
 export async function guardarPaquete(p: PaqueteAdmin) {
@@ -144,8 +166,8 @@ export async function guardarPaquete(p: PaqueteAdmin) {
   const q = id
     ? sb().from('packages').update(campos).eq('id', id)
     : sb().from('packages').insert(campos);
-  const { error } = await q;
-  if (error) throw error;
+  const { data, error } = await q.select('id');
+  exigirFilas(data, error);
 }
 
 export async function guardarTestimonio(t: TestimonioAdmin) {
@@ -172,13 +194,21 @@ export async function traerAjustesAdmin() {
 
 /** Enciende o apaga partes de la web (banderas `mod_*` y `solo_juego`). */
 export async function guardarModulos(campos: Record<string, boolean>) {
-  const { error } = await sb().from('site_settings').update(campos).eq('id', 1);
-  if (error) throw error;
+  const { data, error } = await sb()
+    .from('site_settings')
+    .update(campos)
+    .eq('id', 1)
+    .select('id');
+  exigirFilas(data, error);
 }
 
 export async function guardarAjustes(campos: Record<string, string>) {
-  const { error } = await sb().from('site_settings').update(campos).eq('id', 1);
-  if (error) throw error;
+  const { data, error } = await sb()
+    .from('site_settings')
+    .update(campos)
+    .eq('id', 1)
+    .select('id');
+  exigirFilas(data, error);
 }
 
 // ---------- secciones de las páginas ----------
@@ -204,8 +234,12 @@ export async function listarSecciones(): Promise<SeccionAdmin[]> {
 
 export async function guardarSeccion(s: SeccionAdmin) {
   const { id, ...campos } = s;
-  const { error } = await sb().from('page_sections').update(campos).eq('id', id);
-  if (error) throw error;
+  const { data, error } = await sb()
+    .from('page_sections')
+    .update(campos)
+    .eq('id', id)
+    .select('id');
+  exigirFilas(data, error);
 }
 
 // ---------- códigos del juego ----------
@@ -327,6 +361,50 @@ export async function listarPartidas(
   });
 }
 
+// ---------- usuarios registrados ----------
+
+export interface UsuarioAdmin {
+  id: string;
+  nickname: string;
+  full_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  address: string | null;
+  correo: string | null;
+  creado: string;
+  saldo: number;
+  ganados: number;
+  nivel: 'bronce' | 'plata' | 'oro' | 'platino' | 'black';
+  pedidos: number;
+  gastado: number;
+  /** total de coincidencias, para saber cuántas páginas hay */
+  total: number;
+}
+
+/**
+ * Clientes registrados, paginados EN LA BASE: se piden solo las filas de la
+ * página pedida en vez de traerlas todas y cortarlas en el navegador.
+ */
+export async function listarUsuarios(
+  pagina: number,
+  porPagina: number,
+  buscar = ''
+): Promise<{ items: UsuarioAdmin[]; total: number }> {
+  const { data, error } = await sb().rpc('admin_usuarios', {
+    p_limit: porPagina,
+    p_offset: pagina * porPagina,
+    p_buscar: buscar || null,
+  });
+  if (error) throw error;
+
+  const filas = (data ?? []) as UsuarioAdmin[];
+  return {
+    items: filas.map((u) => ({ ...u, gastado: Number(u.gastado), total: Number(u.total) })),
+    // sin filas no hay ventana que devuelva el total: son cero coincidencias
+    total: filas.length > 0 ? Number(filas[0].total) : 0,
+  };
+}
+
 // ---------- pedidos de la tienda ----------
 
 export type EstadoPedido = 'pendiente' | 'pagado' | 'entregado' | 'cancelado';
@@ -418,8 +496,8 @@ export async function guardarRecompensa(r: RecompensaAdmin) {
   const q = id
     ? sb().from('rewards').update(campos).eq('id', id)
     : sb().from('rewards').insert(campos);
-  const { error } = await q;
-  if (error) throw error;
+  const { data, error } = await q.select('id');
+  exigirFilas(data, error);
 }
 
 export async function borrarRecompensa(id: string) {
