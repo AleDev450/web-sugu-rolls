@@ -106,11 +106,12 @@ function Collection() {
   );
 }
 
+/* VAN está retirado del reparto (ver bt21.ts), así que su chip tampoco entra:
+   el efecto `van` ya no lo activa nadie. */
 const EFFECT_CHIPS: { key: keyof VipEffects; charId: Bt21Id; label: string }[] = [
   { key: 'koya', charId: 'koya', label: 'LENTO' },
   { key: 'rj', charId: 'rj', label: '×2' },
   { key: 'fever', charId: 'tata', label: 'FEVER' },
-  { key: 'van', charId: 'van', label: 'PULSO' },
 ];
 
 /** Chips con la cuenta atrás de los poderes temporales. */

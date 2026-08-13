@@ -1,7 +1,7 @@
 import { Body } from 'matter-js';
 import type { Physics, SuguBody } from './Physics';
 import type { Renderer } from './Renderer';
-import { BT21, type Bt21Char } from '@/game/config/bt21';
+import { BT21, estaEnJuego, type Bt21Char } from '@/game/config/bt21';
 import { VIP, rollOrderTier, rollCookyTier } from '@/game/config/vip';
 import { BOARD_LEFT, DESIGN } from '@/game/config/layout';
 import { MAX_TIER, tierAt } from '@/game/config/tiers';
@@ -292,7 +292,10 @@ export class VipDirector {
     this.activatePower(v.char);
 
     // ¿colección completa? — el festival arranca tras un respiro
-    if (useVipStore.getState().served.length >= BT21.length) {
+    // solo cuentan los que siguen en el reparto: una partida vieja puede
+    // traer a un personaje retirado y desataría el festival antes de tiempo
+    const atendidos = useVipStore.getState().served.filter(estaEnJuego);
+    if (atendidos.length >= BT21.length) {
       this.festivalPendingMs = 900;
     }
   }

@@ -6,6 +6,10 @@
  * activan un poder único + puntos. Atender a los 7 en la misma partida
  * dispara el BTS Festival (ver vip.ts).
  *
+ * VAN NO VISITA. Sigue definido aquí abajo con su poder y su sprite, pero se
+ * queda fuera del reparto: la colección son 7, no 8. Para devolverlo al juego
+ * basta con sacar su id de `FUERA_DE_JUEGO`.
+ *
  * NOTA LEGAL: BT21 es IP de LINE Friends / HYBE. Esto queda implementado como
  * lo pide el boceto, pero la capa de personajes está aislada en este archivo
  * a propósito: cambiar a mascotas propias es editar solo esto + sus sprites.
@@ -44,7 +48,7 @@ export interface Bt21Char {
   powerDesc: string;
 }
 
-export const BT21: Bt21Char[] = [
+const TODOS: Bt21Char[] = [
   {
     id: 'koya',
     name: 'KOYA',
@@ -119,8 +123,24 @@ export const BT21: Bt21Char[] = [
   },
 ];
 
+/** Personajes definidos pero retirados del reparto. */
+const FUERA_DE_JUEGO: Bt21Id[] = ['van'];
+
+/**
+ * Los que de verdad visitan el restaurante. Todo lo demás —la colección, el
+ * corte del BTS Festival, el sorteo del siguiente cliente— sale de aquí, así
+ * que retirar a alguien no obliga a tocar ningún otro archivo.
+ */
+export const BT21: Bt21Char[] = TODOS.filter((c) => !FUERA_DE_JUEGO.includes(c.id));
+
+export function estaEnJuego(id: Bt21Id): boolean {
+  return !FUERA_DE_JUEGO.includes(id);
+}
+
+/** Busca entre TODOS, no solo entre los activos: una partida guardada puede
+ *  referirse a un personaje ya retirado y no debe reventar. */
 export function bt21ById(id: Bt21Id): Bt21Char {
-  const c = BT21.find((c) => c.id === id);
+  const c = TODOS.find((c) => c.id === id);
   if (!c) throw new Error(`BT21 desconocido: ${id}`);
   return c;
 }
