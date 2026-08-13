@@ -10,6 +10,7 @@ import {
   listarProductos,
   type ProductoAdmin,
 } from '@/lib/admin';
+import { SubirImagen } from '@/components/admin/SubirImagen';
 import { soles } from '@/data/productos';
 import {
   Aviso,
@@ -249,12 +250,11 @@ export default function ProductosAdmin() {
               </select>
             </Campo>
 
-            <Campo etiqueta="Ruta de la imagen" ancho="completo">
-              <input
-                value={edicion.imagen}
-                onChange={(e) => setEdicion({ ...edicion, imagen: e.target.value })}
-                className={claseCampo}
-                placeholder="/imagenes/web/productos/mi-roll.webp"
+            <Campo etiqueta="Imagen del producto" ancho="completo">
+              <SubirImagen
+                valor={edicion.imagen}
+                nombreBase={edicion.slug || edicion.nombre}
+                alCambiar={(url) => setEdicion({ ...edicion, imagen: url })}
               />
             </Campo>
 

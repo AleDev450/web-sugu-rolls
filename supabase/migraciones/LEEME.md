@@ -29,3 +29,4 @@ Cuando corras una, márcala aquí:
 | `003-legales-editables.sql` | Términos y privacidad editables desde el panel | ☐ |
 | `004-usuarios-panel.sql` | Listado paginado de usuarios con su nivel de tarjeta | ☐ |
 | `005-ajuste-manual-de-puntos.sql` | Sumar y restar puntos a mano; corrige el cálculo de nivel | ☐ |
+| `006-imagenes-de-productos.sql` | Almacén para subir fotos de la carta desde el panel | ☐ |
