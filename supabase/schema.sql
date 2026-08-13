@@ -449,7 +449,32 @@ $$;
 --
 -- Para invitados los tres datos son obligatorios (son los que permiten
 -- entregarle el premio). Para usuarios logueados se completan solos.
+--
+-- SOBRE HACER TRAMPA
+--   El puntaje lo calcula el navegador, así que quien sepa abrir la consola
+--   puede llamar a esta función con la cifra que quiera. No hay forma de
+--   evitarlo del todo sin mover la simulación del juego al servidor.
+--
+--   Lo que sí se puede es hacerlo CARO y VISIBLE, y de eso se encarga el
+--   techo de abajo: el puntaje no puede superar lo que daría jugar sin parar
+--   a un ritmo altísimo durante el tiempo que la partida lleva realmente
+--   abierta. Inventar un millón de puntos deja de ser un segundo en la
+--   consola y pasa a exigir tener el código canjeado horas, un código por
+--   intento. El intento queda registrado en code_attempts.
 -- ---------------------------------------------------------------------
+
+-- Ritmo máximo que se considera humano, en puntos por segundo de partida.
+-- El récord real observado rondaba los 140 p/s; se deja margen holgado para
+-- no castigar a un jugador excepcional.
+create or replace function public.tope_puntaje(p_segundos numeric)
+returns integer
+language sql
+immutable
+as $$
+  -- 3000 de colchón inicial: los primeros segundos dan combos altos y no
+  -- deben chocar contra el techo por empezar fuerte.
+  select least(10000000, 3000 + greatest(0, coalesce(p_segundos, 0)) * 400)::integer;
+$$;
 create or replace function public.finish_session(
   p_session_id uuid,
   p_score      integer,
@@ -463,10 +488,12 @@ security definer
 set search_path = public
 as $$
 declare
-  v_session public.game_sessions%rowtype;
-  v_nick    text;
-  v_name    text;
-  v_phone   text;
+  v_session  public.game_sessions%rowtype;
+  v_nick     text;
+  v_name     text;
+  v_phone    text;
+  v_segundos numeric;
+  v_tope     integer;
 begin
   if p_score is null or p_score < 0 or p_score > 10000000 then
     raise exception 'PUNTAJE_INVALIDO';
@@ -483,6 +510,18 @@ begin
 
   if v_session.score is not null then
     raise exception 'SESION_YA_CERRADA';
+  end if;
+
+  -- techo creíble para el tiempo que la partida lleva abierta
+  v_segundos := extract(epoch from (now() - v_session.started_at));
+  v_tope := public.tope_puntaje(v_segundos);
+
+  if p_score > v_tope then
+    insert into public.code_attempts (attempted, reason, user_id)
+    values (p_session_id::text || ' -> ' || p_score::text, 'PUNTAJE_IMPOSIBLE', auth.uid());
+
+    raise exception 'PUNTAJE_IMPOSIBLE'
+      using hint = 'El puntaje no encaja con el tiempo jugado';
   end if;
 
   -- la sesión de un usuario logueado solo la cierra ese usuario
@@ -690,6 +729,7 @@ grant select, update on public.profiles to authenticated;
 -- funciones abiertas al jugador (registrado o invitado)
 grant execute on function public.redeem_code(text, integer, text)                to anon, authenticated;
 grant execute on function public.finish_session(uuid, integer, text, text, text) to anon, authenticated;
+grant execute on function public.tope_puntaje(numeric)                          to anon, authenticated;
 grant execute on function public.get_ranking(integer)                            to anon, authenticated;
 
 -- funciones del panel

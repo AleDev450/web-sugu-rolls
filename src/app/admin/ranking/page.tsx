@@ -14,6 +14,23 @@ import {
 /** Medallas de los tres primeros puestos. */
 const PODIO = ['🥇', '🥈', '🥉'];
 
+/**
+ * Puntos por minuto de partida.
+ *
+ * Es el detector de trampas a ojo: el juego da del orden de decenas de puntos
+ * por segundo incluso jugando muy bien, así que un ritmo desorbitado delata
+ * un puntaje inventado aunque haya pasado el techo del servidor.
+ */
+function ritmo(p: PartidaAdmin): number | null {
+  if (p.score === null || !p.finished_at) return null;
+  const ms = new Date(p.finished_at).getTime() - new Date(p.started_at).getTime();
+  if (ms <= 0) return null;
+  return Math.round(p.score / (ms / 60000));
+}
+
+/** A partir de aquí conviene mirar la partida con lupa. */
+const RITMO_SOSPECHOSO = 9000;
+
 const fecha = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
@@ -60,7 +77,7 @@ export default function RankingAdmin() {
   const descargar = () => {
     if (!items?.length) return;
     const csv = [
-      'puesto,nickname,nombre,telefono,puntaje,codigo,codigo_creado,jugada',
+      'puesto,nickname,nombre,telefono,puntaje,ritmo_por_minuto,codigo,codigo_creado,jugada',
       ...items.map((p, i) =>
         [
           i + 1,
@@ -68,6 +85,7 @@ export default function RankingAdmin() {
           p.full_name ?? '',
           p.phone ?? '',
           p.score ?? '',
+          ritmo(p) ?? '',
           p.codigo ?? '',
           p.codigo_creado ?? '',
           p.finished_at ?? '',
@@ -146,6 +164,7 @@ export default function RankingAdmin() {
                 <th className="p-4">Nombre</th>
                 <th className="p-4">Teléfono</th>
                 <th className="p-4 text-right">Puntaje</th>
+                <th className="p-4 text-right">Ritmo</th>
                 <th className="p-4">Código</th>
                 <th className="p-4">Código creado</th>
                 <th className="p-4">Jugada</th>
@@ -174,6 +193,21 @@ export default function RankingAdmin() {
                     ) : (
                       p.score.toLocaleString('es')
                     )}
+                  </td>
+                  <td className="p-4 text-right tabular-nums">
+                    {(() => {
+                      const r = ritmo(p);
+                      if (r === null) return <span className="text-bone-dim">—</span>;
+                      const alto = r > RITMO_SOSPECHOSO;
+                      return (
+                        <span
+                          className={alto ? 'font-bold text-sugu' : 'text-bone-dim'}
+                          title={alto ? 'Ritmo inusual: revisa esta partida' : undefined}
+                        >
+                          {r.toLocaleString('es')} p/min
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="p-4">
                     <span className="font-mono tracking-widest">{p.codigo ?? '—'}</span>

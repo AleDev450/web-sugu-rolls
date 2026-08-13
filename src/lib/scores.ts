@@ -197,6 +197,7 @@ const MENSAJES_CIERRE: { patron: string; texto: string }[] = [
   { patron: 'SESION_INVALIDA', texto: 'La partida expiró, vuelve a canjear tu código' },
   { patron: 'DATOS_INCOMPLETOS', texto: 'Completa nickname, nombre y teléfono' },
   { patron: 'PUNTAJE_INVALIDO', texto: 'El puntaje no es válido' },
+  { patron: 'PUNTAJE_IMPOSIBLE', texto: 'El puntaje no encaja con el tiempo jugado' },
   { patron: 'NO_AUTORIZADO', texto: 'Esta partida es de otro jugador' },
 ];
 
