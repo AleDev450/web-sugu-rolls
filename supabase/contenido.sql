@@ -249,3 +249,34 @@ where not exists (select 1 from public.testimonials);
 --   update public.profiles set is_admin = true
 --   where id = (select id from auth.users where email = 'tu@correo.com');
 -- =====================================================================
+
+-- =====================================================================
+-- MÓDULOS DE LA WEB
+-- =====================================================================
+--
+-- Cada bandera enciende o apaga una parte del sitio desde el panel, sin
+-- desplegar nada. `solo_juego` es el interruptor maestro: con él activo la
+-- web entera queda en pausa y todo lleva a /juego, que es el modo para
+-- campañas donde solo interesa el juego.
+--
+-- Son columnas y no una tabla aparte porque son ocho valores fijos que se
+-- leen SIEMPRE junto al resto de ajustes: en una tabla obligarían a una
+-- segunda consulta en cada carga de página para nada.
+-- =====================================================================
+
+alter table public.site_settings
+  add column if not exists mod_carta       boolean not null default true,
+  add column if not exists mod_paquetes    boolean not null default true,
+  add column if not exists mod_catering    boolean not null default true,
+  add column if not exists mod_promociones boolean not null default true,
+  add column if not exists mod_nosotros    boolean not null default true,
+  add column if not exists mod_contacto    boolean not null default true,
+  add column if not exists mod_cuenta      boolean not null default true,
+  add column if not exists mod_juego       boolean not null default true,
+  add column if not exists solo_juego      boolean not null default false;
+
+comment on column public.site_settings.mod_cuenta is
+  'Cuentas de cliente: registro, perfil, puntos y canjes. Apagarlo también oculta el cierre de pedido con cuenta.';
+
+comment on column public.site_settings.solo_juego is
+  'Modo campaña: apaga la web y deja solo /juego. Manda por encima de las demás banderas.';

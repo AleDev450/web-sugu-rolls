@@ -170,6 +170,12 @@ export async function traerAjustesAdmin() {
   return data;
 }
 
+/** Enciende o apaga partes de la web (banderas `mod_*` y `solo_juego`). */
+export async function guardarModulos(campos: Record<string, boolean>) {
+  const { error } = await sb().from('site_settings').update(campos).eq('id', 1);
+  if (error) throw error;
+}
+
 export async function guardarAjustes(campos: Record<string, string>) {
   const { error } = await sb().from('site_settings').update(campos).eq('id', 1);
   if (error) throw error;

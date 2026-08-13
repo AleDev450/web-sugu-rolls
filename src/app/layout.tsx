@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, Caveat } from 'next/font/google';
 import './globals.css';
+import { GuardaModulos } from '@/components/web/GuardaModulos';
 
 /** Texto corrido. */
 const sans = Inter({
@@ -47,7 +48,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${sans.variable} ${brush.variable}`}>
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        <GuardaModulos />
+        {children}
+      </body>
     </html>
   );
 }

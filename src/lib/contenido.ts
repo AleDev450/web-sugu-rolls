@@ -34,6 +34,36 @@ export interface AjustesSitio {
   instagram: string | null;
   facebook: string | null;
   tiktok: string | null;
+
+  /** Módulos encendidos. Ver "MÓDULOS DE LA WEB" en supabase/contenido.sql. */
+  mod_carta: boolean;
+  mod_paquetes: boolean;
+  mod_catering: boolean;
+  mod_promociones: boolean;
+  mod_nosotros: boolean;
+  mod_contacto: boolean;
+  mod_cuenta: boolean;
+  mod_juego: boolean;
+  /** Interruptor maestro: apaga la web y deja solo /juego. */
+  solo_juego: boolean;
+}
+
+/** Rutas que controla cada bandera, para filtrar menús y proteger páginas. */
+export const RUTA_MODULO: Record<string, keyof AjustesSitio> = {
+  '/carta': 'mod_carta',
+  '/paquetes': 'mod_paquetes',
+  '/catering': 'mod_catering',
+  '/promociones': 'mod_promociones',
+  '/nosotros': 'mod_nosotros',
+  '/contacto': 'mod_contacto',
+  '/cuenta': 'mod_cuenta',
+  '/juego': 'mod_juego',
+};
+
+/** ¿Está encendida la parte del sitio que sirve esta ruta? */
+export function moduloActivo(ajustes: AjustesSitio, ruta: string): boolean {
+  const clave = RUTA_MODULO[ruta];
+  return clave ? ajustes[clave] === true : true;
 }
 
 const AJUSTES_LOCALES: AjustesSitio = {
@@ -48,6 +78,16 @@ const AJUSTES_LOCALES: AjustesSitio = {
   instagram: SITE.redes.instagram,
   facebook: SITE.redes.facebook,
   tiktok: SITE.redes.tiktok,
+  // sin base de datos, la web se muestra entera
+  mod_carta: true,
+  mod_paquetes: true,
+  mod_catering: true,
+  mod_promociones: true,
+  mod_nosotros: true,
+  mod_contacto: true,
+  mod_cuenta: true,
+  mod_juego: true,
+  solo_juego: false,
 };
 
 /** ¿Hay backend configurado? */

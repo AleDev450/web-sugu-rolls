@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, ShoppingBag, User, X } from 'lucide-react';
 import { NAV } from '@/data/site';
 import { miPerfil } from '@/lib/tienda';
+import { moduloActivo, traerAjustes, type AjustesSitio } from '@/lib/contenido';
 import { useCartStore } from '@/store/useCartStore';
 import { Logo } from './Logo';
 
@@ -22,6 +23,8 @@ export function Header() {
   const abrirCarrito = useCartStore((s) => s.abrir);
   const unidades = useCartStore((s) => s.items.reduce((t, i) => t + i.cantidad, 0));
   const [haySesion, setHaySesion] = useState(false);
+  /* null mientras se consulta: se muestra el menú entero para no parpadear */
+  const [ajustes, setAjustes] = useState<AjustesSitio | null>(null);
   const ruta = usePathname();
   const enPortada = ruta === '/';
   const compacto = scrolled || !enPortada;
@@ -31,6 +34,10 @@ export function Header() {
   useEffect(() => {
     void miPerfil().then((p) => setHaySesion(p !== null));
   }, [ruta]);
+
+  useEffect(() => {
+    void traerAjustes().then(setAjustes);
+  }, []);
 
   useEffect(() => {
     const alScroll = () => setScrolled(window.scrollY > 24);
@@ -47,6 +54,10 @@ export function Header() {
     };
   }, [menuAbierto]);
 
+  const menu = ajustes ? NAV.filter((i) => moduloActivo(ajustes, i.href)) : NAV;
+  const verCuenta = !ajustes || ajustes.mod_cuenta;
+  const verJuego = !ajustes || ajustes.mod_juego;
+
   return (
     <>
       <header
@@ -60,7 +71,7 @@ export function Header() {
           <Logo ancho={compacto ? 100 : 126} prioridad className="transition-all duration-500" />
 
           <nav className="hidden items-center gap-10 lg:flex" aria-label="Principal">
-            {NAV.map((item) => (
+            {menu.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -78,13 +89,15 @@ export function Header() {
               para entrar, así que el texto cambia según haya sesión: quien no
               tiene cuenta ve una invitación, no un "mi cuenta" que no es suyo.
             */}
-            <Link
-              href="/cuenta"
-              className="hidden items-center gap-2 rounded-full border border-white/15 px-5 py-3.5 text-[14px] font-medium text-bone-dim transition-colors hover:border-white/40 hover:text-white sm:inline-flex"
-            >
-              <User className="h-4.5 w-4.5" />
-              {haySesion ? 'Mi cuenta' : 'Registrarme'}
-            </Link>
+            {verCuenta && (
+              <Link
+                href="/cuenta"
+                className="hidden items-center gap-2 rounded-full border border-white/15 px-5 py-3.5 text-[14px] font-medium text-bone-dim transition-colors hover:border-white/40 hover:text-white sm:inline-flex"
+              >
+                <User className="h-4.5 w-4.5" />
+                {haySesion ? 'Mi cuenta' : 'Registrarme'}
+              </Link>
+            )}
 
             <button
               onClick={abrirCarrito}
@@ -131,7 +144,7 @@ export function Header() {
             </div>
 
             <nav className="wrap mt-8 flex flex-col gap-1" aria-label="Principal móvil">
-              {NAV.map((item, i) => (
+              {menu.map((item, i) => (
                 <motion.div
                   key={item.href}
                   initial={{ opacity: 0, x: -24 }}
@@ -150,21 +163,25 @@ export function Header() {
             </nav>
 
             <div className="wrap mt-8 space-y-3">
-              <Link
-                href="/cuenta"
-                onClick={() => setMenuAbierto(false)}
-                className="btn-ghost w-full"
-              >
-                <User className="h-4.5 w-4.5" />
-                {haySesion ? 'Mi cuenta y mis puntos' : 'Crear mi cuenta'}
-              </Link>
-              <Link
-                href="/juego"
-                onClick={() => setMenuAbierto(false)}
-                className="btn-primary w-full"
-              >
-                Juega y gana premios
-              </Link>
+              {verCuenta && (
+                <Link
+                  href="/cuenta"
+                  onClick={() => setMenuAbierto(false)}
+                  className="btn-ghost w-full"
+                >
+                  <User className="h-4.5 w-4.5" />
+                  {haySesion ? 'Mi cuenta y mis puntos' : 'Crear mi cuenta'}
+                </Link>
+              )}
+              {verJuego && (
+                <Link
+                  href="/juego"
+                  onClick={() => setMenuAbierto(false)}
+                  className="btn-primary w-full"
+                >
+                  Juega y gana premios
+                </Link>
+              )}
             </div>
           </motion.div>
         )}
