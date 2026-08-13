@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './juego.css';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/juego' },
   title: 'Juega y gana — Sugu Rolls',
   description:
     'Combina ingredientes, atiende a los clientes y desbloquea premios exclusivos de Sugu Rolls.',

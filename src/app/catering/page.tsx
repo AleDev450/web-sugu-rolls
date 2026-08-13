@@ -4,6 +4,7 @@ import { CateringForm } from '@/components/web/CateringForm';
 import { Pagina } from '@/components/web/Pagina';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/catering' },
   title: 'Catering',
   description:
     'Catering de makis para reuniones corporativas, cumpleaños y eventos privados en Lima.',

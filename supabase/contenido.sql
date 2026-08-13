@@ -27,10 +27,10 @@ create table if not exists public.site_settings (
   nombre       text not null default 'Sugu Rolls',
   eslogan      text not null default 'Makis que te hacen feliz',
   descripcion  text not null default 'Makis preparados al momento con ingredientes frescos.',
-  telefono     text not null default '+51 999 123 456',
-  whatsapp     text not null default '51999123456',
-  correo       text not null default 'hola@sugurolls.com.pe',
-  direccion    text not null default 'Lima, Perú',
+  telefono     text not null default '+51 997 516 391',
+  whatsapp     text not null default '51997516391',
+  correo       text not null default 'Sugurollsperu@gmail.com',
+  direccion    text not null default 'Juan Pablo Fernandini 1195, Pueblo Libre 15084',
   horario      text not null default 'Lunes a domingo: 12:00 p. m. a 11:00 p. m.',
   instagram    text default 'https://instagram.com/sugurolls',
   facebook     text default 'https://facebook.com/sugurolls',
@@ -280,3 +280,17 @@ comment on column public.site_settings.mod_cuenta is
 
 comment on column public.site_settings.solo_juego is
   'Modo campaña: apaga la web y deja solo /juego. Manda por encima de las demás banderas.';
+
+-- ---------------------------------------------------------------------
+-- Datos de contacto reales.
+--
+-- Los `default` de arriba solo aplican al crear la fila, y la de este
+-- proyecto ya existe con los valores de ejemplo. Este update la pone al día;
+-- es idempotente y se puede volver a ejecutar.
+-- ---------------------------------------------------------------------
+update public.site_settings
+set telefono  = '+51 997 516 391',
+    whatsapp  = '51997516391',
+    correo    = 'Sugurollsperu@gmail.com',
+    direccion = 'Juan Pablo Fernandini 1195, Pueblo Libre 15084'
+where id = 1;

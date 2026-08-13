@@ -4,6 +4,7 @@ import { Pagina } from '@/components/web/Pagina';
 import { Testimonios } from '@/components/web/Testimonios';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/nosotros' },
   title: 'Nosotros',
   description:
     'Preparamos cada pedido al momento, con ingredientes frescos, recetas propias y mucha pasión.',

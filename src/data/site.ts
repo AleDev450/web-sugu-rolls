@@ -5,17 +5,38 @@
  * archivos se sustituyen por las llamadas correspondientes sin tocar la UI.
  */
 
+/**
+ * Dominio público. Es la base de las URL canónicas, el sitemap y los datos
+ * estructurados, así que tiene que ser EXACTAMENTE el dominio que sirve la
+ * web: si Google ve una canónica hacia otro dominio, no indexa este.
+ */
+export const DOMINIO = 'https://sugurolls.com';
+
 export const SITE = {
   nombre: 'Sugu Rolls',
   eslogan: 'Makis que te hacen feliz',
   descripcion:
     'Makis preparados al momento con ingredientes frescos, recetas propias y mucho sabor.',
 
-  telefono: '+51 999 123 456',
+  telefono: '+51 997 516 391',
   /** solo dígitos, para los enlaces de WhatsApp */
-  whatsapp: '51999123456',
-  correo: 'hola@sugurolls.com.pe',
-  direccion: 'Lima, Perú',
+  whatsapp: '51997516391',
+  correo: 'Sugurollsperu@gmail.com',
+  direccion: 'Juan Pablo Fernandini 1195, Pueblo Libre 15084',
+
+  /**
+   * La misma dirección despiezada. Google necesita las partes por separado
+   * en los datos estructurados para poder ubicar el local en el mapa; con la
+   * cadena entera solo puede mostrarla como texto.
+   */
+  domicilio: {
+    calle: 'Juan Pablo Fernandini 1195',
+    distrito: 'Pueblo Libre',
+    ciudad: 'Lima',
+    region: 'Lima',
+    codigoPostal: '15084',
+    pais: 'PE',
+  },
   horario: 'Lunes a domingo: 12:00 p. m. a 11:00 p. m.',
 
   redes: {

@@ -3,6 +3,7 @@ import { Contacto } from '@/components/web/Contacto';
 import { Pagina } from '@/components/web/Pagina';
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/contacto' },
   title: 'Contacto',
   description:
     'Teléfono, WhatsApp, correo y horario de atención de Sugu Rolls. Delivery en Lima.',
