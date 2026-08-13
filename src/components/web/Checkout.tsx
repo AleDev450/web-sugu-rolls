@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCartStore } from '@/store/useCartStore';
-import { crearPedido, miPerfil, type Perfil } from '@/lib/tienda';
+import { adjuntarComprobante, crearPedido, miPerfil, type Perfil } from '@/lib/tienda';
 import { campoClase } from './CuentaForms';
 
 /**
@@ -25,7 +25,8 @@ export function Checkout() {
   const [nota, setNota] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hecho, setHecho] = useState<{ numero: number } | null>(null);
+  const [hecho, setHecho] = useState<{ id: string; numero: number } | null>(null);
+  const [comprobante, setComprobante] = useState<'falta' | 'subiendo' | 'listo'>('falta');
 
   useEffect(() => {
     void miPerfil().then((p) => {
@@ -39,7 +40,7 @@ export function Checkout() {
     setEnviando(true);
     setError(null);
     try {
-      const { numero } = await crearPedido(
+      const { id, numero } = await crearPedido(
         // el id de línea puede llevar sufijo de presentación; se manda el
         // slug real y las piezas por separado
         items.map((i) => ({
@@ -51,7 +52,7 @@ export function Checkout() {
         direccion,
         nota
       );
-      setHecho({ numero });
+      setHecho({ id, numero });
       vaciar();
     } catch {
       setError('No se pudo registrar el pedido. Revisa tu conexión e inténtalo de nuevo.');
@@ -62,14 +63,60 @@ export function Checkout() {
 
   if (!listo) return null;
 
+  const subirYape = async (archivo: File | undefined) => {
+    if (!archivo || !hecho) return;
+    setComprobante('subiendo');
+    setError(null);
+    try {
+      await adjuntarComprobante(hecho.id, archivo);
+      setComprobante('listo');
+    } catch (e) {
+      setComprobante('falta');
+      setError((e as Error).message);
+    }
+  };
+
   if (hecho) {
     return (
       <div className="rounded-2xl border border-emerald-600/40 bg-emerald-600/10 p-5 text-[13px] leading-relaxed">
         <p className="font-bold text-emerald-400">Pedido #{hecho.numero} registrado</p>
         <p className="mt-2 text-bone-dim">
-          Te escribiremos para coordinar el pago y la entrega. Tus puntos se acreditan en cuanto
-          confirmemos el pago.
+          El <b className="text-white">costo del delivery se evalúa según tu distrito</b> y te lo
+          confirmamos por WhatsApp junto con el total a pagar.
         </p>
+
+        {/*
+          El comprobante va DESPUÉS de crear el pedido, no antes: hasta que no
+          existe el pedido no hay a qué adjuntarlo, y el cliente no sabe cuánto
+          pagar hasta que le confirmamos el delivery.
+        */}
+        <div className="mt-4 border-t border-emerald-600/20 pt-4">
+          {comprobante === 'listo' ? (
+            <p className="font-semibold text-emerald-400">
+              Comprobante recibido. Preparamos tu pedido.
+            </p>
+          ) : (
+            <>
+              <p className="font-semibold text-white">Adjunta tu Yape para continuar</p>
+              <p className="mt-1 text-bone-dim">
+                Sube la captura de la transferencia. Sin ella el pedido queda en espera.
+              </p>
+              <label className="btn-ghost mt-3 inline-flex cursor-pointer !px-5 !py-2.5 text-[13px]">
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  disabled={comprobante === 'subiendo'}
+                  onChange={(e) => void subirYape(e.target.files?.[0])}
+                />
+                {comprobante === 'subiendo' ? 'Subiendo…' : 'Adjuntar captura'}
+              </label>
+            </>
+          )}
+        </div>
+
+        {error && <p className="mt-3 text-sugu">{error}</p>}
+
         <Link href="/cuenta" className="mt-3 inline-block text-sugu underline underline-offset-4">
           Ver mis pedidos
         </Link>

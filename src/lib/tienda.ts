@@ -169,6 +169,10 @@ export interface Pedido {
   numero: number;
   estado: 'pendiente' | 'pagado' | 'entregado' | 'cancelado';
   total: number;
+  /** reparto, aparte del total; lo fija el local según el distrito */
+  delivery: number;
+  /** ruta del comprobante adjunto, o null si todavía no lo subió */
+  comprobante: string | null;
   puntos: number;
   creado: string;
   items: ItemPedido[];
@@ -194,7 +198,7 @@ export async function crearPedido(
   }[],
   direccion: string,
   nota: string
-): Promise<{ numero: number; total: number }> {
+): Promise<{ id: string; numero: number; total: number }> {
   const { data, error } = await sb().rpc('crear_pedido', {
     p_items: items,
     p_direccion: direccion || null,
@@ -202,14 +206,55 @@ export async function crearPedido(
   });
   if (error) throw error;
 
-  const fila = (Array.isArray(data) ? data[0] : data) as { numero: number; total: number };
-  return { numero: Number(fila.numero), total: Number(fila.total) };
+  const fila = (Array.isArray(data) ? data[0] : data) as {
+    id: string;
+    numero: number;
+    total: number;
+  };
+  // el id hace falta para adjuntarle luego el comprobante del Yape
+  return { id: fila.id, numero: Number(fila.numero), total: Number(fila.total) };
+}
+
+/**
+ * Sube la captura del Yape y la ata al pedido.
+ *
+ * El bucket es privado: la imagen no queda accesible por URL pública, solo el
+ * panel puede abrirla con un enlace firmado. Se guarda la RUTA, no una URL.
+ */
+export async function adjuntarComprobante(pedidoId: string, archivo: File): Promise<void> {
+  const cliente = sb();
+
+  if (!archivo.type.startsWith('image/') && archivo.type !== 'application/pdf') {
+    throw new Error('Adjunta una imagen o un PDF.');
+  }
+  if (archivo.size > 5 * 1024 * 1024) {
+    throw new Error('El archivo no puede pasar de 5 MB.');
+  }
+
+  const ext = archivo.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+  // una carpeta por pedido: así el panel sabe a cuál pertenece cada archivo
+  const ruta = `${pedidoId}/${Date.now()}.${ext}`;
+
+  const { error: fallo } = await cliente.storage
+    .from('comprobantes')
+    .upload(ruta, archivo, { contentType: archivo.type, upsert: false });
+  if (fallo) throw fallo;
+
+  const { error } = await cliente.rpc('adjuntar_comprobante', {
+    p_order: pedidoId,
+    p_ruta: ruta,
+  });
+  if (error) throw error;
 }
 
 export async function misPedidos(): Promise<Pedido[]> {
   const { data, error } = await sb().rpc('mis_pedidos', { p_limit: 30 });
   if (error) throw error;
-  return ((data ?? []) as Pedido[]).map((p) => ({ ...p, total: Number(p.total) }));
+  return ((data ?? []) as Pedido[]).map((p) => ({
+    ...p,
+    total: Number(p.total),
+    delivery: Number(p.delivery ?? 0),
+  }));
 }
 
 // ---------------------------------------------------------------------

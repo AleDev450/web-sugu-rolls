@@ -36,3 +36,4 @@ Cuando corras una, márcala aquí:
 | `010-opciones-de-producto.sql` | Productos configurables por grupos de opciones | ☐ |
 | `011-opciones-pokebowl.sql` | Carga base, toppings, proteína y salsas en los bowls | ☐ |
 | `012-imagenes-de-contenido.sql` | Subir imágenes también en paquetes y secciones | ☐ |
+| `013-delivery-y-comprobante.sql` | Costo de delivery por pedido y adjuntar el Yape | ☐ |

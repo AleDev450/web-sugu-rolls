@@ -94,7 +94,12 @@ export const metadata: Metadata = {
     images: ['/imagenes/web/hero-makis.webp'],
   },
 
-  icons: { icon: '/favicon.ico', apple: '/imagenes/web/logo.png' },
+  /*
+   * Los iconos NO se declaran aquí: Next los detecta por convención desde
+   * src/app/icon.png y src/app/apple-icon.png, y genera las etiquetas con un
+   * hash en la URL para que un cambio de logo se propague sin caché vieja.
+   * Declararlos a mano además pisaría esa detección.
+   */
 
   /*
    * Verificación de Google Search Console. Se pega aquí el código que da

@@ -83,17 +83,17 @@ export function GruposOpciones({
             <span className="mb-1.5 block text-[11px] text-bone-dim">
               Opciones — una por línea
             </span>
+            {/*
+              Al escribir NO se limpia nada. Antes se hacía `.trim().filter()`
+              en cada tecla, y eso impedía escribir: al pulsar Enter la línea
+              nueva estaba vacía, se borraba en el acto y el cursor saltaba
+              arriba; tampoco se podían teclear espacios. Se limpia al guardar,
+              en el formulario del producto.
+            */}
             <textarea
               value={g.opciones.join('\n')}
-              onChange={(e) =>
-                cambiar(i, {
-                  opciones: e.target.value
-                    .split('\n')
-                    .map((o) => o.trim())
-                    .filter(Boolean),
-                })
-              }
-              rows={Math.min(12, Math.max(3, g.opciones.length + 1))}
+              onChange={(e) => cambiar(i, { opciones: e.target.value.split('\n') })}
+              rows={Math.min(14, Math.max(4, g.opciones.length + 1))}
               placeholder={'Palta\nChoclo\nMango'}
               className={`${campo} font-mono text-[12px] leading-relaxed`}
             />

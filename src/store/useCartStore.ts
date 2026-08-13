@@ -108,6 +108,7 @@ export const useCartStore = create<CartState>()(
             imagen: p.imagen,
             cantidad: 1,
             piezas,
+            opciones,
           };
           return { items: [...s.items, linea] };
         }),
@@ -144,7 +145,12 @@ export const useCartStore = create<CartState>()(
           .join('\n');
 
         return whatsappUrl(
-          `¡Hola ${SITE.nombre}! Quisiera pedir:\n\n${lineas}\n\n*Total: ${soles(total())}*`
+          `¡Hola ${a?.nombre ?? SITE.nombre}! Quisiera pedir:\n\n${lineas}\n\n` +
+            `*Total: ${soles(total())}*\n` +
+            // el reparto se cobra aparte y depende de dónde viva el cliente:
+            // decirlo aquí evita la sorpresa al momento de cobrar
+            `_Delivery: costo a evaluar por distrito._`,
+          numero
         );
       },
     }),

@@ -447,6 +447,10 @@ export interface PedidoAdmin {
   numero: number;
   estado: EstadoPedido;
   total: number;
+  /** reparto, aparte del total. No genera puntos. */
+  delivery: number;
+  /** ruta del comprobante en el bucket privado, si lo adjuntó */
+  comprobante: string | null;
   nombre: string;
   telefono: string;
   direccion: string;
@@ -470,7 +474,11 @@ export async function listarPedidos(estado?: EstadoPedido): Promise<PedidoAdmin[
     p_limit: 200,
   });
   if (error) throw error;
-  return ((data ?? []) as PedidoAdmin[]).map((p) => ({ ...p, total: Number(p.total) }));
+  return ((data ?? []) as PedidoAdmin[]).map((p) => ({
+    ...p,
+    total: Number(p.total),
+    delivery: Number(p.delivery ?? 0),
+  }));
 }
 
 /** Confirma el pago y acredita los puntos. Devuelve cuántos se dieron. */
@@ -478,6 +486,28 @@ export async function confirmarPago(id: string): Promise<number> {
   const { data, error } = await sb().rpc('admin_confirmar_pago', { p_order: id });
   if (error) throw error;
   return Number(data ?? 0);
+}
+
+/** Fija el costo de reparto de un pedido. */
+export async function fijarDelivery(id: string, monto: number): Promise<number> {
+  const { data, error } = await sb().rpc('admin_set_delivery', {
+    p_order: id,
+    p_monto: monto,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+/**
+ * Enlace temporal para ver un comprobante.
+ *
+ * El bucket es privado —son capturas de pagos— así que no hay URL fija: se
+ * firma una que caduca en cinco minutos cada vez que se quiere mirar.
+ */
+export async function verComprobante(ruta: string): Promise<string> {
+  const { data, error } = await sb().storage.from('comprobantes').createSignedUrl(ruta, 300);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export async function cambiarEstadoPedido(id: string, estado: EstadoPedido) {

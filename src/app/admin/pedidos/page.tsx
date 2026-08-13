@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Ban, RefreshCw, Truck } from 'lucide-react';
+import { BadgeCheck, Ban, Bike, ImageIcon, RefreshCw, Truck } from 'lucide-react';
 import {
   cambiarEstadoPedido,
   confirmarPago,
+  fijarDelivery,
   listarPedidos,
+  verComprobante,
   type EstadoPedido,
   type PedidoAdmin,
 } from '@/lib/admin';
@@ -39,6 +41,8 @@ export default function PedidosAdmin() {
   const [items, setItems] = useState<PedidoAdmin[] | null>(null);
   const [filtro, setFiltro] = useState<EstadoPedido | 'todos'>('pendiente');
   const [trabajando, setTrabajando] = useState<string | null>(null);
+  /** costo de reparto en edición, por pedido */
+  const [envios, setEnvios] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
   const cargar = async (f: EstadoPedido | 'todos') => {
@@ -81,6 +85,32 @@ export default function PedidosAdmin() {
       setAviso({ tipo: 'error', texto: (e as Error).message });
     } finally {
       setTrabajando(null);
+    }
+  };
+
+  const guardarEnvio = async (p: PedidoAdmin) => {
+    const monto = Number(envios[p.id] ?? p.delivery);
+    if (!Number.isFinite(monto) || monto < 0) return;
+    setTrabajando(p.id);
+    try {
+      await fijarDelivery(p.id, monto);
+      setAviso({
+        tipo: 'ok',
+        texto: `Pedido #${p.numero}: delivery ${soles(monto)}.`,
+      });
+      void cargar(filtro);
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setTrabajando(null);
+    }
+  };
+
+  const abrirComprobante = async (ruta: string) => {
+    try {
+      window.open(await verComprobante(ruta), '_blank', 'noopener');
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
     }
   };
 
@@ -145,7 +175,16 @@ export default function PedidosAdmin() {
                   </div>
                   <p className="mt-1 text-[13px] text-bone-dim">{fecha(p.creado)}</p>
                 </div>
-                <p className="text-2xl font-extrabold tracking-tight">{soles(p.total)}</p>
+                <div className="text-right">
+                  <p className="text-2xl font-extrabold tracking-tight">
+                    {soles(p.total + p.delivery)}
+                  </p>
+                  {p.delivery > 0 && (
+                    <p className="mt-0.5 text-[12px] text-bone-dim">
+                      {soles(p.total)} + {soles(p.delivery)} de envío
+                    </p>
+                  )}
+                </div>
               </header>
 
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
@@ -193,7 +232,52 @@ export default function PedidosAdmin() {
                 </ul>
               </div>
 
-              <footer className="mt-6 flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
+              {/*
+                Costo de reparto y comprobante: lo que hace falta ANTES de
+                confirmar el pago, por eso van juntos y encima del botón.
+              */}
+              <div className="mt-6 flex flex-wrap items-end gap-4 border-t border-white/10 pt-5">
+                <label className="flex-none">
+                  <span className="mb-1.5 flex items-center gap-2 text-[11px] text-bone-dim">
+                    <Bike className="h-3.5 w-3.5" />
+                    Costo de delivery
+                  </span>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.50"
+                      value={envios[p.id] ?? String(p.delivery)}
+                      onChange={(e) => setEnvios({ ...envios, [p.id]: e.target.value })}
+                      className="w-28 rounded-lg border border-white/10 bg-night px-3 py-2 text-sm outline-none transition-colors focus:border-sugu"
+                    />
+                    <button
+                      onClick={() => void guardarEnvio(p)}
+                      disabled={trabajando === p.id}
+                      className="rounded-lg border border-white/10 px-4 text-[13px] transition-colors hover:border-sugu/50 hover:text-sugu disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                </label>
+
+                <div className="flex-1">
+                  <span className="mb-1.5 block text-[11px] text-bone-dim">Comprobante</span>
+                  {p.comprobante ? (
+                    <button
+                      onClick={() => void abrirComprobante(p.comprobante!)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-4 py-2 text-[13px] text-emerald-400 transition-colors hover:bg-emerald-600/20"
+                    >
+                      <ImageIcon className="h-3.5 w-3.5" />
+                      Ver el Yape adjunto
+                    </button>
+                  ) : (
+                    <p className="py-2 text-[13px] text-amber-400">Todavía sin adjuntar</p>
+                  )}
+                </div>
+              </div>
+
+              <footer className="mt-4 flex flex-wrap items-center gap-3">
                 {p.estado === 'pendiente' && (
                   <button
                     onClick={() => void cobrar(p)}

@@ -71,6 +71,18 @@ export default function ProductosAdmin() {
         ...edicion,
         slug: edicion.slug || edicion.nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         etiqueta: edicion.etiqueta || null,
+        /*
+         * La limpieza va aquí y no mientras se escribe: filtrar líneas vacías
+         * en cada tecla impide pulsar Enter para añadir una opción. Se
+         * descartan las vacías y los grupos que se quedaron sin nada.
+         */
+        opciones: (edicion.opciones ?? [])
+          .map((g) => ({
+            ...g,
+            titulo: g.titulo.trim(),
+            opciones: g.opciones.map((o) => o.trim()).filter(Boolean),
+          }))
+          .filter((g) => g.titulo && g.opciones.length > 0),
       });
       setEdicion(null);
       setAviso({ tipo: 'ok', texto: 'Producto guardado.' });
