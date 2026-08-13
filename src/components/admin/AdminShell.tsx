@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageSquareQuote,
+  QrCode,
   Settings,
   SlidersHorizontal,
   ShoppingBag,
@@ -30,6 +31,7 @@ const MENU = [
   { href: '/admin/testimonios', label: 'Testimonios', icono: MessageSquareQuote },
   { href: '/admin/codigos', label: 'Códigos del juego', icono: KeyRound },
   { href: '/admin/ranking', label: 'Ranking del juego', icono: Trophy },
+  { href: '/admin/qr', label: 'Código QR', icono: QrCode },
   { href: '/admin/modulos', label: 'Módulos de la web', icono: SlidersHorizontal },
   { href: '/admin/ajustes', label: 'Ajustes del sitio', icono: Settings },
 ];
