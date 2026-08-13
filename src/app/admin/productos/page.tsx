@@ -44,6 +44,7 @@ export default function ProductosAdmin() {
   const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
   const [edicion, setEdicion] = useState<ProductoAdmin | null>(null);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const [filtro, setFiltro] = useState<string>('todas');
 
   const cargar = async () => {
     try {
@@ -90,13 +91,35 @@ export default function ProductosAdmin() {
 
   if (!items) return <Cargando />;
 
+  /*
+   * Filtro por categoría. Cuenta cuántos productos hay en cada una y esconde
+   * las vacías: con diez categorías, una fila de botones donde la mitad no
+   * lleva a ningún sitio estorba más que ayuda.
+   */
+  const cuenta = new Map<string, number>();
+  for (const p of items) cuenta.set(p.categoria, (cuenta.get(p.categoria) ?? 0) + 1);
+
+  const conProductos = categorias.filter((c) => (cuenta.get(c.id) ?? 0) > 0);
+  const visibles = filtro === 'todas' ? items : items.filter((p) => p.categoria === filtro);
+
   return (
     <>
       <Encabezado
         titulo="Productos"
         bajada="Lo que se muestra en la carta y en los favoritos de la portada."
         accion={
-          <button onClick={() => setEdicion({ ...NUEVO, orden: items.length + 1 })} className="btn-primary">
+          <button
+            onClick={() =>
+              setEdicion({
+                ...NUEVO,
+                orden: items.length + 1,
+                // con un filtro puesto, se crea en esa categoría: es lo que
+                // uno espera al estar viendo "Handroll" y pulsar Nuevo
+                categoria: filtro === 'todas' ? NUEVO.categoria : filtro,
+              })
+            }
+            className="btn-primary"
+          >
             <Plus className="h-4 w-4" />
             Nuevo producto
           </button>
@@ -109,6 +132,34 @@ export default function ProductosAdmin() {
         </div>
       )}
 
+      <div className="mb-6 flex flex-wrap gap-2">
+        <button
+          onClick={() => setFiltro('todas')}
+          className={`rounded-full px-4 py-2 text-[13px] transition-colors ${
+            filtro === 'todas' ? 'bg-sugu text-white' : 'bg-white/5 text-bone-dim hover:bg-white/10'
+          }`}
+        >
+          Todas <span className="opacity-60">({items.length})</span>
+        </button>
+
+        {conProductos.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setFiltro(c.id)}
+            className={`rounded-full px-4 py-2 text-[13px] transition-colors ${
+              filtro === c.id ? 'bg-sugu text-white' : 'bg-white/5 text-bone-dim hover:bg-white/10'
+            }`}
+          >
+            {c.nombre} <span className="opacity-60">({cuenta.get(c.id)})</span>
+          </button>
+        ))}
+      </div>
+
+      {visibles.length === 0 ? (
+        <p className="card p-16 text-center text-sm text-bone-dim">
+          No hay productos en esta categoría.
+        </p>
+      ) : (
       <div className="overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-white/10 bg-night-soft">
@@ -121,7 +172,7 @@ export default function ProductosAdmin() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/10">
-            {items.map((p) => (
+            {visibles.map((p) => (
               <tr key={p.id ?? p.slug} className="transition-colors hover:bg-white/[0.03]">
                 <td className="p-4">
                   <div className="flex items-center gap-3.5">
@@ -136,7 +187,10 @@ export default function ProductosAdmin() {
                     </div>
                   </div>
                 </td>
-                <td className="p-4 text-bone-dim">{p.categoria}</td>
+                {/* el nombre, no el id: "platos-calientes" no se lee bien */}
+                <td className="p-4 text-bone-dim">
+                  {categorias.find((c) => c.id === p.categoria)?.nombre ?? p.categoria}
+                </td>
                 <td className="p-4 font-semibold text-sugu">{soles(p.precio)}</td>
                 <td className="p-4">
                   <div className="flex flex-wrap gap-1.5">
@@ -186,6 +240,7 @@ export default function ProductosAdmin() {
           </p>
         )}
       </div>
+      )}
 
       <Modal
         abierto={edicion !== null}
