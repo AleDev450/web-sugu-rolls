@@ -49,9 +49,14 @@ export const SITE = {
   juegoUrl: '/juego',
 } as const;
 
-/** Arma un enlace de WhatsApp con mensaje predefinido. */
-export function whatsappUrl(mensaje: string): string {
-  return `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(mensaje)}`;
+/**
+ * Arma un enlace de WhatsApp con mensaje predefinido.
+ *
+ * `numero` permite pasar el que está guardado en el panel; sin él usa el del
+ * código, que solo debería salir si la base no responde.
+ */
+export function whatsappUrl(mensaje: string, numero?: string): string {
+  return `https://wa.me/${numero || SITE.whatsapp}?text=${encodeURIComponent(mensaje)}`;
 }
 
 /** Cada entrada es una página propia. */

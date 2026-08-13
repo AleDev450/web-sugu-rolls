@@ -28,3 +28,4 @@ Cuando corras una, márcala aquí:
 | `002-antitrampas-puntaje.sql` | Techo de puntaje según el tiempo jugado | ☐ |
 | `003-legales-editables.sql` | Términos y privacidad editables desde el panel | ☐ |
 | `004-usuarios-panel.sql` | Listado paginado de usuarios con su nivel de tarjeta | ☐ |
+| `005-ajuste-manual-de-puntos.sql` | Sumar y restar puntos a mano; corrige el cálculo de nivel | ☐ |

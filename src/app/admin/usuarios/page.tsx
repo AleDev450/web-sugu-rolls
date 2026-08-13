@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Search } from 'lucide-react';
-import { listarUsuarios, type UsuarioAdmin } from '@/lib/admin';
-import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
+import { ChevronLeft, ChevronRight, Download, Minus, Plus, Search } from 'lucide-react';
+import { ajustarPuntos, listarUsuarios, type UsuarioAdmin } from '@/lib/admin';
+import { Aviso, Campo, Cargando, Encabezado, Modal, claseCampo } from '@/components/admin/ui';
 
 const POR_PAGINA = 20;
 
@@ -25,6 +25,8 @@ export default function UsuariosAdmin() {
   const [pagina, setPagina] = useState(0);
   const [buscar, setBuscar] = useState('');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const [ajuste, setAjuste] = useState<UsuarioAdmin | null>(null);
+  const [recargar, setRecargar] = useState(0);
 
   useEffect(() => {
     let vivo = true;
@@ -49,7 +51,7 @@ export default function UsuariosAdmin() {
       vivo = false;
       clearTimeout(t);
     };
-  }, [pagina, buscar]);
+  }, [pagina, buscar, recargar]);
 
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
 
@@ -144,6 +146,7 @@ export default function UsuariosAdmin() {
                   <th className="p-4 text-right">Pedidos</th>
                   <th className="p-4 text-right">Gastado</th>
                   <th className="p-4">Registro</th>
+                  <th className="p-4" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
@@ -181,6 +184,14 @@ export default function UsuariosAdmin() {
                       {soles(u.gastado)}
                     </td>
                     <td className="p-4 text-[13px] text-bone-dim">{fecha(u.creado)}</td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => setAjuste(u)}
+                        className="whitespace-nowrap rounded-lg border border-white/10 px-3 py-1.5 text-[12px] transition-colors hover:border-sugu/50 hover:text-sugu"
+                      >
+                        Ajustar puntos
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -215,6 +226,162 @@ export default function UsuariosAdmin() {
           </nav>
         </>
       )}
+
+      <AjustePuntos
+        usuario={ajuste}
+        alCerrar={() => setAjuste(null)}
+        alHecho={(texto) => {
+          setAviso({ tipo: 'ok', texto });
+          setAjuste(null);
+          setRecargar((n) => n + 1);
+        }}
+        alFallar={(texto) => setAviso({ tipo: 'error', texto })}
+      />
     </>
+  );
+}
+
+/**
+ * Suma o resta puntos a un cliente.
+ *
+ * Se pide siempre un motivo: el movimiento queda para siempre en el libro
+ * mayor y dentro de un mes nadie recuerda por qué apareció.
+ */
+function AjustePuntos({
+  usuario,
+  alCerrar,
+  alHecho,
+  alFallar,
+}: {
+  usuario: UsuarioAdmin | null;
+  alCerrar: () => void;
+  alHecho: (texto: string) => void;
+  alFallar: (texto: string) => void;
+}) {
+  const [signo, setSigno] = useState<1 | -1>(1);
+  const [cantidad, setCantidad] = useState(100);
+  const [motivo, setMotivo] = useState('');
+  const [trabajando, setTrabajando] = useState(false);
+
+  useEffect(() => {
+    if (usuario) {
+      setSigno(1);
+      setCantidad(100);
+      setMotivo('');
+    }
+  }, [usuario]);
+
+  if (!usuario) return null;
+
+  const delta = signo * Math.abs(cantidad || 0);
+  const resultado = usuario.saldo + delta;
+  const invalido = delta === 0 || resultado < 0;
+
+  const aplicar = async () => {
+    setTrabajando(true);
+    try {
+      const saldo = await ajustarPuntos(usuario.id, delta, motivo);
+      alHecho(
+        `${delta > 0 ? 'Sumados' : 'Restados'} ${Math.abs(delta)} puntos a ${usuario.nickname}. Saldo: ${saldo}.`
+      );
+    } catch (e) {
+      alFallar((e as Error).message);
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  return (
+    <Modal abierto titulo={`Ajustar puntos · ${usuario.nickname}`} alCerrar={alCerrar}>
+      <div className="space-y-5">
+        <p className="text-[13px] text-bone-dim">
+          Ahora tiene <b className="text-white">{usuario.saldo.toLocaleString('es')}</b> puntos
+          disponibles y <b className="text-white">{usuario.ganados.toLocaleString('es')}</b>{' '}
+          ganados en total.
+        </p>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Campo etiqueta="Operación">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSigno(1)}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2.5 text-[13px] transition-colors ${
+                  signo === 1
+                    ? 'border-emerald-500/60 bg-emerald-600/15 text-emerald-400'
+                    : 'border-white/10 text-bone-dim hover:border-white/30'
+                }`}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Sumar
+              </button>
+              <button
+                type="button"
+                onClick={() => setSigno(-1)}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2.5 text-[13px] transition-colors ${
+                  signo === -1
+                    ? 'border-sugu/60 bg-sugu/15 text-sugu'
+                    : 'border-white/10 text-bone-dim hover:border-white/30'
+                }`}
+              >
+                <Minus className="h-3.5 w-3.5" />
+                Restar
+              </button>
+            </div>
+          </Campo>
+
+          <Campo etiqueta="Cantidad">
+            <input
+              type="number"
+              min={1}
+              max={100000}
+              value={cantidad}
+              onChange={(e) => setCantidad(Math.abs(Number(e.target.value)))}
+              className={claseCampo}
+            />
+          </Campo>
+
+          <Campo etiqueta="Motivo" ancho="completo">
+            <input
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Premio del sorteo, corrección de un pedido…"
+              className={claseCampo}
+            />
+          </Campo>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-night p-4 text-[13px]">
+          <p>
+            Saldo resultante:{' '}
+            <b className={resultado < 0 ? 'text-sugu' : 'text-white'}>
+              {resultado.toLocaleString('es')} puntos
+            </b>
+          </p>
+          <p className="mt-2 leading-relaxed text-bone-dim">
+            {signo === 1
+              ? 'Sumar puntos también cuenta para el nivel de su tarjeta.'
+              : 'Restar puntos baja el saldo y también los puntos de nivel.'}
+          </p>
+          {resultado < 0 && (
+            <p className="mt-2 text-sugu">Nadie puede quedar con saldo negativo.</p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={alCerrar} className="btn-ghost">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void aplicar()}
+            disabled={invalido || trabajando}
+            className="btn-primary disabled:pointer-events-none disabled:opacity-40"
+          >
+            {trabajando ? 'Aplicando…' : 'Aplicar ajuste'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

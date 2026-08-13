@@ -70,7 +70,6 @@ export function Header() {
 
   const menu = ajustes ? NAV.filter((i) => moduloActivo(ajustes, i.href)) : NAV;
   const verCuenta = !ajustes || ajustes.mod_cuenta;
-  const verJuego = !ajustes || ajustes.mod_juego;
 
   return (
     <>
@@ -176,7 +175,7 @@ export function Header() {
               ))}
             </nav>
 
-            <div className="wrap mt-6 space-y-3">
+            <div className="wrap mt-6 space-y-2">
               {verCuenta && (
                 <Link
                   href="/cuenta"
@@ -198,15 +197,6 @@ export function Header() {
                   <LogOut className="h-4 w-4" />
                   Cerrar sesión
                 </button>
-              )}
-              {verJuego && (
-                <Link
-                  href="/juego"
-                  onClick={() => setMenuAbierto(false)}
-                  className="btn-primary w-full"
-                >
-                  Juega y gana premios
-                </Link>
               )}
             </div>
           </motion.div>

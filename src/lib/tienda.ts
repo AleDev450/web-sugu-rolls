@@ -57,7 +57,7 @@ export async function registrarse(d: DatosRegistro) {
   const res = await fetch('/api/registro', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(d),
+    body: JSON.stringify({ ...d, correo: d.correo.trim().toLowerCase() }),
   });
 
   if (res.ok) {
@@ -80,7 +80,7 @@ export async function registrarse(d: DatosRegistro) {
 
   // --- respaldo: registro normal, sujeto al ajuste del proyecto ---
   const { data, error } = await sb().auth.signUp({
-    email: d.correo.trim(),
+    email: d.correo.trim().toLowerCase(),
     password: d.clave,
     options: {
       data: {
@@ -99,7 +99,9 @@ export async function registrarse(d: DatosRegistro) {
 
 export async function ingresar(correo: string, clave: string) {
   const { error } = await sb().auth.signInWithPassword({
-    email: correo.trim(),
+    // mismo normalizado que el alta: "Ana@X.com" y "ana@x.com" son la misma
+    // cuenta, y Supabase guarda el correo en minúsculas
+    email: correo.trim().toLowerCase(),
     password: clave,
   });
   if (error) throw error;

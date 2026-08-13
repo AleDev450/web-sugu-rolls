@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SITE, whatsappUrl } from '@/data/site';
+import { useAjustes } from '@/lib/useAjustes';
 
 /** Botón flotante de WhatsApp; aparece al bajar del hero. */
 export function WhatsappFab() {
   const [visible, setVisible] = useState(false);
+  const a = useAjustes() ?? SITE;
 
   useEffect(() => {
     const alScroll = () => setVisible(window.scrollY > 500);
@@ -23,7 +25,7 @@ export function WhatsappFab() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.5, y: 20 }}
           transition={{ type: 'spring', damping: 18, stiffness: 280 }}
-          href={whatsappUrl(`¡Hola ${SITE.nombre}! Quisiera hacer un pedido 🍣`)}
+          href={whatsappUrl(`¡Hola ${a.nombre}! Quisiera hacer un pedido 🍣`, a.whatsapp)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Escríbenos por WhatsApp"

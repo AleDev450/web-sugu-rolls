@@ -2,22 +2,25 @@
 
 import { Clock, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
 import { SITE, whatsappUrl } from '@/data/site';
+import { useAjustes } from '@/lib/useAjustes';
 import { Aparecer, TituloSeccion } from './Seccion';
 import { RedesSociales } from './RedesSociales';
 import { useSeccion } from './useSeccion';
 
 export function Contacto() {
   const s = useSeccion('contacto');
+  // los datos salen del panel; SITE es solo el respaldo mientras cargan
+  const a = useAjustes() ?? SITE;
   const datos = [
-    { icono: MapPin, titulo: 'Dirección', valor: SITE.direccion, href: undefined },
-    { icono: Phone, titulo: 'Teléfono', valor: SITE.telefono, href: `tel:${SITE.telefono.replace(/\s/g, '')}` },
+    { icono: MapPin, titulo: 'Dirección', valor: a.direccion, href: undefined },
+    { icono: Phone, titulo: 'Teléfono', valor: a.telefono, href: `tel:${a.telefono.replace(/\s/g, '')}` },
     {
       icono: MessageCircle,
       titulo: 'WhatsApp',
-      valor: SITE.telefono,
-      href: whatsappUrl(`¡Hola ${SITE.nombre}! Tengo una consulta.`),
+      valor: a.telefono,
+      href: whatsappUrl(`¡Hola ${a.nombre}! Tengo una consulta.`, a.whatsapp),
     },
-    { icono: Mail, titulo: 'Correo', valor: SITE.correo, href: `mailto:${SITE.correo}` },
+    { icono: Mail, titulo: 'Correo', valor: a.correo, href: `mailto:${a.correo}` },
   ];
 
   return (
@@ -72,7 +75,7 @@ export function Contacto() {
               <h3 className="text-[11px] font-semibold uppercase tracking-widest text-bone-dim">
                 Horario de atención
               </h3>
-              <p className="mt-1.5 text-sm font-medium">{SITE.horario}</p>
+              <p className="mt-1.5 text-sm font-medium">{a.horario}</p>
             </div>
           </div>
 

@@ -1,4 +1,7 @@
+'use client';
+
 import { SITE } from '@/data/site';
+import { useAjustes } from '@/lib/useAjustes';
 
 /**
  * Lucide 1.x ya no incluye logotipos de marcas, así que los tres van como
@@ -40,19 +43,25 @@ function TikTok({ className }: { className?: string }) {
   );
 }
 
-const REDES = [
-  { nombre: 'Instagram', href: SITE.redes.instagram, Icono: Instagram },
-  { nombre: 'Facebook', href: SITE.redes.facebook, Icono: Facebook },
-  { nombre: 'TikTok', href: SITE.redes.tiktok, Icono: TikTok },
-];
-
 export function RedesSociales({ className = '' }: { className?: string }) {
+  const a = useAjustes();
+
+  /*
+   * Las URL salen del panel. Una red sin enlace guardado no se pinta: es
+   * mejor que falte el icono a que lleve a un perfil que no existe.
+   */
+  const redes = [
+    { nombre: 'Instagram', href: a?.instagram ?? SITE.redes.instagram, Icono: Instagram },
+    { nombre: 'Facebook', href: a?.facebook ?? SITE.redes.facebook, Icono: Facebook },
+    { nombre: 'TikTok', href: a?.tiktok ?? SITE.redes.tiktok, Icono: TikTok },
+  ].filter((r) => !!r.href);
+
   return (
     <div className={`flex gap-2.5 ${className}`}>
-      {REDES.map(({ nombre, href, Icono }) => (
+      {redes.map(({ nombre, href, Icono }) => (
         <a
           key={nombre}
-          href={href}
+          href={href as string}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={nombre}

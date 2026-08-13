@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SITE, whatsappUrl } from '@/data/site';
+import { ajustesEnCache } from '@/lib/useAjustes';
 import { soles, type Producto } from '@/data/productos';
 
 /**
@@ -73,7 +74,13 @@ export const useCartStore = create<CartState>()(
 
       mensajeWhatsapp: () => {
         const { items, total } = get();
-        if (items.length === 0) return whatsappUrl('¡Hola! Quisiera hacer un pedido 🍣');
+        // el número guardado en el panel; SITE solo si la base no respondió
+        const a = ajustesEnCache();
+        const numero = a?.whatsapp;
+
+        if (items.length === 0) {
+          return whatsappUrl('¡Hola! Quisiera hacer un pedido 🍣', numero);
+        }
 
         const lineas = items
           .map((i) => `• ${i.cantidad}× ${i.nombre} — ${soles(i.precio * i.cantidad)}`)

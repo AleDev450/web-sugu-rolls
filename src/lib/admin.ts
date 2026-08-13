@@ -405,6 +405,26 @@ export async function listarUsuarios(
   };
 }
 
+/**
+ * Suma o resta puntos a mano. `delta` positivo acredita, negativo descuenta.
+ *
+ * No escribe un saldo: añade una línea al libro mayor con su motivo, igual
+ * que una compra o un canje. Devuelve el saldo resultante.
+ */
+export async function ajustarPuntos(
+  userId: string,
+  delta: number,
+  motivo: string
+): Promise<number> {
+  const { data, error } = await sb().rpc('admin_ajustar_puntos', {
+    p_user: userId,
+    p_delta: delta,
+    p_motivo: motivo || null,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 // ---------- pedidos de la tienda ----------
 
 export type EstadoPedido = 'pendiente' | 'pagado' | 'entregado' | 'cancelado';
