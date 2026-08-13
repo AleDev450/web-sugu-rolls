@@ -182,11 +182,11 @@ export const ESTADO_PEDIDO: Record<Pedido['estado'], string> = {
 };
 
 /**
- * Crea el pedido. Solo se mandan slugs y cantidades: los precios los pone la
+ * Crea el pedido. Solo se mandan slugs, presentación y cantidades: los precios los pone la
  * base leyendo `products`, así que da igual lo que se manipule en el cliente.
  */
 export async function crearPedido(
-  items: { slug: string; cantidad: number }[],
+  items: { slug: string; piezas?: number; cantidad: number }[],
   direccion: string,
   nota: string
 ): Promise<{ numero: number; total: number }> {

@@ -18,10 +18,22 @@ export function ProductoCard({ producto }: { producto: Producto }) {
   const [agregado, setAgregado] = useState(false);
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /*
+   * Presentaciones (por 5, por 10…). Sin ellas el producto se comporta como
+   * siempre: un precio y un botón. Con ellas hay que elegir cantidad antes de
+   * añadir, y se preselecciona la primera —la más pequeña— porque es la
+   * entrada natural: quien quiera más sube, quien dude no se topa de golpe
+   * con el precio mayor.
+   */
+  const presentaciones = producto.presentaciones ?? [];
+  const [elegida, setElegida] = useState(0);
+  const presentacion = presentaciones[elegida];
+  const precio = presentacion?.precio ?? producto.precio;
+
   useEffect(() => () => void (temporizador.current && clearTimeout(temporizador.current)), []);
 
   const alAgregar = () => {
-    agregar(producto);
+    agregar(producto, presentacion?.piezas, presentacion?.precio);
     setAgregado(true);
     if (temporizador.current) clearTimeout(temporizador.current);
     temporizador.current = setTimeout(() => setAgregado(false), 1400);
@@ -56,9 +68,32 @@ export function ProductoCard({ producto }: { producto: Producto }) {
           {producto.descripcion}
         </p>
 
+        {presentaciones.length > 0 && (
+          <div
+            className="mt-5 flex flex-wrap gap-2"
+            role="group"
+            aria-label={`Cantidad de ${producto.nombre}`}
+          >
+            {presentaciones.map((p, i) => (
+              <button
+                key={p.piezas}
+                onClick={() => setElegida(i)}
+                aria-pressed={i === elegida}
+                className={`rounded-full border px-4 py-1.5 text-[13px] font-semibold transition-colors ${
+                  i === elegida
+                    ? 'border-sugu bg-sugu text-white'
+                    : 'border-white/15 text-bone-dim hover:border-white/40 hover:text-white'
+                }`}
+              >
+                {p.piezas} u.
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="mt-6 flex items-center justify-between gap-3">
           <span className="text-2xl font-extrabold tracking-tight text-sugu">
-            {soles(producto.precio)}
+            {soles(precio)}
           </span>
           <button
             onClick={alAgregar}

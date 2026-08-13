@@ -22,6 +22,8 @@ export interface ProductoAdmin {
   destacado: boolean;
   activo: boolean;
   orden: number;
+  /** cantidades a la venta con su precio; vacío = precio único */
+  presentaciones: { piezas: number; precio: number }[];
 }
 
 export interface PaqueteAdmin {
@@ -128,7 +130,16 @@ export async function esAdmin(): Promise<{ admin: boolean; error: string | null 
 export async function listarProductos(): Promise<ProductoAdmin[]> {
   const { data, error } = await sb().from('products').select('*').order('orden');
   if (error) throw error;
-  return (data ?? []).map((p) => ({ ...p, precio: Number(p.precio) })) as ProductoAdmin[];
+  return (data ?? []).map((p) => ({
+    ...p,
+    precio: Number(p.precio),
+    presentaciones: (p.presentaciones ?? []).map(
+      (v: { piezas: number | string; precio: number | string }) => ({
+        piezas: Number(v.piezas),
+        precio: Number(v.precio),
+      })
+    ),
+  })) as ProductoAdmin[];
 }
 
 export async function listarPaquetes(): Promise<PaqueteAdmin[]> {

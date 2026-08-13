@@ -141,6 +141,7 @@ interface FilaProducto {
   destacado: boolean;
   activo: boolean;
   orden: number;
+  presentaciones: { piezas: number | string; precio: number | string }[] | null;
 }
 
 interface FilaPaquete {
@@ -176,6 +177,11 @@ function aProducto(f: FilaProducto): Producto {
     imagen: f.imagen,
     destacado: f.destacado,
     etiqueta: (f.etiqueta ?? undefined) as Producto['etiqueta'],
+    // los numéricos de Postgres llegan como texto por JSON
+    presentaciones: (f.presentaciones ?? [])
+      .map((p) => ({ piezas: Number(p.piezas), precio: Number(p.precio) }))
+      .filter((p) => p.piezas > 0 && p.precio >= 0)
+      .sort((a, b) => a.piezas - b.piezas),
   };
 }
 

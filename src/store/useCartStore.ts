@@ -13,18 +13,37 @@ import { soles, type Producto } from '@/data/productos';
  */
 
 export interface ItemCarrito {
+  /**
+   * Clave de la línea. Con presentaciones lleva sufijo (`maki-x#10`), porque
+   * "5 piezas" y "10 piezas" del mismo maki son dos líneas distintas y no
+   * deben sumarse entre sí.
+   */
   id: string;
+  /** slug real del producto, que es lo que entiende la base al pedir */
+  slug: string;
   nombre: string;
   precio: number;
   imagen: string;
   cantidad: number;
+  /** presentación elegida; ausente en los productos de precio único */
+  piezas?: number;
+}
+
+/** Arma la clave de línea a partir del producto y la presentación. */
+export function claveItem(slug: string, piezas?: number): string {
+  return piezas ? `${slug}#${piezas}` : slug;
 }
 
 interface CartState {
   items: ItemCarrito[];
   abierto: boolean;
 
-  agregar: (p: Pick<Producto, 'id' | 'nombre' | 'precio' | 'imagen'>) => void;
+  /** `piezas` solo cuando el producto se vende por presentaciones */
+  agregar: (
+    p: Pick<Producto, 'id' | 'nombre' | 'precio' | 'imagen'>,
+    piezas?: number,
+    precioPresentacion?: number
+  ) => void;
   quitar: (id: string) => void;
   cambiarCantidad: (id: string, cantidad: number) => void;
   vaciar: () => void;
@@ -46,13 +65,29 @@ export const useCartStore = create<CartState>()(
        * No abre el panel a propósito: abrirlo en cada clic tapa la carta y
        * corta la compra. El aviso es el contador del header.
        */
-      agregar: (p) =>
+      agregar: (p, piezas, precioPresentacion) =>
         set((s) => {
-          const existente = s.items.find((i) => i.id === p.id);
-          const items = existente
-            ? s.items.map((i) => (i.id === p.id ? { ...i, cantidad: i.cantidad + 1 } : i))
-            : [...s.items, { ...p, cantidad: 1 }];
-          return { items };
+          const id = claveItem(p.id, piezas);
+          const existente = s.items.find((i) => i.id === id);
+          if (existente) {
+            return {
+              items: s.items.map((i) =>
+                i.id === id ? { ...i, cantidad: i.cantidad + 1 } : i
+              ),
+            };
+          }
+
+          const linea: ItemCarrito = {
+            id,
+            slug: p.id,
+            // el nombre lleva la presentación para que el carrito se lea solo
+            nombre: piezas ? `${p.nombre} (${piezas} piezas)` : p.nombre,
+            precio: precioPresentacion ?? p.precio,
+            imagen: p.imagen,
+            cantidad: 1,
+            piezas,
+          };
+          return { items: [...s.items, linea] };
         }),
 
       quitar: (id) => set((s) => ({ items: s.items.filter((i) => i.id !== id) })),

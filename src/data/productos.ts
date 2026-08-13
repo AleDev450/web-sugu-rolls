@@ -13,6 +13,12 @@ export interface Categoria {
   descripcion: string;
 }
 
+/** Una cantidad a la venta con su precio: "5 piezas por S/ 18". */
+export interface Presentacion {
+  piezas: number;
+  precio: number;
+}
+
 export interface Producto {
   id: string;
   nombre: string;
@@ -24,6 +30,12 @@ export interface Producto {
   /** aparece en "Nuestros Favoritos" de la portada */
   destacado?: boolean;
   etiqueta?: 'Nuevo' | 'Más pedido' | 'Picante' | 'Vegetariano';
+  /**
+   * Cantidades alternativas (por 5, por 10…). Vacío o ausente = precio único
+   * y manda `precio`. Se editan desde el panel: no hay cantidades fijas en
+   * el código, ni siquiera el 5 y el 10.
+   */
+  presentaciones?: Presentacion[];
 }
 
 export const CATEGORIAS: Categoria[] = [

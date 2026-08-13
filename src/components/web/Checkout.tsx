@@ -40,8 +40,9 @@ export function Checkout() {
     setError(null);
     try {
       const { numero } = await crearPedido(
-        // el carrito guarda el slug como id (ver `contenido.ts`)
-        items.map((i) => ({ slug: i.id, cantidad: i.cantidad })),
+        // el id de línea puede llevar sufijo de presentación; se manda el
+        // slug real y las piezas por separado
+        items.map((i) => ({ slug: i.slug, piezas: i.piezas, cantidad: i.cantidad })),
         direccion,
         nota
       );
