@@ -126,7 +126,7 @@ function Acceso({
           cosas. Quien ya tenga cuenta con ese mismo correo entra a la suya de
           siempre, no se le crea otra.
         */}
-        <AccesoGoogle />
+        <AccesoGoogle alEntrar={alEntrar} />
 
         {modo === 'ingreso' ? (
           <FormIngreso alEntrar={alEntrar} />

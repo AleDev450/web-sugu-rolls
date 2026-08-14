@@ -134,6 +134,26 @@ export async function entrarConGoogle(destino = '/cuenta') {
 }
 
 /**
+ * Acceso con Google sin salir de la web.
+ *
+ * Google Identity Services devuelve un token de identidad firmado en la
+ * propia página; aquí se canjea por sesión. El `nonce` es el original: Google
+ * guardó su hash dentro del token y Supabase comprueba que cuadren, que es lo
+ * que impide reutilizar un token conseguido en otro sitio.
+ *
+ * Da igual que sea alta o inicio de sesión, y el enlazado por correo funciona
+ * exactamente igual que por el camino con redirección.
+ */
+export async function entrarConTokenGoogle(token: string, nonce: string) {
+  const { error } = await sb().auth.signInWithIdToken({
+    provider: 'google',
+    token,
+    nonce,
+  });
+  if (error) throw error;
+}
+
+/**
  * Formas de entrar que tiene ya esta cuenta: `email`, `google`…
  *
  * Sirve para no ofrecerle "crear contraseña" a quien ya tiene una, ni decirle
