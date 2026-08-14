@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -19,6 +19,7 @@ import { Logo } from './Logo';
  * En móvil despliega un panel a pantalla completa.
  */
 export function Header() {
+  const barra = useRef<HTMLElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
   const abrirCarrito = useCartStore((s) => s.abrir);
@@ -53,6 +54,26 @@ export function Header() {
     void traerAjustes().then(setAjustes);
   }, []);
 
+  /*
+   * Publica la altura del header como variable CSS, para que otras secciones
+   * puedan empezar justo donde termina la barra sin números escritos a mano
+   * —que se quedan desfasados en cuanto cambia el logo o el espaciado—.
+   *
+   * Se mide con la barra EXPANDIDA, que es su tamaño cuando el slider está a
+   * la vista. Midiéndola compacta, al volver arriba el contenido saltaría.
+   */
+  useEffect(() => {
+    const medir = () => {
+      const alto = barra.current?.offsetHeight;
+      if (alto && !scrolled) {
+        document.documentElement.style.setProperty('--header-alto', `${alto}px`);
+      }
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [scrolled]);
+
   useEffect(() => {
     const alScroll = () => setScrolled(window.scrollY > 24);
     alScroll();
@@ -74,6 +95,7 @@ export function Header() {
   return (
     <>
       <header
+        ref={barra}
         className={`fixed inset-x-0 top-0 z-50 transition-all duration-500 ease-premium ${
           compacto
             ? 'border-b border-white/10 bg-night/95 py-3.5 backdrop-blur-xl'

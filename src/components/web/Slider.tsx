@@ -36,7 +36,7 @@ export function Slider() {
   }, [total]);
 
   if (slides === null) {
-    return <div className="h-[calc(100svh-92px)] w-full bg-night lg:h-[calc(100svh-116px)]" aria-hidden />;
+    return <div className="h-[calc(100svh-var(--header-alto))] w-full bg-night" aria-hidden />;
   }
 
   // sin diapositivas cargadas, la portada sigue con el hero de siempre
@@ -50,15 +50,15 @@ export function Slider() {
   const velo = Math.min(100, Math.max(0, s.velo ?? 35)) / 100;
 
   /*
-   * El slider arranca DEBAJO del header, no detrás.
+   * El slider arranca justo DONDE TERMINA el header, no detrás.
    *
-   * A pantalla completa, la barra fija se comía la parte de arriba de la foto
-   * —justo donde suelen ir los títulos del diseño— y tapaba el mensaje. Con el
-   * desplazamiento, la imagen se ve entera y el menú queda sobre el fondo
-   * negro de la página.
+   * El desplazamiento sale de , que el propio Header publica
+   * midiéndose: con un número escrito a mano se quedaba corto en cuanto
+   * cambiaba el logo o el espaciado, y la barra volvía a comerse la parte de
+   * arriba de la foto — que es donde el diseño pone el titular.
    */
   return (
-    <section className="relative mt-[92px] h-[calc(100svh-92px)] w-full overflow-hidden bg-night lg:mt-[116px] lg:h-[calc(100svh-116px)]">
+    <section className="relative mt-[var(--header-alto)] h-[calc(100svh-var(--header-alto))] w-full overflow-hidden bg-night">
       <AnimatePresence mode="sync">
         <motion.div
           key={s.id}

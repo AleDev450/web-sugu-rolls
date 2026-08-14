@@ -14,6 +14,13 @@
     --sugu-deep: #920b15;
     --bone: #ffffff;
     --bone-dim: #b8b8b8;
+
+    /*
+     * Alto del header. El propio Header lo sobrescribe con su medida real al
+     * montarse; este valor solo cubre el primer pintado, calculado del logo
+     * expandido (126px de ancho -> 99 de alto) más su espaciado.
+     */
+    --header-alto: 155px;
   }
 
   html {
