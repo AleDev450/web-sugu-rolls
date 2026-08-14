@@ -110,10 +110,12 @@ export default function LegalesAdmin() {
           <Scale className="h-4 w-4 text-sugu" />
         </span>
         <p className="text-[13px] leading-relaxed text-bone-dim">
-          Se escribe en texto plano con tres atajos: <b className="text-white">### Título</b> para
-          los apartados, <b className="text-white">- </b> al principio de una línea para viñetas y{' '}
-          <b className="text-white">**negrita**</b>. No pegues HTML: no se interpreta, se mostraría
-          tal cual.
+          Se escribe en <b className="text-white">Markdown</b>: <b className="text-white">##</b> y{' '}
+          <b className="text-white">###</b> para los apartados, <b className="text-white">- </b> o{' '}
+          <b className="text-white">1. </b> al principio de la línea para listas,{' '}
+          <b className="text-white">**negrita**</b>, enlaces con{' '}
+          <b className="text-white">[texto](url)</b> y tablas con{' '}
+          <b className="text-white">|</b>. No pegues HTML: se ignora por seguridad.
         </p>
       </div>
 
