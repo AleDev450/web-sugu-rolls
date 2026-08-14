@@ -65,7 +65,12 @@ export const NAV = [
   { label: 'Nuestra Carta', href: '/carta' },
   { label: 'Paquetes', href: '/paquetes' },
   { label: 'Catering', href: '/catering' },
-  { label: 'Promociones', href: '/promociones' },
+  /*
+   * La ruta sigue siendo /promociones aunque el nombre cambie: renombrarla
+   * rompería los enlaces que ya circulan y lo que Google tiene indexado.
+   * Lo que ve el cliente es la etiqueta, no la URL.
+   */
+  { label: 'Sugu Games', href: '/promociones' },
   { label: 'Nosotros', href: '/nosotros' },
   { label: 'Contacto', href: '/contacto' },
 ] as const;

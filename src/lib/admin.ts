@@ -382,6 +382,11 @@ export interface SlideAdmin {
   subtitulo: string;
   imagen: string;
   imagen_movil: string;
+  /** object-position: qué zona se conserva al recortar */
+  foco: string;
+  foco_movil: string;
+  /** oscurecido de la foto, 0-100 */
+  velo: number;
   boton_texto: string;
   boton_enlace: string;
   orden: number;

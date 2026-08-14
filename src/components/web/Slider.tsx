@@ -36,7 +36,7 @@ export function Slider() {
   }, [total]);
 
   if (slides === null) {
-    return <div className="h-[100svh] w-full bg-night" aria-hidden />;
+    return <div className="h-[calc(100svh-92px)] w-full bg-night lg:h-[calc(100svh-116px)]" aria-hidden />;
   }
 
   // sin diapositivas cargadas, la portada sigue con el hero de siempre
@@ -45,8 +45,20 @@ export function Slider() {
   const ir = (n: number) => setActual((n + total) % total);
   const s = slides[actual];
 
+  const hayTexto = Boolean(s.titulo || s.subtitulo || s.boton_texto);
+  // el panel lo guarda de 0 a 100; aquí hace falta de 0 a 1
+  const velo = Math.min(100, Math.max(0, s.velo ?? 35)) / 100;
+
+  /*
+   * El slider arranca DEBAJO del header, no detrás.
+   *
+   * A pantalla completa, la barra fija se comía la parte de arriba de la foto
+   * —justo donde suelen ir los títulos del diseño— y tapaba el mensaje. Con el
+   * desplazamiento, la imagen se ve entera y el menú queda sobre el fondo
+   * negro de la página.
+   */
   return (
-    <section className="relative h-[100svh] w-full overflow-hidden bg-night">
+    <section className="relative mt-[92px] h-[calc(100svh-92px)] w-full overflow-hidden bg-night lg:mt-[116px] lg:h-[calc(100svh-116px)]">
       <AnimatePresence mode="sync">
         <motion.div
           key={s.id}
@@ -56,21 +68,51 @@ export function Slider() {
           transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
           className="absolute inset-0"
         >
-          <picture>
-            {s.imagen_movil && (
-              <source media="(max-width: 767px)" srcSet={s.imagen_movil} />
-            )}
+          {/*
+            Dos imágenes con su propio encuadre. `next/image` no permite
+            cambiar el `src` por consulta de medios, así que se usan dos
+            capas y CSS decide cuál se ve: el navegador solo descarga la
+            visible porque la otra queda con `display: none`.
+          */}
+          {s.imagen_movil && (
             <Image
-              src={s.imagen || s.imagen_movil}
+              src={s.imagen_movil}
               alt={s.titulo || 'Sugu Rolls'}
               fill
               priority={actual === 0}
               sizes="100vw"
-              className="object-cover"
+              className="object-cover md:hidden"
+              style={{ objectPosition: s.foco_movil || '50% 50%' }}
             />
-          </picture>
-          {/* velo inferior: sin él el texto se pierde sobre fotos claras */}
-          <div className="absolute inset-0 bg-gradient-to-t from-night via-night/40 to-night/10" />
+          )}
+          <Image
+            src={s.imagen || s.imagen_movil}
+            alt={s.titulo || 'Sugu Rolls'}
+            fill
+            priority={actual === 0}
+            sizes="100vw"
+            className={`object-cover ${s.imagen_movil ? 'hidden md:block' : ''}`}
+            style={{
+              objectPosition: (s.imagen_movil ? s.foco : s.foco_movil) || '50% 50%',
+            }}
+          />
+
+          {/*
+            Velo SOLO abajo y solo si hay texto que proteger. Antes cubría la
+            foto entera con un degradado fijo y la dejaba apagada; ahora la
+            intensidad la decide cada diapositiva desde el panel, y una
+            diapositiva sin texto se ve tal cual se subió.
+          */}
+          {hayTexto && (
+            <div
+              className="absolute inset-x-0 bottom-0 h-2/3"
+              style={{
+                // el velo del panel marca el negro de abajo; arriba se disuelve
+                backgroundImage: `linear-gradient(to top, rgba(5,5,5,${velo}), rgba(5,5,5,${velo * 0.45}) 45%, transparent)`,
+              }}
+              aria-hidden
+            />
+          )}
         </motion.div>
       </AnimatePresence>
 

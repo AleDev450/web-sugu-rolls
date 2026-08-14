@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { borrarSlide, guardarSlide, listarSlides, type SlideAdmin } from '@/lib/admin';
+import { Encuadre } from '@/components/admin/Encuadre';
 import { SubirImagen } from '@/components/admin/SubirImagen';
 import {
   Aviso,
@@ -20,6 +21,9 @@ const NUEVA: SlideAdmin = {
   subtitulo: '',
   imagen: '',
   imagen_movil: '',
+  foco: '50% 50%',
+  foco_movil: '50% 50%',
+  velo: 35,
   boton_texto: '',
   boton_enlace: '',
   orden: 0,
@@ -167,6 +171,13 @@ export default function SliderAdmin() {
                 tipo="slider"
                 alCambiar={(url) => setEdicion({ ...edicion, imagen: url })}
               />
+              <Encuadre
+                imagen={edicion.imagen}
+                valor={edicion.foco}
+                aspecto="16 / 9"
+                etiqueta="Así se verá en escritorio"
+                alCambiar={(foco) => setEdicion({ ...edicion, foco })}
+              />
             </Campo>
 
             <Campo etiqueta="Imagen para celular (vertical)" ancho="completo">
@@ -175,6 +186,13 @@ export default function SliderAdmin() {
                 nombreBase={`${edicion.titulo || 'slide'}-movil`}
                 tipo="sliderMovil"
                 alCambiar={(url) => setEdicion({ ...edicion, imagen_movil: url })}
+              />
+              <Encuadre
+                imagen={edicion.imagen_movil || edicion.imagen}
+                valor={edicion.foco_movil}
+                aspecto="9 / 16"
+                etiqueta="Así se verá en el celular"
+                alCambiar={(foco_movil) => setEdicion({ ...edicion, foco_movil })}
               />
             </Campo>
 
@@ -211,6 +229,22 @@ export default function SliderAdmin() {
                 className={claseCampo}
                 placeholder="/carta"
               />
+            </Campo>
+
+            <Campo etiqueta={`Oscurecido de la foto · ${edicion.velo}%`} ancho="completo">
+              <input
+                type="range"
+                min={0}
+                max={80}
+                step={5}
+                value={edicion.velo}
+                onChange={(e) => setEdicion({ ...edicion, velo: Number(e.target.value) })}
+                className="w-full accent-[#E31323]"
+              />
+              <span className="mt-1.5 block text-[11px] text-white/40">
+                Sube si el texto no se lee sobre la foto; baja si la imagen se ve apagada. Con 0 la
+                foto sale tal cual.
+              </span>
             </Campo>
 
             <Campo etiqueta="Orden">

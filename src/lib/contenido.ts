@@ -71,6 +71,11 @@ export interface Slide {
   imagen: string;
   /** vertical, para teléfonos. Vacía = se reutiliza la de escritorio */
   imagen_movil: string;
+  /** `object-position`: qué zona de la foto se conserva al recortar */
+  foco: string;
+  foco_movil: string;
+  /** oscurecido de la foto, 0-100; lo ajusta cada diapositiva */
+  velo: number;
   boton_texto: string;
   boton_enlace: string;
   orden: number;

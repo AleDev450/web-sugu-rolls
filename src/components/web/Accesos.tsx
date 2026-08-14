@@ -120,7 +120,7 @@ function TarjetaJuego({
       <div className="relative">
         <span className="inline-flex items-center gap-2 rounded-full bg-black/25 px-4 py-2 text-[11px] font-bold uppercase tracking-widest">
           <Gamepad2 className="h-4 w-4" />
-          Promociones
+          Sugu Games
         </span>
         <h3 className="mt-7 max-w-[14ch] text-3xl font-bold leading-[1.1] tracking-tight">
           {titulo}
