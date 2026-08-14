@@ -1,26 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { FAVORITOS, type Producto } from '@/data/productos';
+import type { Producto } from '@/data/productos';
 import { texto } from '@/data/secciones';
 import { traerFavoritos } from '@/lib/contenido';
 import { Aparecer, TituloSeccion } from './Seccion';
-import { ProductoCard } from './ProductoCard';
 import { useSeccion } from './useSeccion';
 
 /**
- * Los rolls más pedidos. Arranca con los datos locales y los sustituye por
- * los del panel en cuanto responde la base de datos: así no hay parpadeo ni
- * hueco mientras carga.
+ * Los rolls más pedidos: escaparate, no tienda.
+ *
+ * NO llevan precio ni botón de añadir. Aquí el objetivo es dar ganas y
+ * mandar a la carta, donde están las presentaciones y el precio real; poner
+ * un importe suelto obligaba a elegir uno entre varios y confundía.
+ *
+ * Arranca en null y no con los datos locales: al sembrarlo con el catálogo
+ * del código se veían las fotos ANTIGUAS un instante y luego saltaban a las
+ * del panel. Mejor un hueco discreto que enseñar algo que ya no existe.
  */
+const CUANTOS = 4;
+
 export function Favoritos() {
-  const [favoritos, setFavoritos] = useState<Producto[]>(FAVORITOS);
+  const [favoritos, setFavoritos] = useState<Producto[] | null>(null);
   const s = useSeccion('favoritos');
 
   useEffect(() => {
-    void traerFavoritos().then(setFavoritos);
+    void traerFavoritos().then((f) => setFavoritos(f.slice(0, CUANTOS)));
   }, []);
 
   return (
@@ -44,14 +52,54 @@ export function Favoritos() {
           }
         />
 
-        <div className="mt-20 grid gap-7 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {favoritos.map((producto, i) => (
-            <Aparecer key={producto.id} delay={i * 0.06}>
-              <ProductoCard producto={producto} />
-            </Aparecer>
-          ))}
+        <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {favoritos === null
+            ? Array.from({ length: CUANTOS }).map((_, i) => (
+                <div key={i} className="card h-[380px] animate-pulse bg-night-3/50" />
+              ))
+            : favoritos.map((producto, i) => (
+                <Aparecer key={producto.id} delay={i * 0.06}>
+                  <TarjetaFavorito producto={producto} />
+                </Aparecer>
+              ))}
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Tarjeta de escaparate: foto grande, nombre y descripción. Toda ella es un
+ * enlace a la carta — el usuario ya intenta pulsar la foto, así que el
+ * destino debe ser el mismo que el del botón.
+ */
+function TarjetaFavorito({ producto }: { producto: Producto }) {
+  return (
+    <Link
+      href="/carta"
+      className="card card-hover group flex h-full flex-col overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sugu"
+    >
+      <div className="relative aspect-[4/3] overflow-hidden bg-night-3">
+        <Image
+          src={producto.imagen}
+          alt={producto.nombre}
+          fill
+          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 300px"
+          className="object-cover transition-transform duration-700 ease-premium group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-night-2 via-transparent to-transparent opacity-80" />
+      </div>
+
+      <div className="flex flex-1 flex-col p-6">
+        <h3 className="text-lg font-bold leading-snug tracking-tight">{producto.nombre}</h3>
+        <p className="mt-2.5 flex-1 text-[14px] leading-relaxed text-bone-dim">
+          {producto.descripcion}
+        </p>
+        <span className="mt-5 inline-flex items-center gap-2 text-[14px] font-semibold text-sugu">
+          Verlo en la carta
+          <ArrowRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-1.5" />
+        </span>
+      </div>
+    </Link>
   );
 }

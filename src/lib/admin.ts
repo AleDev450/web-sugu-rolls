@@ -374,6 +374,74 @@ export async function listarPartidas(
   });
 }
 
+// ---------- slider de portada ----------
+
+export interface SlideAdmin {
+  id?: string;
+  titulo: string;
+  subtitulo: string;
+  imagen: string;
+  imagen_movil: string;
+  boton_texto: string;
+  boton_enlace: string;
+  orden: number;
+  activo: boolean;
+}
+
+export async function listarSlides(): Promise<SlideAdmin[]> {
+  const { data, error } = await sb().from('slides').select('*').order('orden');
+  if (error) throw error;
+  return (data ?? []) as SlideAdmin[];
+}
+
+export async function guardarSlide(d: SlideAdmin) {
+  const { id, ...campos } = d;
+  const q = id
+    ? sb().from('slides').update(campos).eq('id', id)
+    : sb().from('slides').insert(campos);
+  const { data, error } = await q.select('id');
+  exigirFilas(data, error);
+}
+
+export async function borrarSlide(id: string) {
+  const { error } = await sb().from('slides').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- categorías ----------
+
+export interface CategoriaAdmin {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
+  activa: boolean;
+}
+
+export async function guardarCategoria(c: CategoriaAdmin, esNueva: boolean) {
+  const q = esNueva
+    ? sb().from('categories').insert(c)
+    : sb().from('categories').update({
+        nombre: c.nombre,
+        descripcion: c.descripcion,
+        orden: c.orden,
+        activa: c.activa,
+      }).eq('id', c.id);
+  const { data, error } = await q.select('id');
+  exigirFilas(data, error);
+}
+
+export async function borrarCategoria(id: string) {
+  const { error } = await sb().from('categories').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/** Borra la cuenta de un cliente. Falla si tiene pedidos o si es admin. */
+export async function borrarUsuario(id: string) {
+  const { error } = await sb().rpc('admin_borrar_usuario', { p_user: id });
+  if (error) throw error;
+}
+
 // ---------- usuarios registrados ----------
 
 export interface UsuarioAdmin {

@@ -52,6 +52,29 @@ export interface AjustesSitio {
   terminos: string;
   privacidad: string;
   legales_actualizado: string | null;
+
+  /** auto = por horario · abierta/cerrada = forzado desde el panel */
+  tienda_modo: 'auto' | 'abierta' | 'cerrada';
+  hora_apertura: string;
+  hora_cierre: string;
+  /** 0 = domingo … 6 = sábado */
+  dias_atencion: number[];
+  aviso_cerrado: string;
+}
+
+/** Diapositiva del carrusel de portada. */
+export interface Slide {
+  id: string;
+  titulo: string;
+  subtitulo: string;
+  /** 1920×1080, para escritorio */
+  imagen: string;
+  /** vertical, para teléfonos. Vacía = se reutiliza la de escritorio */
+  imagen_movil: string;
+  boton_texto: string;
+  boton_enlace: string;
+  orden: number;
+  activo: boolean;
 }
 
 /** Rutas que controla cada bandera, para filtrar menús y proteger páginas. */
@@ -97,6 +120,13 @@ const AJUSTES_LOCALES: AjustesSitio = {
   terminos: '',
   privacidad: '',
   legales_actualizado: null,
+  // sin base de datos se asume abierto: es peor bloquear pedidos por error
+  tienda_modo: 'auto',
+  hora_apertura: '12:00',
+  hora_cierre: '22:00',
+  dias_atencion: [0, 1, 2, 3, 4, 5, 6],
+  aviso_cerrado:
+    'Estamos cerrados en este momento. Puedes ver la carta y volver en nuestro horario de atención.',
 };
 
 /** ¿Hay backend configurado? */
@@ -249,6 +279,34 @@ export function traerAjustes(): Promise<AjustesSitio> {
     if (error || !data) return AJUSTES_LOCALES;
     return data as AjustesSitio;
   }, AJUSTES_LOCALES);
+}
+
+/** Diapositivas activas del carrusel, en orden. */
+export function traerSlides(): Promise<Slide[]> {
+  return conRespaldo(async () => {
+    const sb = getSupabase();
+    if (!sb) return [];
+    const { data, error } = await sb
+      .from('slides')
+      .select('*')
+      .eq('activo', true)
+      .order('orden');
+    if (error || !data) return [];
+    return data as Slide[];
+  }, []);
+}
+
+/**
+ * ¿Se aceptan pedidos ahora? Lo decide la BASE, no el reloj del navegador:
+ * alguien con la hora del sistema cambiada podría pedir de madrugada.
+ */
+export function tiendaAbierta(): Promise<boolean> {
+  return conRespaldo(async () => {
+    const sb = getSupabase();
+    if (!sb) return true;
+    const { data, error } = await sb.rpc('tienda_abierta');
+    return error ? true : data === true;
+  }, true);
 }
 
 export function traerCategorias(): Promise<Categoria[]> {

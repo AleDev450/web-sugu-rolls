@@ -37,3 +37,4 @@ Cuando corras una, márcala aquí:
 | `011-opciones-pokebowl.sql` | Carga base, toppings, proteína y salsas en los bowls | ☐ |
 | `012-imagenes-de-contenido.sql` | Subir imágenes también en paquetes y secciones | ☐ |
 | `013-delivery-y-comprobante.sql` | Costo de delivery por pedido y adjuntar el Yape | ☐ |
+| `014-slider-horario-y-categorias.sql` | Slider de portada, horario de tienda y borrar usuarios | ☐ |

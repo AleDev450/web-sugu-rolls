@@ -1,6 +1,6 @@
 import { Accesos } from '@/components/web/Accesos';
 import { Favoritos } from '@/components/web/Favoritos';
-import { Hero } from '@/components/web/Hero';
+import { Portada } from '@/components/web/Portada';
 import { Pagina } from '@/components/web/Pagina';
 
 /**
@@ -11,7 +11,8 @@ import { Pagina } from '@/components/web/Pagina';
 export default function Page() {
   return (
     <Pagina>
-      <Hero />
+      {/* el slider manda si hay diapositivas; si no, se queda el hero */}
+      <Portada />
       <Accesos />
       <Favoritos />
     </Pagina>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ExternalLink, Gamepad2, Power } from 'lucide-react';
 import { guardarModulos, traerAjustesAdmin } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado, Interruptor } from '@/components/admin/ui';
+import { EstadoTienda } from '@/components/admin/EstadoTienda';
 
 type Clave =
   | 'mod_carta'
@@ -97,6 +98,8 @@ export default function ModulosAdmin() {
           <Aviso {...aviso} />
         </div>
       )}
+
+      <EstadoTienda alAvisar={setAviso} />
 
       {/* interruptor maestro: manda por encima de todo lo demás */}
       <section

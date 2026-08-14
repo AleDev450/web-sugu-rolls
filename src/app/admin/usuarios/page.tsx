@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Minus, Plus, Search } from 'lucide-react';
-import { ajustarPuntos, listarUsuarios, type UsuarioAdmin } from '@/lib/admin';
+import { ChevronLeft, ChevronRight, Download, Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { ajustarPuntos, borrarUsuario, listarUsuarios, type UsuarioAdmin } from '@/lib/admin';
 import { Aviso, Campo, Cargando, Encabezado, Modal, claseCampo } from '@/components/admin/ui';
 
 const POR_PAGINA = 20;
@@ -27,6 +27,18 @@ export default function UsuariosAdmin() {
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
   const [ajuste, setAjuste] = useState<UsuarioAdmin | null>(null);
   const [recargar, setRecargar] = useState(0);
+
+  const eliminar = async (u: UsuarioAdmin) => {
+    const quien = [u.full_name, u.last_name].filter(Boolean).join(' ') || u.nickname;
+    if (!confirm(`¿Eliminar la cuenta de ${quien}? No se puede deshacer.`)) return;
+    try {
+      await borrarUsuario(u.id);
+      setAviso({ tipo: 'ok', texto: `Cuenta de ${quien} eliminada.` });
+      setRecargar((n) => n + 1);
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
+    }
+  };
 
   useEffect(() => {
     let vivo = true;
@@ -185,12 +197,21 @@ export default function UsuariosAdmin() {
                     </td>
                     <td className="p-4 text-[13px] text-bone-dim">{fecha(u.creado)}</td>
                     <td className="p-4 text-right">
-                      <button
-                        onClick={() => setAjuste(u)}
-                        className="whitespace-nowrap rounded-lg border border-white/10 px-3 py-1.5 text-[12px] transition-colors hover:border-sugu/50 hover:text-sugu"
-                      >
-                        Ajustar puntos
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setAjuste(u)}
+                          className="whitespace-nowrap rounded-lg border border-white/10 px-3 py-1.5 text-[12px] transition-colors hover:border-sugu/50 hover:text-sugu"
+                        >
+                          Ajustar puntos
+                        </button>
+                        <button
+                          onClick={() => void eliminar(u)}
+                          className="rounded-lg border border-white/10 p-2 text-bone-dim transition-colors hover:border-sugu hover:text-sugu"
+                          aria-label={`Eliminar la cuenta de ${u.nickname}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

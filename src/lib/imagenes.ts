@@ -36,6 +36,13 @@ export const DESTINOS = {
   seccion: { carpeta: 'secciones', ancho: 1400, alto: 1120 },
   /** Hero de portada: cuadrada */
   hero: { carpeta: 'secciones', ancho: 1400, alto: 1400 },
+  /** Diapositiva de escritorio: 1920x1080, la medida que pidió el cliente */
+  slider: { carpeta: 'slider', ancho: 1920, alto: 1080 },
+  /**
+   * Diapositiva de móvil: 1080x1920. Vertical de verdad, no la apaisada
+   * recortada — en un teléfono el recorte deja fuera casi todo.
+   */
+  sliderMovil: { carpeta: 'slider', ancho: 1080, alto: 1920 },
 } as const satisfies Record<string, DestinoImagen>;
 
 export type TipoImagen = keyof typeof DESTINOS;

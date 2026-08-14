@@ -18,7 +18,12 @@ type Filtro = CategoriaId | 'todos';
 /** Carta con filtro por categoría. El contenido viene del panel. */
 export function CartaCliente() {
   const [filtro, setFiltro] = useState<Filtro>('todos');
-  const [productos, setProductos] = useState<Producto[]>(PRODUCTOS);
+  /*
+   * Arranca vacío, no con el catálogo del código: al sembrarlo con datos
+   * locales se veían las fotos ANTIGUAS un instante antes de que llegaran
+   * las del panel. Mejor un esqueleto que enseñar algo que ya no existe.
+   */
+  const [productos, setProductos] = useState<Producto[] | null>(null);
   const [categorias, setCategorias] = useState<Categoria[]>(CATEGORIAS);
 
   useEffect(() => {
@@ -27,7 +32,12 @@ export function CartaCliente() {
   }, []);
 
   const visibles = useMemo(
-    () => (filtro === 'todos' ? productos : productos.filter((p) => p.categoria === filtro)),
+    () =>
+      productos === null
+        ? []
+        : filtro === 'todos'
+          ? productos
+          : productos.filter((p) => p.categoria === filtro),
     [filtro, productos]
   );
 

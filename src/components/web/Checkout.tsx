@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useCartStore } from '@/store/useCartStore';
+import { tiendaAbierta } from '@/lib/contenido';
+import { useAjustes } from '@/lib/useAjustes';
 import { adjuntarComprobante, crearPedido, miPerfil, type Perfil } from '@/lib/tienda';
 import { campoClase } from './CuentaForms';
 
@@ -20,6 +22,8 @@ export function Checkout() {
 
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [listo, setListo] = useState(false);
+  const [abierta, setAbierta] = useState<boolean | null>(null);
+  const ajustes = useAjustes();
   const [abierto, setAbierto] = useState(false);
   const [direccion, setDireccion] = useState('');
   const [nota, setNota] = useState('');
@@ -27,6 +31,10 @@ export function Checkout() {
   const [error, setError] = useState<string | null>(null);
   const [hecho, setHecho] = useState<{ id: string; numero: number } | null>(null);
   const [comprobante, setComprobante] = useState<'falta' | 'subiendo' | 'listo'>('falta');
+
+  useEffect(() => {
+    void tiendaAbierta().then(setAbierta);
+  }, []);
 
   useEffect(() => {
     void miPerfil().then((p) => {
@@ -120,6 +128,28 @@ export function Checkout() {
         <Link href="/cuenta" className="mt-3 inline-block text-sugu underline underline-offset-4">
           Ver mis pedidos
         </Link>
+      </div>
+    );
+  }
+
+  /*
+   * Tienda cerrada: se puede mirar la carta y llenar el carrito, pero no
+   * cerrar el pedido. El aviso es editable desde el panel y la base rechaza
+   * el pedido igualmente aunque alguien fuerce el botón.
+   */
+  if (abierta === false) {
+    return (
+      <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-[13px] leading-relaxed">
+        <p className="font-bold text-amber-400">Ahora mismo no tomamos pedidos</p>
+        <p className="mt-2 text-bone-dim">
+          {ajustes?.aviso_cerrado ??
+            'Estamos cerrados en este momento. Puedes volver en nuestro horario de atención.'}
+        </p>
+        {ajustes?.horario && (
+          <p className="mt-2 text-bone-dim">
+            <b className="text-white">Horario:</b> {ajustes.horario}
+          </p>
+        )}
       </div>
     );
   }
