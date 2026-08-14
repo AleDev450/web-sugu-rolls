@@ -107,6 +107,58 @@ export async function ingresar(correo: string, clave: string) {
   if (error) throw error;
 }
 
+/**
+ * Acceso con Google.
+ *
+ * Vale para entrar Y para darse de alta: si el correo de Google no tiene
+ * cuenta, Supabase la crea en el momento; si ya existe y está confirmada,
+ * ENLAZA la identidad a la cuenta de siempre en vez de duplicarla. Por eso
+ * quien se registró con correo y contraseña puede entrar luego con Google (y
+ * al revés) y encuentra sus mismos puntos y pedidos.
+ *
+ * Ese enlace automático exige que la cuenta anterior tenga el correo
+ * confirmado. Las que crea `/api/registro` nacen con `email_confirm: true`,
+ * así que cumplen.
+ */
+export async function entrarConGoogle(destino = '/cuenta') {
+  const { error } = await sb().auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback?destino=${encodeURIComponent(destino)}`,
+      // sin esto Google entra directo con la última cuenta usada, y en un
+      // equipo compartido eso significa entrar como otra persona
+      queryParams: { prompt: 'select_account' },
+    },
+  });
+  if (error) throw error;
+}
+
+/**
+ * Formas de entrar que tiene ya esta cuenta: `email`, `google`…
+ *
+ * Sirve para no ofrecerle "crear contraseña" a quien ya tiene una, ni decirle
+ * "conecta Google" a quien ya lo tiene conectado.
+ */
+export async function misAccesos(): Promise<string[]> {
+  const cliente = getSupabase();
+  if (!cliente) return [];
+  const { data, error } = await cliente.auth.getUserIdentities();
+  if (error) return [];
+  return (data?.identities ?? []).map((i) => i.provider);
+}
+
+/**
+ * Define o cambia la contraseña de la cuenta.
+ *
+ * Quien entró primero con Google no tiene ninguna. Con esto se pone una y a
+ * partir de ahí puede entrar por los dos lados, que es justo lo que se pide.
+ */
+export async function establecerClave(clave: string) {
+  if (clave.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
+  const { error } = await sb().auth.updateUser({ password: clave });
+  if (error) throw error;
+}
+
 export async function salir() {
   const cliente = getSupabase();
   await cliente?.auth.signOut();

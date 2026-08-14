@@ -25,8 +25,20 @@ import { moduloActivo, traerAjustes } from '@/lib/contenido';
  * a Supabase en cada petición: `traerAjustes` ya viene con respaldo local, así
  * que la respuesta es inmediata salvo la primera vez.
  */
-/** Rutas que ningún interruptor del panel puede apagar. */
-const SIEMPRE_ABIERTAS = ['/libro-de-reclamaciones', '/terminos', '/privacidad', '/cookies'];
+/**
+ * Rutas que ningún interruptor del panel puede apagar.
+ *
+ * Las legales, porque tienen que seguir accesibles. Y `/auth`, porque es la
+ * vuelta de Google: si se la desvía a mitad de camino, la sesión se queda sin
+ * canjear y el acceso falla sin motivo aparente.
+ */
+const SIEMPRE_ABIERTAS = [
+  '/libro-de-reclamaciones',
+  '/terminos',
+  '/privacidad',
+  '/cookies',
+  '/auth',
+];
 
 export function GuardaModulos() {
   const ruta = usePathname();

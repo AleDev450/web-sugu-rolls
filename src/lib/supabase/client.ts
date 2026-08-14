@@ -43,7 +43,25 @@ export function getSupabase(): SupabaseClient | null {
     return null;
   }
 
-  if (!client) client = createClient(url, key);
+  if (!client) {
+    client = createClient(url, key, {
+      auth: {
+        /*
+         * PKCE para el acceso con Google.
+         *
+         * Con el flujo implícito (el de por defecto) el proveedor devuelve el
+         * token de sesión pegado en la URL: queda en el historial, en el
+         * "referer" y en cualquier registro del servidor. Con PKCE devuelve un
+         * `code` de un solo uso que solo sirve en esta misma pestaña.
+         */
+        flowType: 'pkce',
+        // canjea el `code` de /auth/callback sin que haya que hacerlo a mano
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
+  }
   return client;
 }
 

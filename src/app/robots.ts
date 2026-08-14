@@ -15,7 +15,8 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin', '/admin/', '/api/', '/cuenta'],
+        // /auth es la vuelta de Google: una URL de un solo uso, sin contenido
+        disallow: ['/admin', '/admin/', '/api/', '/cuenta', '/auth/'],
       },
     ],
     sitemap: `${DOMINIO}/sitemap.xml`,

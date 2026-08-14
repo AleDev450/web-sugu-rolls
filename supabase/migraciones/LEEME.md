@@ -41,3 +41,4 @@ Cuando corras una, márcala aquí:
 | `015-encuadre-del-slider.sql` | Encuadre por dispositivo y velo ajustable en el slider | ☐ |
 | `016-margen-del-slider.sql` | Separación ajustable entre el header y el slider | ☐ |
 | `017-libro-de-reclamaciones.sql` | Libro de Reclamaciones virtual y política de cookies | ☐ |
+| `018-acceso-con-google.sql` | Perfil completo al entrar con Google (nombre y apellido) | ☐ |

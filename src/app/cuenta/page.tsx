@@ -5,6 +5,8 @@ import { Inbox, LogOut, Package, UserRound } from 'lucide-react';
 import { Header } from '@/components/web/Header';
 import { Footer } from '@/components/web/Footer';
 import { Campo, FormIngreso, FormRegistro } from '@/components/web/CuentaForms';
+import { AccesoGoogle } from '@/components/web/BotonGoogle';
+import { AccesosCuenta } from '@/components/web/AccesosCuenta';
 import { EstatusSocio, ProgresoNivel, TarjetaSugu } from '@/components/web/TarjetaSugu';
 import { SeccionPerfil, Vacio } from '@/components/web/SeccionPerfil';
 import { CanjesPerfil } from '@/components/web/CanjesPerfil';
@@ -118,6 +120,14 @@ function Acceso({
       </p>
 
       <div className="card mt-10 p-8 sm:p-10">
+        {/*
+          Google va ARRIBA y es el mismo botón en las dos pestañas: sirve para
+          entrar y para darse de alta, porque Google no distingue entre las dos
+          cosas. Quien ya tenga cuenta con ese mismo correo entra a la suya de
+          siempre, no se le crea otra.
+        */}
+        <AccesoGoogle />
+
         {modo === 'ingreso' ? (
           <FormIngreso alEntrar={alEntrar} />
         ) : (
@@ -194,6 +204,19 @@ function Panel({
           Cerrar sesión
         </button>
       </header>
+
+      {/*
+        Al entrar con Google solo llegan el correo y el nombre: ni teléfono ni
+        dirección. El pedido coge el teléfono del perfil, así que sin él sale
+        un reparto al que no se puede llamar. Por eso se avisa arriba y no
+        enterrado en "Mis datos".
+      */}
+      {!datos.phone.trim() && (
+        <p className="mt-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-[13px] leading-relaxed text-amber-300">
+          Falta tu <b>teléfono</b> para poder entregarte los pedidos. Complétalo abajo, en{' '}
+          <b>Mis datos</b>.
+        </p>
+      )}
 
       {/*
         65 / 35 en escritorio. El panel se estira a la altura de la tarjeta con
@@ -325,6 +348,10 @@ function Panel({
           </div>
           </div>
         </SeccionPerfil>
+      </div>
+
+      <div className="mt-4 sm:mt-6">
+        <AccesosCuenta correo={correo} />
       </div>
     </>
   );
