@@ -25,7 +25,12 @@ export interface ProductoAdmin {
   /** cantidades a la venta con su precio; vacío = precio único */
   presentaciones: { piezas: number; precio: number }[];
   /** grupos de personalización; vacío = producto simple */
-  opciones: { titulo: string; min: number; max: number; opciones: string[] }[];
+  opciones: {
+    titulo: string;
+    min: number;
+    max: number;
+    opciones: { nombre: string; precio: number }[];
+  }[];
 }
 
 export interface PaqueteAdmin {
@@ -139,6 +144,15 @@ export async function listarProductos(): Promise<ProductoAdmin[]> {
       (v: { piezas: number | string; precio: number | string }) => ({
         piezas: Number(v.piezas),
         precio: Number(v.precio),
+      })
+    ),
+    opciones: (p.opciones ?? []).map(
+      (g: { titulo: string; min: number; max: number; opciones: unknown[] }) => ({
+        ...g,
+        // productos viejos guardaban las opciones como texto plano
+        opciones: g.opciones.map((o) =>
+          typeof o === 'string' ? { nombre: o, precio: 0 } : (o as { nombre: string; precio: number })
+        ),
       })
     ),
   })) as ProductoAdmin[];
@@ -581,6 +595,7 @@ export async function ajustarPuntos(
 // ---------- pedidos de la tienda ----------
 
 export type EstadoPedido = 'pendiente' | 'pagado' | 'entregado' | 'cancelado';
+export type MetodoPago = 'yape' | 'plin' | 'tarjeta';
 
 export interface PedidoAdmin {
   id: string;
@@ -591,6 +606,10 @@ export interface PedidoAdmin {
   delivery: number;
   /** ruta del comprobante en el bucket privado, si lo adjuntó */
   comprobante: string | null;
+  /** cómo dijo el cliente que iba a pagar */
+  metodo_pago: MetodoPago | null;
+  /** enlace de pago con tarjeta, pegado a mano por el admin */
+  link_pago: string | null;
   nombre: string;
   telefono: string;
   direccion: string;
@@ -608,10 +627,20 @@ export interface PedidoAdmin {
   }[];
 }
 
-export async function listarPedidos(estado?: EstadoPedido): Promise<PedidoAdmin[]> {
+/**
+ * `desde`/`hasta` son fechas `YYYY-MM-DD` (del input de tipo date). `hasta`
+ * se corre al final de ese día para que incluya los pedidos de esa fecha.
+ */
+export async function listarPedidos(
+  estado?: EstadoPedido,
+  desde?: string,
+  hasta?: string
+): Promise<PedidoAdmin[]> {
   const { data, error } = await sb().rpc('admin_pedidos', {
     p_estado: estado ?? null,
     p_limit: 200,
+    p_desde: desde ? `${desde}T00:00:00` : null,
+    p_hasta: hasta ? `${hasta}T23:59:59.999` : null,
   });
   if (error) throw error;
   return ((data ?? []) as PedidoAdmin[]).map((p) => ({
@@ -619,6 +648,12 @@ export async function listarPedidos(estado?: EstadoPedido): Promise<PedidoAdmin[
     total: Number(p.total),
     delivery: Number(p.delivery ?? 0),
   }));
+}
+
+/** Guarda el enlace de pago con tarjeta que el admin generó a mano. */
+export async function fijarLinkPago(id: string, link: string): Promise<void> {
+  const { error } = await sb().rpc('admin_set_link_pago', { p_order: id, p_link: link });
+  if (error) throw error;
 }
 
 /** Confirma el pago y acredita los puntos. Devuelve cuántos se dieron. */

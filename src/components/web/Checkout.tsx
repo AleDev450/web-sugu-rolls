@@ -2,19 +2,43 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { aplanarOpciones, formatoOpciones, soles } from '@/data/productos';
+import { SITE, whatsappUrl } from '@/data/site';
 import { useCartStore } from '@/store/useCartStore';
 import { tiendaAbierta } from '@/lib/contenido';
 import { useAjustes } from '@/lib/useAjustes';
-import { adjuntarComprobante, crearPedido, miPerfil, type Perfil } from '@/lib/tienda';
+import {
+  adjuntarComprobante,
+  crearPedido,
+  miPerfil,
+  type MetodoPago,
+  type Perfil,
+} from '@/lib/tienda';
 import { campoClase } from './CuentaForms';
+
+const METODOS: { id: MetodoPago; label: string }[] = [
+  { id: 'yape', label: 'Yape' },
+  { id: 'plin', label: 'Plin' },
+  { id: 'tarjeta', label: 'Tarjeta' },
+];
+
+const ETIQUETA_METODO: Record<MetodoPago, string> = {
+  yape: 'Yape',
+  plin: 'Plin',
+  tarjeta: 'Tarjeta (enlace de pago)',
+};
 
 /**
  * Cierre del pedido dentro de la web.
  *
  * Exige cuenta: sin ella no hay a quién acreditarle los puntos. Crea el pedido
- * en estado "pendiente" y el cliente paga por fuera (Yape, transferencia o
- * efectivo); el local confirma el pago desde el panel, y ES ESA confirmación
- * la que acredita los puntos.
+ * en estado "pendiente" y el cliente paga por fuera (Yape, Plin o tarjeta);
+ * el local confirma el pago desde el panel, y ES ESA confirmación la que
+ * acredita los puntos.
+ *
+ * Al confirmar se abre WhatsApp con el detalle: todo pedido de la web tiene
+ * que llegar también por ahí, porque es donde se coordina el delivery y,
+ * con tarjeta, el enlace de pago.
  */
 export function Checkout() {
   const items = useCartStore((s) => s.items);
@@ -27,9 +51,12 @@ export function Checkout() {
   const [abierto, setAbierto] = useState(false);
   const [direccion, setDireccion] = useState('');
   const [nota, setNota] = useState('');
+  const [metodoPago, setMetodoPago] = useState<MetodoPago>('yape');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hecho, setHecho] = useState<{ id: string; numero: number } | null>(null);
+  const [hecho, setHecho] = useState<{ id: string; numero: number; metodo: MetodoPago } | null>(
+    null
+  );
   const [comprobante, setComprobante] = useState<'falta' | 'subiendo' | 'listo'>('falta');
 
   useEffect(() => {
@@ -50,17 +77,44 @@ export function Checkout() {
     try {
       const { id, numero } = await crearPedido(
         // el id de línea puede llevar sufijo de presentación; se manda el
-        // slug real y las piezas por separado
+        // slug real y las piezas por separado. El precio de los extras lo
+        // recalcula la base con su propio catálogo: solo se manda qué se eligió.
         items.map((i) => ({
           slug: i.slug,
           piezas: i.piezas,
           cantidad: i.cantidad,
-          opciones: i.opciones,
+          opciones: aplanarOpciones(i.opciones),
         })),
         direccion,
-        nota
+        nota,
+        metodoPago
       );
-      setHecho({ id, numero });
+
+      const lineas = items
+        .map((i) => {
+          const detalle = formatoOpciones(i.opciones);
+          return `• ${i.cantidad}× ${i.nombre}${detalle ? `\n   ${detalle}` : ''} — ${soles(i.precio * i.cantidad)}`;
+        })
+        .join('\n');
+
+      const mensaje = [
+        `¡Hola ${ajustes?.nombre ?? SITE.nombre}! Acabo de registrar el pedido #${numero} en la web 🍣`,
+        '',
+        lineas,
+        '',
+        `*Subtotal: ${soles(items.reduce((t, i) => t + i.precio * i.cantidad, 0))}*`,
+        '_El delivery se confirma según mi distrito._',
+        '',
+        `*Dirección:* ${direccion}`,
+        nota ? `*Nota:* ${nota}` : '',
+        `*Método de pago:* ${ETIQUETA_METODO[metodoPago]}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      window.open(whatsappUrl(mensaje, ajustes?.whatsapp), '_blank', 'noopener,noreferrer');
+
+      setHecho({ id, numero, metodo: metodoPago });
       vaciar();
     } catch {
       setError('No se pudo registrar el pedido. Revisa tu conexión e inténtalo de nuevo.');
@@ -96,16 +150,23 @@ export function Checkout() {
         {/*
           El comprobante va DESPUÉS de crear el pedido, no antes: hasta que no
           existe el pedido no hay a qué adjuntarlo, y el cliente no sabe cuánto
-          pagar hasta que le confirmamos el delivery.
+          pagar hasta que le confirmamos el delivery. Con tarjeta no hay nada
+          que subir: el enlace de pago llega por WhatsApp.
         */}
         <div className="mt-4 border-t border-emerald-600/20 pt-4">
-          {comprobante === 'listo' ? (
+          {hecho.metodo === 'tarjeta' ? (
+            <p className="font-semibold text-white">
+              Te enviamos el enlace de pago con tarjeta por WhatsApp en un momento.
+            </p>
+          ) : comprobante === 'listo' ? (
             <p className="font-semibold text-emerald-400">
               Comprobante recibido. Preparamos tu pedido.
             </p>
           ) : (
             <>
-              <p className="font-semibold text-white">Adjunta tu Yape para continuar</p>
+              <p className="font-semibold text-white">
+                Adjunta tu {ETIQUETA_METODO[hecho.metodo]} para continuar
+              </p>
               <p className="mt-1 text-bone-dim">
                 Sube la captura de la transferencia. Sin ella el pedido queda en espera.
               </p>
@@ -191,6 +252,31 @@ export function Checkout() {
           placeholder="Sin palta, tocar el timbre…"
         />
       </label>
+
+      <div>
+        <span className="mb-2 block text-[13px] font-medium">¿Cómo vas a pagar?</span>
+        <div className="flex gap-2">
+          {METODOS.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMetodoPago(m.id)}
+              className={`flex-1 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+                metodoPago === m.id
+                  ? 'border-sugu bg-sugu/10 text-sugu'
+                  : 'border-white/15 text-bone-dim hover:border-white/30'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {metodoPago === 'tarjeta' && (
+          <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+            Te mandamos el enlace de pago por WhatsApp apenas confirmes.
+          </p>
+        )}
+      </div>
 
       {error && <p className="text-[13px] text-sugu">{error}</p>}
 

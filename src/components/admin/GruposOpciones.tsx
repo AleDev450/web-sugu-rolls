@@ -1,7 +1,29 @@
 'use client';
 
 import { Plus, Trash2 } from 'lucide-react';
-import type { GrupoOpciones } from '@/data/productos';
+import type { GrupoOpciones, OpcionCatalogo } from '@/data/productos';
+
+/**
+ * Una opción por línea, con el precio extra opcional al final: "Palta extra
+ * | 3.00". Sin "|" la opción va incluida en el precio base (precio 0).
+ *
+ * Se parsea así y no con una fila por opción (nombre + campo de precio)
+ * porque el pegado masivo de toppings es el caso de uso real: una carta con
+ * doce toppings se escribe en segundos como texto, no fila por fila.
+ */
+function parsearLinea(linea: string): OpcionCatalogo {
+  const i = linea.lastIndexOf('|');
+  if (i === -1) return { nombre: linea, precio: 0 };
+  const posiblePrecio = linea.slice(i + 1).trim();
+  const precio = Number(posiblePrecio);
+  if (posiblePrecio !== '' && Number.isFinite(precio) && precio >= 0) {
+    return { nombre: linea.slice(0, i), precio };
+  }
+  // lo que sigue al "|" no es un precio válido: se deja tal cual, como texto
+  return { nombre: linea, precio: 0 };
+}
+
+const lineaDeOpcion = (o: OpcionCatalogo) => (o.precio > 0 ? `${o.nombre} | ${o.precio}` : o.nombre);
 
 /**
  * Editor de grupos de personalización (base, toppings, proteína, salsas…).
@@ -81,7 +103,9 @@ export function GruposOpciones({
 
           <label className="mt-3 block">
             <span className="mb-1.5 block text-[11px] text-bone-dim">
-              Opciones — una por línea
+              Opciones — una por línea. Para cobrar extra, agrega{' '}
+              <code className="text-white/70">| precio</code> al final (ej.{' '}
+              <code className="text-white/70">Palta extra | 3</code>)
             </span>
             {/*
               Al escribir NO se limpia nada. Antes se hacía `.trim().filter()`
@@ -91,10 +115,10 @@ export function GruposOpciones({
               en el formulario del producto.
             */}
             <textarea
-              value={g.opciones.join('\n')}
-              onChange={(e) => cambiar(i, { opciones: e.target.value.split('\n') })}
+              value={g.opciones.map(lineaDeOpcion).join('\n')}
+              onChange={(e) => cambiar(i, { opciones: e.target.value.split('\n').map(parsearLinea) })}
               rows={Math.min(14, Math.max(4, g.opciones.length + 1))}
-              placeholder={'Palta\nChoclo\nMango'}
+              placeholder={'Palta\nChoclo\nQueso crema | 2.50'}
               className={`${campo} font-mono text-[12px] leading-relaxed`}
             />
           </label>

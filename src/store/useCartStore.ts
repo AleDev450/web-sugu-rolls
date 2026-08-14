@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SITE, whatsappUrl } from '@/data/site';
 import { ajustesEnCache } from '@/lib/useAjustes';
-import { soles, type OpcionesElegidas, type Producto } from '@/data/productos';
+import { formatoOpciones, soles, type OpcionesConPrecio, type Producto } from '@/data/productos';
 
 /**
  * Carrito de compras. Por ahora el pedido se cierra por WhatsApp; cuando
@@ -27,15 +27,15 @@ export interface ItemCarrito {
   cantidad: number;
   /** presentación elegida; ausente en los productos de precio único */
   piezas?: number;
-  /** lo elegido en cada grupo si el producto es configurable */
-  opciones?: OpcionesElegidas;
+  /** lo elegido en cada grupo si el producto es configurable, con su precio */
+  opciones?: OpcionesConPrecio;
 }
 
 /** Arma la clave de línea a partir del producto, presentación y opciones. */
 export function claveItem(
   slug: string,
   piezas?: number,
-  opciones?: OpcionesElegidas
+  opciones?: OpcionesConPrecio
 ): string {
   const base = piezas ? `${slug}#${piezas}` : slug;
   if (!opciones || Object.keys(opciones).length === 0) return base;
@@ -43,11 +43,13 @@ export function claveItem(
   /*
    * Dos bowls con distinto relleno son dos líneas distintas y no deben
    * sumarse. Se ordenan grupos y opciones para que elegir "palta, choclo" y
-   * "choclo, palta" dé la misma clave: es el mismo bowl.
+   * "choclo, palta" dé la misma clave: es el mismo bowl. El precio no entra
+   * en la firma: la misma combinación de nombres es la misma línea aunque el
+   * catálogo haya cambiado de precio entre un clic y otro.
    */
   const firma = Object.keys(opciones)
     .sort()
-    .map((g) => `${g}=${[...opciones[g]].sort().join('+')}`)
+    .map((g) => `${g}=${[...opciones[g]].map((o) => o.nombre).sort().join('+')}`)
     .join('|');
   return `${base}@${firma}`;
 }
@@ -64,7 +66,7 @@ interface CartState {
     p: Pick<Producto, 'id' | 'nombre' | 'precio' | 'imagen'>,
     piezas?: number,
     precioPresentacion?: number,
-    opciones?: OpcionesElegidas
+    opciones?: OpcionesConPrecio
   ) => void;
   quitar: (id: string) => void;
   cambiarCantidad: (id: string, cantidad: number) => void;
@@ -141,7 +143,10 @@ export const useCartStore = create<CartState>()(
         }
 
         const lineas = items
-          .map((i) => `• ${i.cantidad}× ${i.nombre} — ${soles(i.precio * i.cantidad)}`)
+          .map((i) => {
+            const detalle = formatoOpciones(i.opciones);
+            return `• ${i.cantidad}× ${i.nombre}${detalle ? `\n   ${detalle}` : ''} — ${soles(i.precio * i.cantidad)}`;
+          })
           .join('\n');
 
         return whatsappUrl(

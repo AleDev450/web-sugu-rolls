@@ -1,17 +1,29 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Ban, Bike, ImageIcon, RefreshCw, Truck } from 'lucide-react';
+import {
+  BadgeCheck,
+  Ban,
+  Bike,
+  CreditCard,
+  Download,
+  ImageIcon,
+  RefreshCw,
+  Send,
+  Truck,
+} from 'lucide-react';
 import {
   cambiarEstadoPedido,
   confirmarPago,
   fijarDelivery,
+  fijarLinkPago,
   listarPedidos,
   verComprobante,
   type EstadoPedido,
+  type MetodoPago,
   type PedidoAdmin,
 } from '@/lib/admin';
-import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
+import { Aviso, Cargando, Encabezado, claseCampo } from '@/components/admin/ui';
 
 const FILTROS: { id: EstadoPedido | 'todos'; label: string }[] = [
   { id: 'pendiente', label: 'Por cobrar' },
@@ -28,10 +40,71 @@ const COLOR_ESTADO: Record<EstadoPedido, string> = {
   cancelado: 'bg-white/10 text-bone-dim',
 };
 
+const ETIQUETA_METODO: Record<MetodoPago, string> = {
+  yape: 'Yape',
+  plin: 'Plin',
+  tarjeta: 'Tarjeta',
+};
+
 const soles = (n: number) => `S/ ${n.toFixed(2)}`;
 
 const fecha = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+
+/** Deja solo dígitos y antepone el 51 de Perú si no lo trae ya. */
+const numeroWhatsapp = (telefono: string) => {
+  const digitos = telefono.replace(/\D/g, '');
+  return digitos.startsWith('51') ? digitos : `51${digitos}`;
+};
+
+/** Envuelve un valor en comillas para CSV, escapando las que ya trae. */
+const celdaCSV = (v: string) => `"${v.replace(/"/g, '""')}"`;
+
+function descargarCSV(pedidos: PedidoAdmin[]) {
+  const columnas = [
+    'Número',
+    'Fecha',
+    'Estado',
+    'Cliente',
+    'Teléfono',
+    'Dirección',
+    'Método de pago',
+    'Items',
+    'Subtotal',
+    'Delivery',
+    'Total',
+    'Puntos',
+  ];
+
+  const filas = pedidos.map((p) =>
+    [
+      String(p.numero),
+      fecha(p.creado),
+      p.estado,
+      p.nombre,
+      p.telefono,
+      p.direccion || '',
+      p.metodo_pago ? ETIQUETA_METODO[p.metodo_pago] : '',
+      p.items.map((i) => `${i.cantidad}x ${i.nombre}`).join('; '),
+      p.total.toFixed(2),
+      p.delivery.toFixed(2),
+      (p.total + p.delivery).toFixed(2),
+      String(p.puntos),
+    ]
+      .map(celdaCSV)
+      .join(',')
+  );
+
+  // BOM al inicio: sin él, Excel abre los acentos rotos al leer el CSV.
+  const csv = '﻿' + [columnas.map(celdaCSV).join(','), ...filas].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 /**
  * Pedidos de la web. El pago se confirma a mano —Yape, transferencia o
@@ -40,15 +113,19 @@ const fecha = (iso: string | null) =>
 export default function PedidosAdmin() {
   const [items, setItems] = useState<PedidoAdmin[] | null>(null);
   const [filtro, setFiltro] = useState<EstadoPedido | 'todos'>('pendiente');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
   const [trabajando, setTrabajando] = useState<string | null>(null);
   /** costo de reparto en edición, por pedido */
   const [envios, setEnvios] = useState<Record<string, string>>({});
+  /** enlace de pago con tarjeta en edición, por pedido */
+  const [links, setLinks] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
-  const cargar = async (f: EstadoPedido | 'todos') => {
+  const cargar = async (f: EstadoPedido | 'todos', d: string, h: string) => {
     setItems(null);
     try {
-      setItems(await listarPedidos(f === 'todos' ? undefined : f));
+      setItems(await listarPedidos(f === 'todos' ? undefined : f, d || undefined, h || undefined));
     } catch (e) {
       setItems([]);
       setAviso({ tipo: 'error', texto: (e as Error).message });
@@ -56,8 +133,8 @@ export default function PedidosAdmin() {
   };
 
   useEffect(() => {
-    void cargar(filtro);
-  }, [filtro]);
+    void cargar(filtro, desde, hasta);
+  }, [filtro, desde, hasta]);
 
   const cobrar = async (p: PedidoAdmin) => {
     setTrabajando(p.id);
@@ -67,7 +144,7 @@ export default function PedidosAdmin() {
         tipo: 'ok',
         texto: `Pedido #${p.numero} cobrado. Se acreditaron ${puntos} puntos a ${p.nombre}.`,
       });
-      void cargar(filtro);
+      void cargar(filtro, desde, hasta);
     } catch (e) {
       setAviso({ tipo: 'error', texto: (e as Error).message });
     } finally {
@@ -80,7 +157,7 @@ export default function PedidosAdmin() {
     try {
       await cambiarEstadoPedido(p.id, estado);
       setAviso({ tipo: 'ok', texto: `Pedido #${p.numero}: ${estado}.` });
-      void cargar(filtro);
+      void cargar(filtro, desde, hasta);
     } catch (e) {
       setAviso({ tipo: 'error', texto: (e as Error).message });
     } finally {
@@ -98,7 +175,7 @@ export default function PedidosAdmin() {
         tipo: 'ok',
         texto: `Pedido #${p.numero}: delivery ${soles(monto)}.`,
       });
-      void cargar(filtro);
+      void cargar(filtro, desde, hasta);
     } catch (e) {
       setAviso({ tipo: 'error', texto: (e as Error).message });
     } finally {
@@ -114,6 +191,32 @@ export default function PedidosAdmin() {
     }
   };
 
+  const guardarLink = async (p: PedidoAdmin) => {
+    const link = (links[p.id] ?? p.link_pago ?? '').trim();
+    if (!link) return;
+    setTrabajando(p.id);
+    try {
+      await fijarLinkPago(p.id, link);
+      setAviso({ tipo: 'ok', texto: `Pedido #${p.numero}: enlace de pago guardado.` });
+      void cargar(filtro, desde, hasta);
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setTrabajando(null);
+    }
+  };
+
+  const enviarLinkPorWhatsapp = (p: PedidoAdmin) => {
+    const link = (links[p.id] ?? p.link_pago ?? '').trim();
+    if (!link || !p.telefono) return;
+    const mensaje = `¡Hola ${p.nombre}! Aquí tienes el enlace para pagar con tarjeta tu pedido #${p.numero}: ${link}`;
+    window.open(
+      `https://wa.me/${numeroWhatsapp(p.telefono)}?text=${encodeURIComponent(mensaje)}`,
+      '_blank',
+      'noopener'
+    );
+  };
+
   const porCobrar = items?.filter((p) => p.estado === 'pendiente').length ?? 0;
 
   return (
@@ -126,10 +229,20 @@ export default function PedidosAdmin() {
             : 'Cargando pedidos…'
         }
         accion={
-          <button onClick={() => void cargar(filtro)} className="btn-ghost">
-            <RefreshCw className="h-4 w-4" />
-            Actualizar
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => items && items.length > 0 && descargarCSV(items)}
+              disabled={!items || items.length === 0}
+              className="btn-ghost disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Download className="h-4 w-4" />
+              Descargar CSV
+            </button>
+            <button onClick={() => void cargar(filtro, desde, hasta)} className="btn-ghost">
+              <RefreshCw className="h-4 w-4" />
+              Actualizar
+            </button>
+          </div>
         }
       />
 
@@ -139,7 +252,7 @@ export default function PedidosAdmin() {
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
         {FILTROS.map((f) => (
           <button
             key={f.id}
@@ -151,6 +264,35 @@ export default function PedidosAdmin() {
             {f.label}
           </button>
         ))}
+
+        <span className="mx-1 h-5 w-px bg-white/10" aria-hidden />
+
+        <input
+          type="date"
+          value={desde}
+          onChange={(e) => setDesde(e.target.value)}
+          aria-label="Desde"
+          className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[13px] text-bone-dim outline-none transition-colors [color-scheme:dark] focus:border-sugu"
+        />
+        <span className="text-[13px] text-bone-dim">a</span>
+        <input
+          type="date"
+          value={hasta}
+          onChange={(e) => setHasta(e.target.value)}
+          aria-label="Hasta"
+          className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[13px] text-bone-dim outline-none transition-colors [color-scheme:dark] focus:border-sugu"
+        />
+        {(desde || hasta) && (
+          <button
+            onClick={() => {
+              setDesde('');
+              setHasta('');
+            }}
+            className="text-[13px] text-bone-dim underline underline-offset-4 hover:text-sugu"
+          >
+            Limpiar fechas
+          </button>
+        )}
       </div>
 
       {!items ? (
@@ -165,13 +307,18 @@ export default function PedidosAdmin() {
             <article key={p.id} className="card p-7">
               <header className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-lg font-bold">Pedido #{p.numero}</h2>
                     <span
                       className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${COLOR_ESTADO[p.estado]}`}
                     >
                       {p.estado}
                     </span>
+                    {p.metodo_pago && (
+                      <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-bone-dim">
+                        {ETIQUETA_METODO[p.metodo_pago]}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 text-[13px] text-bone-dim">{fecha(p.creado)}</p>
                 </div>
@@ -261,20 +408,56 @@ export default function PedidosAdmin() {
                   </div>
                 </label>
 
-                <div className="flex-1">
-                  <span className="mb-1.5 block text-[11px] text-bone-dim">Comprobante</span>
-                  {p.comprobante ? (
-                    <button
-                      onClick={() => void abrirComprobante(p.comprobante!)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-4 py-2 text-[13px] text-emerald-400 transition-colors hover:bg-emerald-600/20"
-                    >
-                      <ImageIcon className="h-3.5 w-3.5" />
-                      Ver el Yape adjunto
-                    </button>
-                  ) : (
-                    <p className="py-2 text-[13px] text-amber-400">Todavía sin adjuntar</p>
-                  )}
-                </div>
+                {p.metodo_pago === 'tarjeta' ? (
+                  <div className="min-w-[260px] flex-1">
+                    <span className="mb-1.5 flex items-center gap-2 text-[11px] text-bone-dim">
+                      <CreditCard className="h-3.5 w-3.5" />
+                      Enlace de pago con tarjeta
+                    </span>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="Pega aquí el enlace generado en tu pasarela"
+                        value={links[p.id] ?? p.link_pago ?? ''}
+                        onChange={(e) => setLinks({ ...links, [p.id]: e.target.value })}
+                        className={`${claseCampo} !py-2`}
+                      />
+                      <button
+                        onClick={() => void guardarLink(p)}
+                        disabled={trabajando === p.id}
+                        className="flex-none rounded-lg border border-white/10 px-4 text-[13px] transition-colors hover:border-sugu/50 hover:text-sugu disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        Guardar
+                      </button>
+                      {(links[p.id] ?? p.link_pago) && (
+                        <button
+                          onClick={() => enviarLinkPorWhatsapp(p)}
+                          disabled={!p.telefono}
+                          className="inline-flex flex-none items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-4 text-[13px] text-emerald-400 transition-colors hover:bg-emerald-600/20 disabled:pointer-events-none disabled:opacity-40"
+                          title={p.telefono ? undefined : 'Este pedido no tiene teléfono'}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Enviar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <span className="mb-1.5 block text-[11px] text-bone-dim">Comprobante</span>
+                    {p.comprobante ? (
+                      <button
+                        onClick={() => void abrirComprobante(p.comprobante!)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-4 py-2 text-[13px] text-emerald-400 transition-colors hover:bg-emerald-600/20"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        Ver el {p.metodo_pago === 'plin' ? 'Plin' : 'Yape'} adjunto
+                      </button>
+                    ) : (
+                      <p className="py-2 text-[13px] text-amber-400">Todavía sin adjuntar</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <footer className="mt-4 flex flex-wrap items-center gap-3">

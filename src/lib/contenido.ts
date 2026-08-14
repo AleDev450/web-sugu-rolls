@@ -237,9 +237,15 @@ function aProducto(f: FilaProducto): Producto {
       .sort((a, b) => a.piezas - b.piezas),
     // se descartan los grupos mal formados: un grupo sin opciones dejaría
     // el configurador bloqueado sin nada que elegir
-    opciones: (f.opciones ?? []).filter(
-      (g) => g?.titulo && Array.isArray(g.opciones) && g.opciones.length > 0
-    ),
+    opciones: (f.opciones ?? [])
+      .filter((g) => g?.titulo && Array.isArray(g.opciones) && g.opciones.length > 0)
+      .map((g) => ({
+        ...g,
+        // catálogo cargado antes de que las opciones llevaran precio: texto plano
+        opciones: (g.opciones as unknown[]).map((o) =>
+          typeof o === 'string' ? { nombre: o, precio: 0 } : (o as { nombre: string; precio: number })
+        ),
+      })),
   };
 }
 

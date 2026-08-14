@@ -35,6 +35,18 @@ export interface Presentacion {
 }
 
 /**
+ * Una opción dentro de un grupo, con su costo extra.
+ *
+ * `precio: 0` = va incluida en el precio base (la mayoría de bases y
+ * toppings). `precio > 0` = se suma al precio del producto al elegirla
+ * (un extra de verdad, como "Palta extra" o "Queso crema").
+ */
+export interface OpcionCatalogo {
+  nombre: string;
+  precio: number;
+}
+
+/**
  * Grupo de personalización: base, toppings, proteína, salsas…
  *
  * `min: 0` = el grupo es opcional. `min > 0` = obligatorio, hay que marcar
@@ -44,11 +56,58 @@ export interface GrupoOpciones {
   titulo: string;
   min: number;
   max: number;
-  opciones: string[];
+  opciones: OpcionCatalogo[];
 }
 
-/** Lo elegido por el cliente, indexado por título de grupo. */
+/** Lo elegido por el cliente, indexado por título de grupo: solo nombres. */
 export type OpcionesElegidas = Record<string, string[]>;
+
+/** Una opción elegida, con el precio extra que tenía al momento de elegirla. */
+export interface OpcionElegidaConPrecio {
+  nombre: string;
+  precio: number;
+}
+
+/**
+ * Lo elegido por el cliente con el precio de cada extra ya pegado.
+ *
+ * Vive en el carrito y en el mensaje de WhatsApp, donde hace falta mostrar
+ * cuánto suma cada extra. Antes de llegar a la base se aplana a
+ * `OpcionesElegidas` (solo nombres): el precio final lo recalcula el
+ * servidor con el catálogo vigente, nunca se confía en el del cliente.
+ */
+export type OpcionesConPrecio = Record<string, OpcionElegidaConPrecio[]>;
+
+/** Deja solo los nombres elegidos, para lo que espera la base. */
+export function aplanarOpciones(o?: OpcionesConPrecio): OpcionesElegidas | undefined {
+  if (!o) return undefined;
+  const plano: OpcionesElegidas = {};
+  for (const [grupo, elegidas] of Object.entries(o)) {
+    plano[grupo] = elegidas.map((e) => e.nombre);
+  }
+  return plano;
+}
+
+/**
+ * Texto "Grupo: opción, Extra (+S/ 2.00)" por cada grupo con algo elegido.
+ *
+ * Se usa tanto en el mensaje de WhatsApp como en el carrito: sin el grupo
+ * delante, "Palta, Choclo, Queso crema" no dice si Queso crema es un extra
+ * con costo o un topping incluido, y con dos o más grupos ya no se sabe cuál
+ * es cuál (base vs. toppings vs. extras).
+ */
+export function formatoOpciones(o?: OpcionesConPrecio, separador = ' · '): string {
+  if (!o) return '';
+  return Object.entries(o)
+    .filter(([, elegidas]) => elegidas.length > 0)
+    .map(
+      ([grupo, elegidas]) =>
+        `${grupo}: ${elegidas
+          .map((e) => (e.precio > 0 ? `${e.nombre} (+${soles(e.precio)})` : e.nombre))
+          .join(', ')}`
+    )
+    .join(separador);
+}
 
 export interface Producto {
   id: string;

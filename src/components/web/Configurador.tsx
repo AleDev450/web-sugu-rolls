@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
-import { soles, type OpcionesElegidas, type Producto } from '@/data/productos';
+import { soles, type OpcionesConPrecio, type Producto } from '@/data/productos';
 
 /**
  * Armado de un producto configurable (poke bowl, etc.).
@@ -15,6 +15,10 @@ import { soles, type OpcionesElegidas, type Producto } from '@/data/productos';
  * El botón de confirmar solo se habilita cuando TODOS los grupos obligatorios
  * están cubiertos, y cada grupo dice qué le falta. La base valida lo mismo por
  * su cuenta, pero enterarse al pulsar "pedir" sería descubrirlo tardísimo.
+ *
+ * Algunas opciones suman un extra sobre el precio base (`precio > 0`): el
+ * total del pie se actualiza al marcarlas, para que el precio que ve el
+ * cliente aquí sea el mismo que termina cobrándose.
  */
 export function Configurador({
   producto,
@@ -25,14 +29,16 @@ export function Configurador({
   alConfirmar,
 }: {
   producto: Producto;
+  /** precio base, sin extras */
   precio: number;
   piezas?: number;
   abierto: boolean;
   alCerrar: () => void;
-  alConfirmar: (elegidas: OpcionesElegidas) => void;
+  alConfirmar: (elegidas: OpcionesConPrecio, precioFinal: number) => void;
 }) {
   const grupos = producto.opciones ?? [];
-  const [elegidas, setElegidas] = useState<OpcionesElegidas>({});
+  // se marca por nombre; el precio de cada opción se busca en `grupos` al confirmar
+  const [elegidas, setElegidas] = useState<Record<string, string[]>>({});
 
   // cada vez que se abre se empieza de cero: es un bowl nuevo
   useEffect(() => {
@@ -66,6 +72,31 @@ export function Configurador({
   const faltan = grupos.filter((g) => (elegidas[g.titulo]?.length ?? 0) < g.min);
   const completo = faltan.length === 0;
 
+  // suma de los extras marcados; el precio de cada uno sale del catálogo del grupo
+  const extras = grupos.reduce(
+    (total, g) =>
+      total +
+      (elegidas[g.titulo] ?? []).reduce(
+        (t, nombre) => t + (g.opciones.find((o) => o.nombre === nombre)?.precio ?? 0),
+        0
+      ),
+    0
+  );
+  const precioFinal = precio + extras;
+
+  const confirmar = () => {
+    const conPrecio: OpcionesConPrecio = {};
+    for (const g of grupos) {
+      const nombres = elegidas[g.titulo] ?? [];
+      if (nombres.length === 0) continue;
+      conPrecio[g.titulo] = nombres.map((nombre) => ({
+        nombre,
+        precio: g.opciones.find((o) => o.nombre === nombre)?.precio ?? 0,
+      }));
+    }
+    alConfirmar(conPrecio, precioFinal);
+  };
+
   return (
     <AnimatePresence>
       {abierto && (
@@ -86,14 +117,28 @@ export function Configurador({
             role="dialog"
             aria-modal="true"
             aria-label={`Arma tu ${producto.nombre}`}
-            className="fixed inset-x-0 bottom-0 z-[71] flex max-h-[92vh] flex-col rounded-t-3xl border border-white/10 bg-night-2 sm:inset-0 sm:m-auto sm:h-fit sm:max-w-2xl sm:rounded-3xl"
+            /*
+             * max-h en dvh, no vh: en móvil, 100vh se mide contra el viewport
+             * MÁS GRANDE posible (con la barra de direcciones oculta). Con la
+             * barra visible —que es como se abre este modal casi siempre— el
+             * alto real es menor, y el pie con el botón de confirmar quedaba
+             * fuera de pantalla sin forma de hacer scroll para llegar a él.
+             * dvh sí seguía el viewport visible. El padding del pie deja
+             * espacio para la barra de gestos del iPhone (safe-area-inset).
+             */
+            className="fixed inset-x-0 bottom-0 z-[71] flex max-h-[92dvh] flex-col rounded-t-3xl border border-white/10 bg-night-2 sm:inset-0 sm:m-auto sm:h-fit sm:max-h-[85dvh] sm:max-w-2xl sm:rounded-3xl"
           >
             <header className="flex items-start justify-between gap-4 border-b border-white/10 p-6">
               <div className="min-w-0">
                 <h2 className="text-xl font-bold tracking-tight">{producto.nombre}</h2>
                 <p className="mt-1 text-[13px] text-bone-dim">
                   {piezas ? `${piezas} piezas · ` : ''}
-                  <span className="font-bold text-sugu">{soles(precio)}</span>
+                  <span className="font-bold text-sugu">{soles(precioFinal)}</span>
+                  {extras > 0 && (
+                    <span className="ml-1.5 text-white/40">
+                      ({soles(precio)} + {soles(extras)} en extras)
+                    </span>
+                  )}
                 </p>
               </div>
               <button
@@ -137,13 +182,13 @@ export function Configurador({
 
                     <div className="flex flex-wrap gap-2">
                       {g.opciones.map((o) => {
-                        const activa = marcadas.includes(o);
+                        const activa = marcadas.includes(o.nombre);
                         // sin marcar y con el grupo lleno: no se puede añadir más
                         const bloqueada = !activa && lleno;
                         return (
                           <button
-                            key={o}
-                            onClick={() => marcar(g.titulo, o, g.max)}
+                            key={o.nombre}
+                            onClick={() => marcar(g.titulo, o.nombre, g.max)}
                             disabled={bloqueada}
                             aria-pressed={activa}
                             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] transition-colors ${
@@ -155,7 +200,12 @@ export function Configurador({
                             }`}
                           >
                             {activa && <Check className="h-3.5 w-3.5" />}
-                            {o}
+                            {o.nombre}
+                            {o.precio > 0 && (
+                              <span className={activa ? 'text-white/80' : 'text-sugu'}>
+                                +{soles(o.precio)}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -165,18 +215,18 @@ export function Configurador({
               })}
             </div>
 
-            <footer className="border-t border-white/10 p-6">
+            <footer className="border-t border-white/10 px-6 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
               {!completo && (
                 <p className="mb-3 text-[13px] text-sugu">
                   Te falta elegir en: {faltan.map((g) => g.titulo).join(', ')}
                 </p>
               )}
               <button
-                onClick={() => alConfirmar(elegidas)}
+                onClick={confirmar}
                 disabled={!completo}
                 className="btn-primary w-full disabled:pointer-events-none disabled:opacity-40"
               >
-                Agregar al carrito · {soles(precio)}
+                Agregar al carrito · {soles(precioFinal)}
               </button>
             </footer>
           </motion.div>

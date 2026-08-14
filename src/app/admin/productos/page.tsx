@@ -80,7 +80,9 @@ export default function ProductosAdmin() {
           .map((g) => ({
             ...g,
             titulo: g.titulo.trim(),
-            opciones: g.opciones.map((o) => o.trim()).filter(Boolean),
+            opciones: g.opciones
+              .map((o) => ({ nombre: o.nombre.trim(), precio: Math.max(0, o.precio || 0) }))
+              .filter((o) => o.nombre),
           }))
           .filter((g) => g.titulo && g.opciones.length > 0),
       });

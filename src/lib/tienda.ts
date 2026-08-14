@@ -236,6 +236,8 @@ export interface ItemPedido {
   cantidad: number;
 }
 
+export type MetodoPago = 'yape' | 'plin' | 'tarjeta';
+
 export interface Pedido {
   id: string;
   numero: number;
@@ -245,6 +247,9 @@ export interface Pedido {
   delivery: number;
   /** ruta del comprobante adjunto, o null si todavía no lo subió */
   comprobante: string | null;
+  metodo_pago: MetodoPago | null;
+  /** enlace de pago con tarjeta, pegado a mano por el admin */
+  link_pago: string | null;
   puntos: number;
   creado: string;
   items: ItemPedido[];
@@ -269,12 +274,14 @@ export async function crearPedido(
     opciones?: Record<string, string[]>;
   }[],
   direccion: string,
-  nota: string
+  nota: string,
+  metodoPago: MetodoPago
 ): Promise<{ id: string; numero: number; total: number }> {
   const { data, error } = await sb().rpc('crear_pedido', {
     p_items: items,
     p_direccion: direccion || null,
     p_nota: nota || null,
+    p_metodo_pago: metodoPago,
   });
   if (error) throw error;
 

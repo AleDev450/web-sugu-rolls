@@ -42,3 +42,5 @@ Cuando corras una, márcala aquí:
 | `016-margen-del-slider.sql` | Separación ajustable entre el header y el slider | ☐ |
 | `017-libro-de-reclamaciones.sql` | Libro de Reclamaciones virtual y política de cookies | ☐ |
 | `018-acceso-con-google.sql` | Perfil completo al entrar con Google (nombre y apellido) | ☐ |
+| `019-metodo-pago-y-filtro-fecha.sql` | Método de pago (Yape/Plin/Tarjeta), enlace de pago manual y filtro por fecha en pedidos | ☐ |
+| `020-extras-con-precio.sql` | Opciones de producto con precio extra (toppings que cobran más) | ☐ |

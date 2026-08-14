@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Check, Plus } from 'lucide-react';
-import { soles, type Producto, type OpcionesElegidas } from '@/data/productos';
+import { soles, type Producto, type OpcionesConPrecio } from '@/data/productos';
 import { useCartStore } from '@/store/useCartStore';
 import { Configurador } from './Configurador';
 
@@ -37,8 +37,9 @@ export function ProductoCard({ producto }: { producto: Producto }) {
 
   useEffect(() => () => void (temporizador.current && clearTimeout(temporizador.current)), []);
 
-  const confirmar = (opciones?: OpcionesElegidas) => {
-    agregar(producto, presentacion?.piezas, presentacion?.precio, opciones);
+  const confirmar = (opciones?: OpcionesConPrecio, precioFinal?: number) => {
+    // con extras el precio final ya no es el de la presentación: lo trae el configurador
+    agregar(producto, presentacion?.piezas, precioFinal ?? presentacion?.precio, opciones);
     setArmando(false);
     setAgregado(true);
     if (temporizador.current) clearTimeout(temporizador.current);

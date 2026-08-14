@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
-import { soles } from '@/data/productos';
+import { formatoOpciones, soles } from '@/data/productos';
 import { useCartStore } from '@/store/useCartStore';
 import { Checkout } from './Checkout';
 
@@ -82,7 +82,7 @@ export function Cart() {
                             producto se ven idénticas y no se sabe cuál es cuál */}
                         {item.opciones && Object.keys(item.opciones).length > 0 && (
                           <p className="mt-0.5 text-[11px] leading-snug text-white/45">
-                            {Object.values(item.opciones).flat().join(', ')}
+                            {formatoOpciones(item.opciones, ' · ')}
                           </p>
                         )}
                         <p className="mt-0.5 text-sm font-bold text-sugu">
