@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Mail, MapPin, Phone } from 'lucide-react';
+import { BookOpen, Mail, MapPin, Phone } from 'lucide-react';
 import { FOOTER_LINKS, SITE } from '@/data/site';
 import { useAjustes } from '@/lib/useAjustes';
 import { Logo } from './Logo';
@@ -97,6 +97,25 @@ export function Footer() {
           </ul>
           <p className="mt-5 text-[12px] leading-relaxed text-bone-dim">{a.horario}</p>
         </div>
+      </div>
+
+      {/*
+        El Libro de Reclamaciones va aparte y bien visible: la norma pide que
+        se vea con claridad desde cualquier página, no escondido en una lista
+        de enlaces junto a las políticas.
+      */}
+      <div className="wrap pb-10">
+        <Link
+          href="/libro-de-reclamaciones"
+          className="inline-flex items-center gap-3 rounded-xl border border-white/20 px-4 py-3 transition-colors hover:border-sugu"
+        >
+          <BookOpen className="h-5 w-5 flex-none text-bone" />
+          <span className="text-left text-[12px] font-semibold uppercase leading-tight tracking-wide text-bone">
+            Libro de
+            <br />
+            Reclamaciones
+          </span>
+        </Link>
       </div>
 
       <div className="border-t border-white/10">

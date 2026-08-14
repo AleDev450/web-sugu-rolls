@@ -17,10 +17,17 @@ import { moduloActivo, traerAjustes } from '@/lib/contenido';
  * a encender lo que se apagó, y dejarlo fuera del guardián evita quedarse sin
  * puerta de vuelta.
  *
+ * Las páginas legales tampoco: el Libro de Reclamaciones tiene que seguir
+ * accesible aunque la tienda esté en pausa —es obligatorio— y apagar la web
+ * no puede llevarse por delante los términos, la privacidad ni las cookies.
+ *
  * Se comprueba en el cliente y no en un middleware para no pagar una consulta
  * a Supabase en cada petición: `traerAjustes` ya viene con respaldo local, así
  * que la respuesta es inmediata salvo la primera vez.
  */
+/** Rutas que ningún interruptor del panel puede apagar. */
+const SIEMPRE_ABIERTAS = ['/libro-de-reclamaciones', '/terminos', '/privacidad', '/cookies'];
+
 export function GuardaModulos() {
   const ruta = usePathname();
   const router = useRouter();
@@ -33,6 +40,7 @@ export function GuardaModulos() {
   useEffect(() => {
     if (!ajustes || !ruta) return;
     if (ruta.startsWith('/admin') || ruta.startsWith('/api')) return;
+    if (SIEMPRE_ABIERTAS.some((r) => ruta.startsWith(r))) return;
 
     if (ajustes.solo_juego) {
       if (!ruta.startsWith('/juego')) router.replace('/juego');

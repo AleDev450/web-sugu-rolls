@@ -86,6 +86,7 @@ export const FOOTER_LINKS = {
     { label: 'Zonas de delivery', href: '/contacto' },
     { label: 'Términos y condiciones', href: '/terminos' },
     { label: 'Política de privacidad', href: '/privacidad' },
+    { label: 'Política de cookies', href: '/cookies' },
   ],
   // dos enlaces pueden apuntar al mismo ancla, así que la key va por label
 

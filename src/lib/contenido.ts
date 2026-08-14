@@ -51,7 +51,16 @@ export interface AjustesSitio {
   /** Textos legales en Markdown ligero. Vacío = página aún sin redactar. */
   terminos: string;
   privacidad: string;
+  cookies: string;
   legales_actualizado: string | null;
+
+  /**
+   * Datos del titular del negocio. Encabezan el Libro de Reclamaciones, que
+   * por ley debe mostrar la razón social y el RUC de quien vende — no el
+   * nombre comercial.
+   */
+  razon_social: string;
+  ruc: string;
 
   /** auto = por horario · abierta/cerrada = forzado desde el panel */
   tienda_modo: 'auto' | 'abierta' | 'cerrada';
@@ -127,7 +136,10 @@ const AJUSTES_LOCALES: AjustesSitio = {
   solo_juego: false,
   terminos: '',
   privacidad: '',
+  cookies: '',
   legales_actualizado: null,
+  razon_social: 'INVERSIONES SUGU S.A.C.',
+  ruc: '20608920961',
   // sin base de datos se asume abierto: es peor bloquear pedidos por error
   tienda_modo: 'auto',
   hora_apertura: '12:00',

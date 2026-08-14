@@ -74,15 +74,16 @@ function negritas(linea: string): React.ReactNode {
 }
 
 /**
- * Documento legal (términos o privacidad). El contenido sale del panel; si
- * todavía no se ha redactado, se dice claramente en vez de mostrar un vacío.
+ * Documento legal (términos, privacidad o cookies). El contenido sale del
+ * panel; si todavía no se ha redactado, se dice claramente en vez de mostrar
+ * un vacío.
  */
 export function PaginaLegal({
   titulo,
   campo,
 }: {
   titulo: string;
-  campo: 'terminos' | 'privacidad';
+  campo: 'terminos' | 'privacidad' | 'cookies';
 }) {
   const [ajustes, setAjustes] = useState<AjustesSitio | null>(null);
 

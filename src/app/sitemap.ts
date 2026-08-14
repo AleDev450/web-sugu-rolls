@@ -25,6 +25,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       { ruta: '/juego', prioridad: 0.7, frecuencia: 'monthly' },
       { ruta: '/terminos', prioridad: 0.2, frecuencia: 'monthly' },
       { ruta: '/privacidad', prioridad: 0.2, frecuencia: 'monthly' },
+      { ruta: '/cookies', prioridad: 0.2, frecuencia: 'monthly' },
+      // el libro debe poder encontrarse; es obligatorio tenerlo accesible
+      { ruta: '/libro-de-reclamaciones', prioridad: 0.3, frecuencia: 'monthly' },
     ];
 
   return paginas.map(({ ruta, prioridad, frecuencia }) => ({

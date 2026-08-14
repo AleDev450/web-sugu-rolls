@@ -224,6 +224,73 @@ export async function guardarAjustes(campos: Record<string, string>) {
   exigirFilas(data, error);
 }
 
+// ---------- libro de reclamaciones ----------
+
+export type EstadoReclamo = 'pendiente' | 'respondido' | 'cerrado';
+
+export interface ReclamoAdmin {
+  id: string;
+  /** correlativo de la hoja; es la constancia que tiene el consumidor */
+  numero: number;
+  estado: EstadoReclamo;
+  tipo: 'reclamo' | 'queja';
+  tipo_bien: 'producto' | 'servicio';
+
+  nombre: string;
+  domicilio: string;
+  tipo_documento: string;
+  documento: string;
+  correo: string;
+  telefono: string;
+  menor_edad: boolean;
+  apoderado: string | null;
+
+  local: string;
+  canal: string;
+  moneda: string;
+  monto: number | null;
+  bien_detalle: string;
+
+  fecha_pedido: string | null;
+  numero_pedido: string | null;
+  detalle: string;
+  pedido_cliente: string;
+
+  respuesta: string | null;
+  respondido_at: string | null;
+  creado: string;
+  /** fecha límite legal de respuesta: 30 días calendario desde el registro */
+  vence: string;
+}
+
+export async function listarReclamos(estado?: EstadoReclamo): Promise<ReclamoAdmin[]> {
+  const { data, error } = await sb().rpc('admin_reclamos', {
+    p_estado: estado ?? null,
+    p_limit: 300,
+  });
+  if (error) throw error;
+  return (data ?? []) as ReclamoAdmin[];
+}
+
+/**
+ * Guarda la respuesta del proveedor.
+ *
+ * El reclamo en sí NO se puede editar ni borrar: el libro tiene que
+ * conservarse íntegro. Lo único que se añade es la respuesta y su estado.
+ */
+export async function responderReclamo(
+  id: string,
+  respuesta: string,
+  estado: EstadoReclamo = 'respondido'
+) {
+  const { error } = await sb().rpc('admin_responder_reclamo', {
+    p_id: id,
+    p_respuesta: respuesta,
+    p_estado: estado,
+  });
+  if (error) throw error;
+}
+
 // ---------- secciones de las páginas ----------
 
 export interface SeccionAdmin {

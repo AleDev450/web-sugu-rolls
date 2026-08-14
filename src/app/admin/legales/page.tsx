@@ -5,7 +5,7 @@ import { ExternalLink, Scale } from 'lucide-react';
 import { guardarAjustes, traerAjustesAdmin } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
 
-type Campo = 'terminos' | 'privacidad';
+type Campo = 'terminos' | 'privacidad' | 'cookies';
 
 const DOCS: { campo: Campo; titulo: string; ruta: string; ejemplo: string }[] = [
   {
@@ -20,7 +20,15 @@ const DOCS: { campo: Campo; titulo: string; ruta: string; ejemplo: string }[] = 
     ruta: '/privacidad',
     ejemplo: '### Qué datos recogemos\nNombre, teléfono y dirección de entrega…',
   },
+  {
+    campo: 'cookies',
+    titulo: 'Política de cookies',
+    ruta: '/cookies',
+    ejemplo: '### Qué son las cookies\nPequeños archivos que guarda tu navegador…',
+  },
 ];
+
+const VACIOS: Record<Campo, string> = { terminos: '', privacidad: '', cookies: '' };
 
 /**
  * Redacción de los documentos legales.
@@ -41,11 +49,12 @@ export default function LegalesAdmin() {
         setTextos({
           terminos: (fila.terminos as string) ?? '',
           privacidad: (fila.privacidad as string) ?? '',
+          cookies: (fila.cookies as string) ?? '',
         });
         setFecha((fila.legales_actualizado as string) ?? '');
       } catch (e) {
         setAviso({ tipo: 'error', texto: (e as Error).message });
-        setTextos({ terminos: '', privacidad: '' });
+        setTextos(VACIOS);
       }
     })();
   }, []);
@@ -73,7 +82,7 @@ export default function LegalesAdmin() {
   return (
     <>
       <Encabezado
-        titulo="Términos y privacidad"
+        titulo="Documentos legales"
         bajada={
           fecha
             ? `Última publicación: ${new Date(fecha).toLocaleDateString('es', { dateStyle: 'long' })}.`

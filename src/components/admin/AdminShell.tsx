@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  BookOpen,
   Boxes,
   ExternalLink,
   FileText,
@@ -29,6 +30,7 @@ const MENU = [
   { href: '/admin', label: 'Resumen', icono: LayoutDashboard },
   { href: '/admin/pedidos', label: 'Pedidos', icono: ShoppingBag },
   { href: '/admin/usuarios', label: 'Usuarios', icono: Users },
+  { href: '/admin/reclamos', label: 'Reclamaciones', icono: BookOpen },
   { href: '/admin/paginas', label: 'Páginas', icono: FileText },
   { href: '/admin/slider', label: 'Slider', icono: Images },
   { href: '/admin/categorias', label: 'Categorías', icono: Tags },
@@ -37,7 +39,7 @@ const MENU = [
   { href: '/admin/codigos', label: 'Códigos del juego', icono: KeyRound },
   { href: '/admin/ranking', label: 'Ranking del juego', icono: Trophy },
   { href: '/admin/qr', label: 'Código QR', icono: QrCode },
-  { href: '/admin/legales', label: 'Términos y privacidad', icono: Scale },
+  { href: '/admin/legales', label: 'Documentos legales', icono: Scale },
   { href: '/admin/modulos', label: 'Módulos de la web', icono: SlidersHorizontal },
   { href: '/admin/ajustes', label: 'Ajustes del sitio', icono: Settings },
 ];
