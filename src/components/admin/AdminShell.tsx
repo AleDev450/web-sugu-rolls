@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cerrarSesion, esAdmin, usuarioActual } from '@/lib/admin';
 import { hayBackend } from '@/lib/contenido';
+import { AlertaPedidos } from './AlertaPedidos';
 import { Login } from './Login';
 
 const MENU = [
@@ -116,6 +117,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-night text-white">
+      <AlertaPedidos />
+
       <aside className="hidden w-64 flex-none flex-col border-r border-white/10 bg-night-soft lg:flex">
         <div className="border-b border-white/10 p-6">
           <p className="text-lg font-extrabold tracking-tight">
