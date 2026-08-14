@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { traerSlides, type Slide } from '@/lib/contenido';
+import { useAjustes } from '@/lib/useAjustes';
 
 const CADA_MS = 6000;
 
@@ -21,6 +22,7 @@ const CADA_MS = 6000;
 export function Slider() {
   const [slides, setSlides] = useState<Slide[] | null>(null);
   const [actual, setActual] = useState(0);
+  const ajustes = useAjustes();
 
   useEffect(() => {
     void traerSlides().then(setSlides);
@@ -52,13 +54,20 @@ export function Slider() {
   /*
    * El slider arranca justo DONDE TERMINA el header, no detrás.
    *
-   * El desplazamiento sale de , que el propio Header publica
-   * midiéndose: con un número escrito a mano se quedaba corto en cuanto
-   * cambiaba el logo o el espaciado, y la barra volvía a comerse la parte de
-   * arriba de la foto — que es donde el diseño pone el titular.
+   * `--header-alto` lo publica el propio Header midiéndose: con un número
+   * escrito a mano se quedaba corto en cuanto cambiaba el logo o el
+   * espaciado, y la barra volvía a comerse la parte de arriba de la foto.
+   *
+   * Encima se suma `slider_margen`, el ajuste fino del panel. La altura
+   * visible descuenta lo mismo, así que bajarlo nunca lo saca de pantalla.
    */
+  const separacion = `calc(var(--header-alto) + ${ajustes?.slider_margen ?? 0}px)`;
+
   return (
-    <section className="relative mt-[var(--header-alto)] h-[calc(100svh-var(--header-alto))] w-full overflow-hidden bg-night">
+    <section
+      className="relative w-full overflow-hidden bg-night"
+      style={{ marginTop: separacion, height: `calc(100svh - ${separacion})` }}
+    >
       <AnimatePresence mode="sync">
         <motion.div
           key={s.id}

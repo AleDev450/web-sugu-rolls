@@ -39,3 +39,4 @@ Cuando corras una, márcala aquí:
 | `013-delivery-y-comprobante.sql` | Costo de delivery por pedido y adjuntar el Yape | ☐ |
 | `014-slider-horario-y-categorias.sql` | Slider de portada, horario de tienda y borrar usuarios | ☐ |
 | `015-encuadre-del-slider.sql` | Encuadre por dispositivo y velo ajustable en el slider | ☐ |
+| `016-margen-del-slider.sql` | Separación ajustable entre el header y el slider | ☐ |

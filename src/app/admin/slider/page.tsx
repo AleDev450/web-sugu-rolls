@@ -3,7 +3,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { borrarSlide, guardarSlide, listarSlides, type SlideAdmin } from '@/lib/admin';
+import {
+  borrarSlide,
+  guardarAjustes,
+  guardarSlide,
+  listarSlides,
+  traerAjustesAdmin,
+  type SlideAdmin,
+} from '@/lib/admin';
 import { Encuadre } from '@/components/admin/Encuadre';
 import { SubirImagen } from '@/components/admin/SubirImagen';
 import {
@@ -41,10 +48,13 @@ export default function SliderAdmin() {
   const [items, setItems] = useState<SlideAdmin[] | null>(null);
   const [edicion, setEdicion] = useState<SlideAdmin | null>(null);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const [margen, setMargen] = useState(0);
 
   const cargar = async () => {
     try {
       setItems(await listarSlides());
+      const f = (await traerAjustesAdmin()) as Record<string, unknown>;
+      setMargen(Number(f.slider_margen ?? 0));
     } catch (e) {
       setItems([]);
       setAviso({ tipo: 'error', texto: (e as Error).message });
@@ -78,6 +88,15 @@ export default function SliderAdmin() {
     }
   };
 
+  const guardarMargen = async (v: number) => {
+    setMargen(v);
+    try {
+      await guardarAjustes({ slider_margen: String(v) });
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
+    }
+  };
+
   if (!items) return <Cargando />;
 
   return (
@@ -101,6 +120,43 @@ export default function SliderAdmin() {
           <Aviso {...aviso} />
         </div>
       )}
+
+      {/*
+        Ajuste fino de la posición. El slider ya empieza donde acaba el menú
+        —eso se calcula solo—; esto es el aire extra por debajo, para cuando
+        una imagen concreta pide respirar más.
+      */}
+      <section className="card mb-6 p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="font-bold">Separación bajo el menú</h2>
+          <span className="text-[13px] tabular-nums text-bone-dim">
+            {margen === 0 ? 'Pegado al menú' : `${margen} px más abajo`}
+          </span>
+        </div>
+
+        <input
+          type="range"
+          min={0}
+          max={200}
+          step={4}
+          value={margen}
+          onChange={(e) => void guardarMargen(Number(e.target.value))}
+          className="mt-4 w-full accent-[#E31323]"
+        />
+
+        <div className="mt-4 grid gap-3 text-[12px] leading-relaxed text-white/45 sm:grid-cols-2">
+          <p>
+            El carrusel ya arranca justo donde termina el menú. Sube esto solo si quieres dejar
+            más aire; la altura visible se descuenta sola, así que nunca se sale de la pantalla.
+          </p>
+          <p>
+            <b className="text-white">Medidas de las imágenes:</b> escritorio{' '}
+            <span className="font-mono">1920×1080</span>, celular{' '}
+            <span className="font-mono">1080×1920</span>. Se recortan y comprimen solas al
+            subirlas.
+          </p>
+        </div>
+      </section>
 
       {items.length === 0 ? (
         <p className="card p-16 text-center text-sm text-bone-dim">

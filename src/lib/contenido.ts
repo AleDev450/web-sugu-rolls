@@ -60,6 +60,9 @@ export interface AjustesSitio {
   /** 0 = domingo … 6 = sábado */
   dias_atencion: number[];
   aviso_cerrado: string;
+
+  /** píxeles extra entre el header y el slider; ajuste fino desde el panel */
+  slider_margen: number;
 }
 
 /** Diapositiva del carrusel de portada. */
@@ -132,6 +135,7 @@ const AJUSTES_LOCALES: AjustesSitio = {
   dias_atencion: [0, 1, 2, 3, 4, 5, 6],
   aviso_cerrado:
     'Estamos cerrados en este momento. Puedes ver la carta y volver en nuestro horario de atención.',
+  slider_margen: 0,
 };
 
 /** ¿Hay backend configurado? */
