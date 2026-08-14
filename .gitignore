@@ -11,3 +11,10 @@ next-env.d.ts
 
 # copia generada de imagenes/ — la fuente de verdad es /imagenes
 /public/imagenes/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

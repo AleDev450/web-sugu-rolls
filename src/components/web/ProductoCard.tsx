@@ -37,9 +37,15 @@ export function ProductoCard({ producto }: { producto: Producto }) {
 
   useEffect(() => () => void (temporizador.current && clearTimeout(temporizador.current)), []);
 
-  const confirmar = (opciones?: OpcionesConPrecio, precioFinal?: number) => {
-    // con extras el precio final ya no es el de la presentación: lo trae el configurador
-    agregar(producto, presentacion?.piezas, precioFinal ?? presentacion?.precio, opciones);
+  const confirmar = (opciones?: OpcionesConPrecio, precioUnitario?: number, cantidad?: number) => {
+    // con extras el precio unitario ya no es el de la presentación: lo trae el configurador
+    agregar(
+      producto,
+      presentacion?.piezas,
+      precioUnitario ?? presentacion?.precio,
+      opciones,
+      cantidad
+    );
     setArmando(false);
     setAgregado(true);
     if (temporizador.current) clearTimeout(temporizador.current);

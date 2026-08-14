@@ -66,7 +66,8 @@ interface CartState {
     p: Pick<Producto, 'id' | 'nombre' | 'precio' | 'imagen'>,
     piezas?: number,
     precioPresentacion?: number,
-    opciones?: OpcionesConPrecio
+    opciones?: OpcionesConPrecio,
+    cantidad?: number
   ) => void;
   quitar: (id: string) => void;
   cambiarCantidad: (id: string, cantidad: number) => void;
@@ -89,14 +90,14 @@ export const useCartStore = create<CartState>()(
        * No abre el panel a propósito: abrirlo en cada clic tapa la carta y
        * corta la compra. El aviso es el contador del header.
        */
-      agregar: (p, piezas, precioPresentacion, opciones) =>
+      agregar: (p, piezas, precioPresentacion, opciones, cantidad = 1) =>
         set((s) => {
           const id = claveItem(p.id, piezas, opciones);
           const existente = s.items.find((i) => i.id === id);
           if (existente) {
             return {
               items: s.items.map((i) =>
-                i.id === id ? { ...i, cantidad: i.cantidad + 1 } : i
+                i.id === id ? { ...i, cantidad: i.cantidad + cantidad } : i
               ),
             };
           }
@@ -108,7 +109,7 @@ export const useCartStore = create<CartState>()(
             nombre: piezas ? `${p.nombre} (${piezas} piezas)` : p.nombre,
             precio: precioPresentacion ?? p.precio,
             imagen: p.imagen,
-            cantidad: 1,
+            cantidad,
             piezas,
             opciones,
           };
