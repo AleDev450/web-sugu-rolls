@@ -1,17 +1,10 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import Image from 'next/image';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import {
-  borrarSlide,
-  guardarAjustes,
-  guardarSlide,
-  listarSlides,
-  traerAjustesAdmin,
-  type SlideAdmin,
-} from '@/lib/admin';
+import { borrarSlide, guardarSlide, listarSlides, type SlideAdmin } from '@/lib/admin';
 import { Encuadre } from '@/components/admin/Encuadre';
+import { VistaPreviaSlider } from '@/components/admin/VistaPreviaSlider';
 import { SubirImagen } from '@/components/admin/SubirImagen';
 import {
   Aviso,
@@ -48,13 +41,10 @@ export default function SliderAdmin() {
   const [items, setItems] = useState<SlideAdmin[] | null>(null);
   const [edicion, setEdicion] = useState<SlideAdmin | null>(null);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
-  const [margen, setMargen] = useState(0);
 
   const cargar = async () => {
     try {
       setItems(await listarSlides());
-      const f = (await traerAjustesAdmin()) as Record<string, unknown>;
-      setMargen(Number(f.slider_margen ?? 0));
     } catch (e) {
       setItems([]);
       setAviso({ tipo: 'error', texto: (e as Error).message });
@@ -88,15 +78,6 @@ export default function SliderAdmin() {
     }
   };
 
-  const guardarMargen = async (v: number) => {
-    setMargen(v);
-    try {
-      await guardarAjustes({ slider_margen: String(v) });
-    } catch (e) {
-      setAviso({ tipo: 'error', texto: (e as Error).message });
-    }
-  };
-
   if (!items) return <Cargando />;
 
   return (
@@ -121,43 +102,6 @@ export default function SliderAdmin() {
         </div>
       )}
 
-      {/*
-        Ajuste fino de la posición. El slider ya empieza donde acaba el menú
-        —eso se calcula solo—; esto es el aire extra por debajo, para cuando
-        una imagen concreta pide respirar más.
-      */}
-      <section className="card mb-6 p-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-bold">Separación bajo el menú</h2>
-          <span className="text-[13px] tabular-nums text-bone-dim">
-            {margen === 0 ? 'Pegado al menú' : `${margen} px más abajo`}
-          </span>
-        </div>
-
-        <input
-          type="range"
-          min={0}
-          max={200}
-          step={4}
-          value={margen}
-          onChange={(e) => void guardarMargen(Number(e.target.value))}
-          className="mt-4 w-full accent-[#E31323]"
-        />
-
-        <div className="mt-4 grid gap-3 text-[12px] leading-relaxed text-white/45 sm:grid-cols-2">
-          <p>
-            El carrusel ya arranca justo donde termina el menú. Sube esto solo si quieres dejar
-            más aire; la altura visible se descuenta sola, así que nunca se sale de la pantalla.
-          </p>
-          <p>
-            <b className="text-white">Medidas de las imágenes:</b> escritorio{' '}
-            <span className="font-mono">1920×1080</span>, celular{' '}
-            <span className="font-mono">1080×1920</span>. Se recortan y comprimen solas al
-            subirlas.
-          </p>
-        </div>
-      </section>
-
       {items.length === 0 ? (
         <p className="card p-16 text-center text-sm text-bone-dim">
           Todavía no hay diapositivas. La portada muestra la cabecera clásica.
@@ -165,49 +109,50 @@ export default function SliderAdmin() {
       ) : (
         <div className="grid gap-5">
           {items.map((d) => (
-            <article key={d.id} className="card flex flex-wrap items-center gap-5 p-5">
-              <div className="relative h-24 w-44 flex-none overflow-hidden rounded-xl bg-night-3">
-                {d.imagen && (
-                  <Image src={d.imagen} alt="" fill sizes="176px" className="object-cover" />
-                )}
-              </div>
+            <article key={d.id} className="card p-5">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-bold">
+                    {d.titulo || <span className="text-bone-dim">Sin título</span>}
+                  </p>
+                  <p className="mt-0.5 truncate text-[13px] text-bone-dim">{d.subtitulo}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] uppercase text-bone-dim">
+                      Orden {d.orden}
+                    </span>
+                    {!d.activo && (
+                      <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase">
+                        Oculta
+                      </span>
+                    )}
+                    {!d.imagen_movil && (
+                      <span className="rounded-full bg-amber-500/20 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-400">
+                        Sin versión móvil
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-              <div className="min-w-0 flex-1">
-                <p className="font-bold">{d.titulo || <span className="text-bone-dim">Sin título</span>}</p>
-                <p className="mt-0.5 truncate text-[13px] text-bone-dim">{d.subtitulo}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] uppercase text-bone-dim">
-                    Orden {d.orden}
-                  </span>
-                  {!d.activo && (
-                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase">
-                      Oculta
-                    </span>
-                  )}
-                  {!d.imagen_movil && (
-                    <span className="rounded-full bg-amber-500/20 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-400">
-                      Sin versión móvil
-                    </span>
-                  )}
+                <div className="flex flex-none gap-2">
+                  <button
+                    onClick={() => setEdicion(d)}
+                    className="rounded-lg border border-white/15 p-2 transition-colors hover:border-white/40"
+                    aria-label="Editar"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => void eliminar(d)}
+                    className="rounded-lg border border-white/15 p-2 text-bone-dim transition-colors hover:border-sugu hover:text-sugu"
+                    aria-label="Eliminar"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
 
-              <div className="flex flex-none gap-2">
-                <button
-                  onClick={() => setEdicion(d)}
-                  className="rounded-lg border border-white/15 p-2 transition-colors hover:border-white/40"
-                  aria-label="Editar"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => void eliminar(d)}
-                  className="rounded-lg border border-white/15 p-2 text-bone-dim transition-colors hover:border-sugu hover:text-sugu"
-                  aria-label="Eliminar"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+              {/* así se ve publicada, con su encuadre y su velo */}
+              <VistaPreviaSlider slide={d} />
             </article>
           ))}
         </div>

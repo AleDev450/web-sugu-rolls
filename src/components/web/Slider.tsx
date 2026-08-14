@@ -52,21 +52,25 @@ export function Slider() {
   const velo = Math.min(100, Math.max(0, s.velo ?? 35)) / 100;
 
   /*
-   * El slider arranca justo DONDE TERMINA el header, no detrás.
+   * ALTURA POR PROPORCIÓN, no por pantalla.
    *
-   * `--header-alto` lo publica el propio Header midiéndose: con un número
-   * escrito a mano se quedaba corto en cuanto cambiaba el logo o el
-   * espaciado, y la barra volvía a comerse la parte de arriba de la foto.
+   * Antes ocupaba `100svh - header`, y ese hueco es más apaisado que 16:9 en
+   * cualquier monitor: la foto se recortaba arriba y abajo, justo donde el
+   * diseño pone el titular. Usando la proporción de la propia imagen —16:9 en
+   * escritorio, 9:16 en móvil— se ve ENTERA, sin recortar nada.
    *
-   * Encima se suma `slider_margen`, el ajuste fino del panel. La altura
-   * visible descuenta lo mismo, así que bajarlo nunca lo saca de pantalla.
+   * Arranca donde termina el header: `--header-alto` lo publica el propio
+   * Header midiéndose, más el margen opcional del panel.
    */
+  const conMovil = Boolean(s.imagen_movil);
   const separacion = `calc(var(--header-alto) + ${ajustes?.slider_margen ?? 0}px)`;
 
   return (
     <section
-      className="relative w-full overflow-hidden bg-night"
-      style={{ marginTop: separacion, height: `calc(100svh - ${separacion})` }}
+      className={`relative w-full overflow-hidden bg-night ${
+        conMovil ? 'aspect-[9/16] md:aspect-[16/9]' : 'aspect-[16/9]'
+      }`}
+      style={{ marginTop: separacion }}
     >
       <AnimatePresence mode="sync">
         <motion.div
