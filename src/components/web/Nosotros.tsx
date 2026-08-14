@@ -1,9 +1,26 @@
 'use client';
 
 import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { lista } from '@/data/secciones';
 import { Aparecer } from './Seccion';
 import { useSeccion } from './useSeccion';
+
+/**
+ * El párrafo de Nosotros se escribe en Markdown desde el panel —igual que
+ * Términos y condiciones—, así que se pinta con `react-markdown` en vez de un
+ * `<p>` plano: sin esto, un admin que escriba "## Nuestra historia" vería el
+ * `##` tal cual en la web.
+ */
+const ESTILOS_BAJADA = [
+  'max-w-prose text-[17px] leading-[1.75] text-bone-dim',
+  '[&_p]:mt-5 first:[&_p]:mt-0',
+  '[&_strong]:font-semibold [&_strong]:text-bone',
+  '[&_ul]:mt-5 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5',
+  '[&_ol]:mt-5 [&_ol]:list-decimal [&_ol]:space-y-1.5 [&_ol]:pl-5',
+  '[&_a]:text-sugu [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-sugu-glow',
+].join(' ');
 
 interface Estadistica {
   valor: string;
@@ -33,7 +50,11 @@ export function Nosotros() {
             </span>
           </h2>
 
-          <p className="mt-7 max-w-prose text-[17px] leading-[1.75] text-bone-dim">{s.bajada}</p>
+          {s.bajada && (
+            <div className={`mt-7 ${ESTILOS_BAJADA}`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{s.bajada}</ReactMarkdown>
+            </div>
+          )}
 
           <dl className="mt-14 grid grid-cols-2 gap-x-8 gap-y-10">
             {estadisticas.map((e) => (

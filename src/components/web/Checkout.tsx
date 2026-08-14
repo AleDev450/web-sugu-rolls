@@ -82,6 +82,7 @@ function SelectorMetodoPago({
 export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void }) {
   const items = useCartStore((s) => s.items);
   const vaciar = useCartStore((s) => s.vaciar);
+  const mensajeWhatsapp = useCartStore((s) => s.mensajeWhatsapp);
 
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [listo, setListo] = useState(false);
@@ -306,6 +307,28 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
     );
   }
 
+  // sin cuenta: 3 caminos igual de válidos, no uno escondido detrás de otro
+  if (!perfil && !abierto) {
+    return (
+      <div className="space-y-2">
+        <button onClick={() => setAbierto(true)} className="btn-primary w-full">
+          Hacer el pedido
+        </button>
+        <Link href="/cuenta" className="btn-ghost w-full">
+          Registrarme
+        </Link>
+        <a
+          href={mensajeWhatsapp()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-ghost w-full"
+        >
+          Pedir por WhatsApp
+        </a>
+      </div>
+    );
+  }
+
   if (!abierto) {
     return (
       <button onClick={() => setAbierto(true)} className="btn-primary w-full">
@@ -418,6 +441,15 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
         Coordinamos el pago contigo por WhatsApp. Los puntos se acreditan cuando el pago queda
         confirmado.
       </p>
+
+      <a
+        href={mensajeWhatsapp()}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block text-center text-[12px] text-bone-dim underline underline-offset-4 hover:text-sugu"
+      >
+        O pide directo por WhatsApp, sin registrar el pedido
+      </a>
     </div>
   );
 }

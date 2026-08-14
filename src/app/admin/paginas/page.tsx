@@ -168,14 +168,32 @@ export default function PaginasAdmin() {
               />
             </Campo>
 
-            <Campo etiqueta="Párrafo" ancho="completo">
-              <textarea
-                rows={3}
-                value={edicion.bajada}
-                onChange={(e) => setEdicion({ ...edicion, bajada: e.target.value })}
-                className={`${claseCampo} resize-none`}
-              />
-            </Campo>
+            {edicion.id === 'nosotros' ? (
+              <Campo etiqueta="Nuestra historia" ancho="completo">
+                <textarea
+                  rows={14}
+                  value={edicion.bajada}
+                  onChange={(e) => setEdicion({ ...edicion, bajada: e.target.value })}
+                  placeholder={'Contamos cómo empezó Sugu Rolls...\n\n### Nuestra cocina\nCada roll se prepara al momento...'}
+                  className={`${claseCampo} font-mono text-[13px] leading-relaxed`}
+                />
+                <p className="mt-2 text-[11px] text-white/35">
+                  Se escribe en <b className="text-white/60">Markdown</b>, igual que Términos y
+                  condiciones: <b className="text-white/60">##</b> para subtítulos,{' '}
+                  <b className="text-white/60">- </b> para listas,{' '}
+                  <b className="text-white/60">**negrita**</b>.
+                </p>
+              </Campo>
+            ) : (
+              <Campo etiqueta="Párrafo" ancho="completo">
+                <textarea
+                  rows={3}
+                  value={edicion.bajada}
+                  onChange={(e) => setEdicion({ ...edicion, bajada: e.target.value })}
+                  className={`${claseCampo} resize-none`}
+                />
+              </Campo>
+            )}
 
             <Campo etiqueta="Imagen" ancho="completo">
               <SubirImagen

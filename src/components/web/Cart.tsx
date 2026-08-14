@@ -17,7 +17,6 @@ import { Checkout } from './Checkout';
 export function Cart() {
   const { items, abierto, cerrar, quitar, cambiarCantidad, vaciar } = useCartStore();
   const total = items.reduce((t, i) => t + i.precio * i.cantidad, 0);
-  const mensajeWhatsapp = useCartStore((s) => s.mensajeWhatsapp);
 
   /*
    * Confirmar el pedido vacía el carrito (`items` pasa a 0), y sin este
@@ -145,26 +144,16 @@ export function Cart() {
                     </div>
                   )}
 
+                  {/* el acceso directo a WhatsApp ya lo ofrece Checkout, con o sin cuenta */}
                   <Checkout alConfirmarPedido={() => setPedidoConfirmado(true)} />
 
                   {items.length > 0 && (
-                    <>
-                      <a
-                        href={mensajeWhatsapp()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-ghost mt-2 w-full"
-                      >
-                        Pedir por WhatsApp
-                      </a>
-
-                      <button
-                        onClick={vaciar}
-                        className="mt-2 w-full py-2 text-xs text-white/40 transition-colors hover:text-sugu"
-                      >
-                        Vaciar carrito
-                      </button>
-                    </>
+                    <button
+                      onClick={vaciar}
+                      className="mt-2 w-full py-2 text-xs text-white/40 transition-colors hover:text-sugu"
+                    >
+                      Vaciar carrito
+                    </button>
                   )}
                 </footer>
               </>
