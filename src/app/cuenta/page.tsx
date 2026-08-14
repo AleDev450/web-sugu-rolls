@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Inbox, LogOut, Package, UserRound } from 'lucide-react';
 import { Header } from '@/components/web/Header';
 import { Footer } from '@/components/web/Footer';
+import { Cart } from '@/components/web/Cart';
+import { WhatsappFab } from '@/components/web/WhatsappFab';
 import { Campo, FormIngreso, FormRegistro } from '@/components/web/CuentaForms';
 import { AccesoGoogle } from '@/components/web/BotonGoogle';
 import { AccesosCuenta } from '@/components/web/AccesosCuenta';
@@ -95,6 +97,8 @@ export default function CuentaPage() {
         )}
       </main>
       <Footer />
+      <Cart />
+      <WhatsappFab />
     </>
   );
 }
