@@ -73,19 +73,37 @@ export function AlertaPedidos() {
     const ctx = audioCtxRef.current ?? (audioCtxRef.current = new AudioContext());
     if (ctx.state === 'suspended') void ctx.resume();
 
-    // dos tonos ascendentes tipo timbre — nada de reproducir un archivo
-    for (const [i, freq] of [880, 1318.5].entries()) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const inicio = ctx.currentTime + i * 0.18;
-      gain.gain.setValueAtTime(0, inicio);
-      gain.gain.linearRampToValueAtTime(0.35, inicio + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.32);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(inicio);
-      osc.stop(inicio + 0.35);
+    /*
+     * Limitador antes de la salida: al subir la ganancia para que suene más
+     * fuerte, varios tonos superpuestos pueden pasarse de 0 dB y distorsionar
+     * ("crepitar"). El compresor absorbe esos picos en vez de recortarlos.
+     */
+    const limitador = ctx.createDynamicsCompressor();
+    limitador.threshold.value = -12;
+    limitador.ratio.value = 12;
+    limitador.connect(ctx.destination);
+
+    // ding-dong repetido 3 veces, más fuerte y con onda triangular
+    // (se oye más "lleno" que una sinusoide a la misma ganancia)
+    const REPETICIONES = 3;
+    const TONOS = [880, 1318.5];
+    const SEPARACION_TONOS = 0.18;
+    const SEPARACION_REPETICIONES = 0.55;
+
+    for (let r = 0; r < REPETICIONES; r++) {
+      for (const [i, freq] of TONOS.entries()) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        const inicio = ctx.currentTime + r * SEPARACION_REPETICIONES + i * SEPARACION_TONOS;
+        gain.gain.setValueAtTime(0, inicio);
+        gain.gain.linearRampToValueAtTime(0.9, inicio + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.32);
+        osc.connect(gain).connect(limitador);
+        osc.start(inicio);
+        osc.stop(inicio + 0.35);
+      }
     }
   };
 
