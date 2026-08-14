@@ -24,6 +24,7 @@ import {
   type PedidoAdmin,
 } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado, claseCampo } from '@/components/admin/ui';
+import { getSupabase } from '@/lib/supabase/client';
 
 const FILTROS: { id: EstadoPedido | 'todos'; label: string }[] = [
   { id: 'pendiente', label: 'Por cobrar' },
@@ -57,51 +58,61 @@ const numeroWhatsapp = (telefono: string) => {
   return digitos.startsWith('51') ? digitos : `51${digitos}`;
 };
 
-/** Envuelve un valor en comillas para CSV, escapando las que ya trae. */
-const celdaCSV = (v: string) => `"${v.replace(/"/g, '""')}"`;
+async function descargarXLSX(pedidos: PedidoAdmin[]) {
+  const ExcelJS = (await import('exceljs')).default;
+  const libro = new ExcelJS.Workbook();
+  const hoja = libro.addWorksheet('Pedidos');
 
-function descargarCSV(pedidos: PedidoAdmin[]) {
-  const columnas = [
-    'Número',
-    'Fecha',
-    'Estado',
-    'Cliente',
-    'Teléfono',
-    'Dirección',
-    'Método de pago',
-    'Items',
-    'Subtotal',
-    'Delivery',
-    'Total',
-    'Puntos',
+  hoja.columns = [
+    { header: 'Número', key: 'numero', width: 10 },
+    { header: 'Fecha', key: 'fecha', width: 18 },
+    { header: 'Estado', key: 'estado', width: 12 },
+    { header: 'Cliente', key: 'cliente', width: 26 },
+    { header: 'Teléfono', key: 'telefono', width: 14 },
+    { header: 'Dirección', key: 'direccion', width: 32 },
+    { header: 'Método de pago', key: 'metodo', width: 15 },
+    { header: 'Items', key: 'items', width: 46 },
+    { header: 'Subtotal', key: 'subtotal', width: 12 },
+    { header: 'Delivery', key: 'delivery', width: 12 },
+    { header: 'Total', key: 'total', width: 12 },
+    { header: 'Puntos', key: 'puntos', width: 10 },
   ];
 
-  const filas = pedidos.map((p) =>
-    [
-      String(p.numero),
-      fecha(p.creado),
-      p.estado,
-      p.nombre,
-      p.telefono,
-      p.direccion || '',
-      p.metodo_pago ? ETIQUETA_METODO[p.metodo_pago] : '',
-      p.items.map((i) => `${i.cantidad}x ${i.nombre}`).join('; '),
-      p.total.toFixed(2),
-      p.delivery.toFixed(2),
-      (p.total + p.delivery).toFixed(2),
-      String(p.puntos),
-    ]
-      .map(celdaCSV)
-      .join(',')
-  );
+  const encabezado = hoja.getRow(1);
+  encabezado.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  encabezado.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0263B' } };
+  encabezado.alignment = { vertical: 'middle' };
+  hoja.views = [{ state: 'frozen', ySplit: 1 }];
 
-  // BOM al inicio: sin él, Excel abre los acentos rotos al leer el CSV.
-  const csv = '﻿' + [columnas.map(celdaCSV).join(','), ...filas].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  for (const p of pedidos) {
+    hoja.addRow({
+      numero: p.numero,
+      fecha: fecha(p.creado),
+      estado: p.estado,
+      cliente: p.nombre,
+      telefono: p.telefono,
+      direccion: p.direccion || '',
+      metodo: p.metodo_pago ? ETIQUETA_METODO[p.metodo_pago] : '',
+      items: p.items.map((i) => `${i.cantidad}x ${i.nombre}`).join('; '),
+      subtotal: p.total,
+      delivery: p.delivery,
+      total: p.total + p.delivery,
+      puntos: p.puntos,
+    });
+  }
+
+  for (const clave of ['subtotal', 'delivery', 'total']) {
+    hoja.getColumn(clave).numFmt = '"S/" #,##0.00';
+  }
+
+  const buffer = await libro.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -116,17 +127,30 @@ export default function PedidosAdmin() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [trabajando, setTrabajando] = useState<string | null>(null);
+  const [descargando, setDescargando] = useState(false);
   /** costo de reparto en edición, por pedido */
   const [envios, setEnvios] = useState<Record<string, string>>({});
   /** enlace de pago con tarjeta en edición, por pedido */
   const [links, setLinks] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
-  const cargar = async (f: EstadoPedido | 'todos', d: string, h: string) => {
-    setItems(null);
+  /**
+   * `silencioso` es lo que usan el sondeo y el aviso en vivo: no vacía la
+   * lista antes de traer la nueva (por eso no pasa por "Cargando…") y, si
+   * falla, no lo dice — es solo un intento de refresco de fondo, no algo que
+   * el admin pidió a propósito.
+   */
+  const cargar = async (
+    f: EstadoPedido | 'todos',
+    d: string,
+    h: string,
+    silencioso = false
+  ) => {
+    if (!silencioso) setItems(null);
     try {
       setItems(await listarPedidos(f === 'todos' ? undefined : f, d || undefined, h || undefined));
     } catch (e) {
+      if (silencioso) return;
       setItems([]);
       setAviso({ tipo: 'error', texto: (e as Error).message });
     }
@@ -134,6 +158,28 @@ export default function PedidosAdmin() {
 
   useEffect(() => {
     void cargar(filtro, desde, hasta);
+
+    /*
+     * Doble red para no depender de F5: Realtime avisa apenas hay un cambio
+     * (pedido nuevo, pago confirmado desde otra pestaña…) y el sondeo cada
+     * 30s cubre el rato en que el socket se cae y todavía no reconecta.
+     */
+    const sb = getSupabase();
+    const canal = sb
+      ?.channel('pedidos-lista')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => void cargar(filtro, desde, hasta, true)
+      )
+      .subscribe();
+
+    const sondeo = setInterval(() => void cargar(filtro, desde, hasta, true), 30000);
+
+    return () => {
+      if (sb && canal) void sb.removeChannel(canal);
+      clearInterval(sondeo);
+    };
   }, [filtro, desde, hasta]);
 
   const cobrar = async (p: PedidoAdmin) => {
@@ -231,12 +277,16 @@ export default function PedidosAdmin() {
         accion={
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => items && items.length > 0 && descargarCSV(items)}
-              disabled={!items || items.length === 0}
+              onClick={() => {
+                if (!items || items.length === 0) return;
+                setDescargando(true);
+                void descargarXLSX(items).finally(() => setDescargando(false));
+              }}
+              disabled={!items || items.length === 0 || descargando}
               className="btn-ghost disabled:pointer-events-none disabled:opacity-40"
             >
               <Download className="h-4 w-4" />
-              Descargar CSV
+              {descargando ? 'Generando…' : 'Descargar Excel'}
             </button>
             <button onClick={() => void cargar(filtro, desde, hasta)} className="btn-ghost">
               <RefreshCw className="h-4 w-4" />

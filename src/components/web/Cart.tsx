@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import { formatoOpciones, soles } from '@/data/productos';
@@ -16,6 +18,16 @@ export function Cart() {
   const { items, abierto, cerrar, quitar, cambiarCantidad, vaciar } = useCartStore();
   const total = items.reduce((t, i) => t + i.precio * i.cantidad, 0);
   const mensajeWhatsapp = useCartStore((s) => s.mensajeWhatsapp);
+
+  /*
+   * Confirmar el pedido vacía el carrito (`items` pasa a 0), y sin este
+   * estado el panel saltaba directo a "carrito vacío" antes de que la
+   * pantalla de "pedido registrado" de `Checkout` llegara a mostrarse. Se
+   * reinicia solo: el panel entero se desmonta al cerrarse (ver `abierto` en
+   * `AnimatePresence`), así que la próxima vez que se abre ya está en `false`.
+   */
+  const [pedidoConfirmado, setPedidoConfirmado] = useState(false);
+  const vacio = items.length === 0 && !pedidoConfirmado;
 
   return (
     <AnimatePresence>
@@ -53,16 +65,17 @@ export function Cart() {
               </button>
             </header>
 
-            {items.length === 0 ? (
+            {vacio ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
                 <ShoppingBag className="h-12 w-12 text-white/15" />
                 <p className="text-bone-dim">Tu carrito está vacío.</p>
-                <button onClick={cerrar} className="btn-ghost mt-2">
+                <Link href="/carta" onClick={cerrar} className="btn-ghost mt-2">
                   Ver la carta
-                </button>
+                </Link>
               </div>
             ) : (
               <>
+                {items.length > 0 && (
                 <ul className="flex-1 divide-y divide-white/10 overflow-y-auto">
                   {items.map((item) => (
                     <li key={item.id} className="flex gap-4 p-5">
@@ -122,30 +135,37 @@ export function Cart() {
                     </li>
                   ))}
                 </ul>
+                )}
 
                 <footer className="border-t border-white/10 p-5">
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="text-bone-dim">Total</span>
-                    <span className="text-2xl font-bold text-sugu">{soles(total)}</span>
-                  </div>
+                  {items.length > 0 && (
+                    <div className="mb-4 flex items-center justify-between">
+                      <span className="text-bone-dim">Total</span>
+                      <span className="text-2xl font-bold text-sugu">{soles(total)}</span>
+                    </div>
+                  )}
 
-                  <Checkout />
+                  <Checkout alConfirmarPedido={() => setPedidoConfirmado(true)} />
 
-                  <a
-                    href={mensajeWhatsapp()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-ghost mt-2 w-full"
-                  >
-                    Pedir por WhatsApp
-                  </a>
+                  {items.length > 0 && (
+                    <>
+                      <a
+                        href={mensajeWhatsapp()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-ghost mt-2 w-full"
+                      >
+                        Pedir por WhatsApp
+                      </a>
 
-                  <button
-                    onClick={vaciar}
-                    className="mt-2 w-full py-2 text-xs text-white/40 transition-colors hover:text-sugu"
-                  >
-                    Vaciar carrito
-                  </button>
+                      <button
+                        onClick={vaciar}
+                        className="mt-2 w-full py-2 text-xs text-white/40 transition-colors hover:text-sugu"
+                      >
+                        Vaciar carrito
+                      </button>
+                    </>
+                  )}
                 </footer>
               </>
             )}

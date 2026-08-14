@@ -28,19 +28,58 @@ const ETIQUETA_METODO: Record<MetodoPago, string> = {
   tarjeta: 'Tarjeta (enlace de pago)',
 };
 
+/** Chips de Yape/Plin/Tarjeta, iguales en el checkout con cuenta y sin ella. */
+function SelectorMetodoPago({
+  metodoPago,
+  setMetodoPago,
+}: {
+  metodoPago: MetodoPago;
+  setMetodoPago: (m: MetodoPago) => void;
+}) {
+  return (
+    <div>
+      <span className="mb-2 block text-[13px] font-medium">¿Cómo vas a pagar?</span>
+      <div className="flex gap-2">
+        {METODOS.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setMetodoPago(m.id)}
+            className={`flex-1 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+              metodoPago === m.id
+                ? 'border-sugu bg-sugu/10 text-sugu'
+                : 'border-white/15 text-bone-dim hover:border-white/30'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {metodoPago === 'tarjeta' && (
+        <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+          Te mandamos el enlace de pago por WhatsApp apenas confirmes.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Cierre del pedido dentro de la web.
  *
- * Exige cuenta: sin ella no hay a quién acreditarle los puntos. Crea el pedido
- * en estado "pendiente" y el cliente paga por fuera (Yape, Plin o tarjeta);
- * el local confirma el pago desde el panel, y ES ESA confirmación la que
- * acredita los puntos.
+ * Con cuenta: crea el pedido en estado "pendiente" en la base y el cliente
+ * paga por fuera (Yape, Plin o tarjeta); el local confirma el pago desde el
+ * panel, y ES ESA confirmación la que acredita los puntos.
  *
- * Al confirmar se abre WhatsApp con el detalle: todo pedido de la web tiene
- * que llegar también por ahí, porque es donde se coordina el delivery y,
- * con tarjeta, el enlace de pago.
+ * Sin cuenta: no hay a quién acreditarle puntos ni perfil del que sacar
+ * nombre/teléfono, así que se piden ahí mismo y el pedido se cierra
+ * directo por WhatsApp, sin fila en `orders`.
+ *
+ * En los dos casos se abre WhatsApp con el detalle: todo pedido de la web
+ * tiene que llegar también por ahí, porque es donde se coordina el delivery
+ * y, con tarjeta, el enlace de pago.
  */
-export function Checkout() {
+export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void }) {
   const items = useCartStore((s) => s.items);
   const vaciar = useCartStore((s) => s.vaciar);
 
@@ -59,6 +98,11 @@ export function Checkout() {
   );
   const [comprobante, setComprobante] = useState<'falta' | 'subiendo' | 'listo'>('falta');
 
+  // solo para quien no tiene cuenta: sin perfil no hay de dónde sacar estos datos
+  const [nombreInvitado, setNombreInvitado] = useState('');
+  const [telefonoInvitado, setTelefonoInvitado] = useState('');
+  const [hechoInvitado, setHechoInvitado] = useState(false);
+
   useEffect(() => {
     void tiendaAbierta().then(setAbierta);
   }, []);
@@ -70,6 +114,31 @@ export function Checkout() {
       setListo(true);
     });
   }, []);
+
+  /** El detalle de items es igual para el pedido con cuenta y sin ella. */
+  const construirMensaje = (saludo: string, datosCliente: (string | false)[]) => {
+    const lineas = items
+      .map((i) => {
+        const detalle = formatoOpciones(i.opciones);
+        return `• ${i.cantidad}× ${i.nombre}${detalle ? `\n   ${detalle}` : ''} — ${soles(i.precio * i.cantidad)}`;
+      })
+      .join('\n');
+    const subtotal = items.reduce((t, i) => t + i.precio * i.cantidad, 0);
+
+    return [
+      saludo,
+      '',
+      lineas,
+      '',
+      `*Subtotal: ${soles(subtotal)}*`,
+      '_El delivery se confirma según mi distrito._',
+      '',
+      ...datosCliente,
+      `*Método de pago:* ${ETIQUETA_METODO[metodoPago]}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  };
 
   const confirmar = async () => {
     setEnviando(true);
@@ -90,37 +159,44 @@ export function Checkout() {
         metodoPago
       );
 
-      const lineas = items
-        .map((i) => {
-          const detalle = formatoOpciones(i.opciones);
-          return `• ${i.cantidad}× ${i.nombre}${detalle ? `\n   ${detalle}` : ''} — ${soles(i.precio * i.cantidad)}`;
-        })
-        .join('\n');
-
-      const mensaje = [
+      const mensaje = construirMensaje(
         `¡Hola ${ajustes?.nombre ?? SITE.nombre}! Acabo de registrar el pedido #${numero} en la web 🍣`,
-        '',
-        lineas,
-        '',
-        `*Subtotal: ${soles(items.reduce((t, i) => t + i.precio * i.cantidad, 0))}*`,
-        '_El delivery se confirma según mi distrito._',
-        '',
-        `*Dirección:* ${direccion}`,
-        nota ? `*Nota:* ${nota}` : '',
-        `*Método de pago:* ${ETIQUETA_METODO[metodoPago]}`,
-      ]
-        .filter(Boolean)
-        .join('\n');
+        [`*Dirección:* ${direccion}`, nota && `*Nota:* ${nota}`]
+      );
 
       window.open(whatsappUrl(mensaje, ajustes?.whatsapp), '_blank', 'noopener,noreferrer');
 
       setHecho({ id, numero, metodo: metodoPago });
+      alConfirmarPedido?.();
       vaciar();
     } catch {
       setError('No se pudo registrar el pedido. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       setEnviando(false);
     }
+  };
+
+  /*
+   * Sin cuenta no hay a quién acreditarle puntos ni un perfil del que sacar
+   * nombre/teléfono, así que se piden aquí mismo y el pedido se cierra por
+   * WhatsApp directamente —no se crea fila en `orders`, igual que el botón
+   * "Pedir por WhatsApp" del carrito, solo que sin dejarle al cliente la
+   * tarea de escribir él mismo sus datos dentro del chat.
+   */
+  const confirmarInvitado = () => {
+    if (!nombreInvitado.trim() || !telefonoInvitado.trim() || !direccion.trim()) return;
+
+    const mensaje = construirMensaje(`¡Hola ${ajustes?.nombre ?? SITE.nombre}! Quisiera hacer un pedido 🍣`, [
+      `*Nombre:* ${nombreInvitado}`,
+      `*Teléfono:* ${telefonoInvitado}`,
+      `*Dirección:* ${direccion}`,
+      nota && `*Nota:* ${nota}`,
+    ]);
+
+    window.open(whatsappUrl(mensaje, ajustes?.whatsapp), '_blank', 'noopener,noreferrer');
+    setHechoInvitado(true);
+    alConfirmarPedido?.();
+    vaciar();
   };
 
   if (!listo) return null;
@@ -215,11 +291,18 @@ export function Checkout() {
     );
   }
 
-  if (!perfil) {
+  // pantalla de "listo" para quien pidió sin cuenta
+  if (!perfil && hechoInvitado) {
     return (
-      <Link href="/cuenta" className="btn-primary w-full">
-        Entra para pedir y ganar puntos
-      </Link>
+      <div className="rounded-2xl border border-emerald-600/40 bg-emerald-600/10 p-5 text-[13px] leading-relaxed">
+        <p className="font-bold text-emerald-400">¡Te abrimos WhatsApp!</p>
+        <p className="mt-2 text-bone-dim">
+          Envía el mensaje para que confirmemos tu pedido y coordinemos el pago y el delivery.
+        </p>
+        <Link href="/cuenta" className="mt-3 inline-block text-sugu underline underline-offset-4">
+          Crea una cuenta para sumar puntos la próxima vez
+        </Link>
+      </div>
     );
   }
 
@@ -228,6 +311,72 @@ export function Checkout() {
       <button onClick={() => setAbierto(true)} className="btn-primary w-full">
         Hacer el pedido
       </button>
+    );
+  }
+
+  // sin cuenta: se piden nombre y teléfono aquí mismo, y se cierra por WhatsApp
+  if (!perfil) {
+    return (
+      <div className="space-y-3">
+        <label className="block">
+          <span className="mb-2 block text-[13px] font-medium">Nombre</span>
+          <input
+            value={nombreInvitado}
+            onChange={(e) => setNombreInvitado(e.target.value)}
+            className={campoClase}
+            placeholder="Tu nombre"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-[13px] font-medium">Teléfono</span>
+          <input
+            value={telefonoInvitado}
+            onChange={(e) => setTelefonoInvitado(e.target.value)}
+            type="tel"
+            inputMode="tel"
+            className={campoClase}
+            placeholder="999 123 456"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-[13px] font-medium">Dirección de entrega</span>
+          <input
+            value={direccion}
+            onChange={(e) => setDireccion(e.target.value)}
+            className={campoClase}
+            placeholder="Calle, número, referencia, distrito"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-[13px] font-medium">Nota (opcional)</span>
+          <input
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            className={campoClase}
+            placeholder="Sin palta, tocar el timbre…"
+          />
+        </label>
+
+        <SelectorMetodoPago metodoPago={metodoPago} setMetodoPago={setMetodoPago} />
+
+        <button
+          onClick={confirmarInvitado}
+          disabled={!nombreInvitado.trim() || !telefonoInvitado.trim() || !direccion.trim()}
+          className="btn-primary w-full disabled:pointer-events-none disabled:opacity-50"
+        >
+          Continuar por WhatsApp
+        </button>
+
+        <p className="text-[12px] leading-relaxed text-white/40">
+          Sin cuenta no acumulas puntos.{' '}
+          <Link href="/cuenta" className="text-sugu underline underline-offset-4">
+            ¿Prefieres crear una?
+          </Link>
+        </p>
+      </div>
     );
   }
 
@@ -253,30 +402,7 @@ export function Checkout() {
         />
       </label>
 
-      <div>
-        <span className="mb-2 block text-[13px] font-medium">¿Cómo vas a pagar?</span>
-        <div className="flex gap-2">
-          {METODOS.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setMetodoPago(m.id)}
-              className={`flex-1 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors ${
-                metodoPago === m.id
-                  ? 'border-sugu bg-sugu/10 text-sugu'
-                  : 'border-white/15 text-bone-dim hover:border-white/30'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        {metodoPago === 'tarjeta' && (
-          <p className="mt-2 text-[12px] leading-relaxed text-white/40">
-            Te mandamos el enlace de pago por WhatsApp apenas confirmes.
-          </p>
-        )}
-      </div>
+      <SelectorMetodoPago metodoPago={metodoPago} setMetodoPago={setMetodoPago} />
 
       {error && <p className="text-[13px] text-sugu">{error}</p>}
 

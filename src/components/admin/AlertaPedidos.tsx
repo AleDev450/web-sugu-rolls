@@ -31,28 +31,49 @@ const soles = (n: number) => `S/ ${n.toFixed(2)}`;
  * Vive en `AdminShell` —no en /admin/pedidos— para que suene sin importar en
  * qué pantalla del panel esté trabajando el admin.
  *
- * El timbre se sintetiza con Web Audio (dos tonos), sin archivo de audio: así
- * no depende de un asset que alguien puede borrar sin darse cuenta.
+ * El timbre es un archivo (`/sonidos/aviso-pedido.wav`), no Web Audio
+ * sintetizado en vivo: un `<audio>` que ya se "armó" con un gesto del
+ * usuario sigue sonando en pestañas en segundo plano —por ejemplo, la
+ * tablet de cocina con otra pestaña de YouTube encima— de forma mucho más
+ * confiable que un AudioContext, que los navegadores suspenden agresivamente
+ * en cuanto la pestaña deja de estar activa.
  */
 export function AlertaPedidos() {
   const [avisos, setAvisos] = useState<AvisoPedido[]>([]);
-  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const armado = useRef(false);
   const tituloOriginal = useRef('');
   const parpadeo = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /*
-   * Los navegadores bloquean el audio hasta que hay un gesto del usuario. El
-   * admin ya hizo clic para entrar al panel, pero por si esta es la primera
-   * interacción de la pestaña, se deja el contexto listo (o se reanuda) con
-   * el primer clic o tecla que llegue.
+   * "Arma" el audio con el primer gesto de la pestaña: los navegadores no
+   * dejan reproducir sonido sin que haya habido antes un clic o tecla. Se
+   * reproduce mudo un instante y se pausa —no hace falta que se oiga— solo
+   * para que el elemento quede desbloqueado y el `.play()` de verdad, cuando
+   * llegue un pedido, no dependa de otro gesto (ni de que la pestaña esté al
+   * frente).
    */
   useEffect(() => {
+    audioRef.current = new Audio('/sonidos/aviso-pedido.wav');
+    audioRef.current.preload = 'auto';
+
     const desbloquear = () => {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext();
-      } else if (audioCtxRef.current.state === 'suspended') {
-        void audioCtxRef.current.resume();
-      }
+      if (armado.current || !audioRef.current) return;
+      const a = audioRef.current;
+      const volumenOriginal = a.volume;
+      a.volume = 0;
+      a
+        .play()
+        .then(() => {
+          a.pause();
+          a.currentTime = 0;
+          a.volume = volumenOriginal;
+          armado.current = true;
+        })
+        .catch(() => {
+          // el navegador lo rechazó igual; se reintenta con el próximo gesto
+          a.volume = volumenOriginal;
+        });
     };
     window.addEventListener('pointerdown', desbloquear);
     window.addEventListener('keydown', desbloquear);
@@ -70,41 +91,13 @@ export function AlertaPedidos() {
   }, []);
 
   const sonar = () => {
-    const ctx = audioCtxRef.current ?? (audioCtxRef.current = new AudioContext());
-    if (ctx.state === 'suspended') void ctx.resume();
-
-    /*
-     * Limitador antes de la salida: al subir la ganancia para que suene más
-     * fuerte, varios tonos superpuestos pueden pasarse de 0 dB y distorsionar
-     * ("crepitar"). El compresor absorbe esos picos en vez de recortarlos.
-     */
-    const limitador = ctx.createDynamicsCompressor();
-    limitador.threshold.value = -12;
-    limitador.ratio.value = 12;
-    limitador.connect(ctx.destination);
-
-    // ding-dong repetido 3 veces, más fuerte y con onda triangular
-    // (se oye más "lleno" que una sinusoide a la misma ganancia)
-    const REPETICIONES = 3;
-    const TONOS = [880, 1318.5];
-    const SEPARACION_TONOS = 0.18;
-    const SEPARACION_REPETICIONES = 0.55;
-
-    for (let r = 0; r < REPETICIONES; r++) {
-      for (const [i, freq] of TONOS.entries()) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.value = freq;
-        const inicio = ctx.currentTime + r * SEPARACION_REPETICIONES + i * SEPARACION_TONOS;
-        gain.gain.setValueAtTime(0, inicio);
-        gain.gain.linearRampToValueAtTime(0.9, inicio + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, inicio + 0.32);
-        osc.connect(gain).connect(limitador);
-        osc.start(inicio);
-        osc.stop(inicio + 0.35);
-      }
-    }
+    const a = audioRef.current;
+    if (!a) return;
+    a.currentTime = 0;
+    void a.play().catch(() => {
+      // sin gesto previo el navegador puede seguir negándolo; el aviso
+      // visual y la notificación del sistema quedan como respaldo
+    });
   };
 
   useEffect(() => {
