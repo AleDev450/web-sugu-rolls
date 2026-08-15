@@ -1,17 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, X } from 'lucide-react';
+import { BellRing } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
+import { useAvisosStore } from '@/store/useAvisosStore';
 
-interface AvisoPedido {
-  id: string;
-  numero: number;
-  total: number;
-  nombre: string;
-}
+/** cada cuánto insiste el timbre mientras haya un pedido sin marcar "Recibido" */
+const REPETIR_MS = 6000;
 
 interface FilaOrder {
   id: string;
@@ -28,6 +25,12 @@ const soles = (n: number) => `S/ ${n.toFixed(2)}`;
  * checkout solo ABRE WhatsApp con el mensaje listo; si el cliente cierra la
  * pestaña sin pulsar enviar, nunca llega).
  *
+ * El timbre INSISTE cada pocos segundos mientras haya un pedido sin marcar
+ * "Recibido" —antes sonaba una sola vez y era fácil que se perdiera entre el
+ * ruido de la cocina—. Ese botón vive tanto en el aviso flotante como en la
+ * tarjeta del pedido en /admin/pedidos (ver `useAvisosStore`), así que da
+ * igual desde dónde lo confirme el admin: en cuanto lo hace, deja de sonar.
+ *
  * Vive en `AdminShell` —no en /admin/pedidos— para que suene sin importar en
  * qué pantalla del panel esté trabajando el admin.
  *
@@ -39,7 +42,9 @@ const soles = (n: number) => `S/ ${n.toFixed(2)}`;
  * en cuanto la pestaña deja de estar activa.
  */
 export function AlertaPedidos() {
-  const [avisos, setAvisos] = useState<AvisoPedido[]>([]);
+  const avisos = useAvisosStore((s) => s.avisos);
+  const agregar = useAvisosStore((s) => s.agregar);
+  const recibido = useAvisosStore((s) => s.recibido);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const armado = useRef(false);
   const tituloOriginal = useRef('');
@@ -113,10 +118,12 @@ export function AlertaPedidos() {
         { event: 'INSERT', schema: 'public', table: 'orders' },
         (payload) => {
           const fila = payload.new as FilaOrder;
-          setAvisos((prev) => [
-            ...prev,
-            { id: fila.id, numero: fila.numero, total: Number(fila.total), nombre: fila.nombre },
-          ]);
+          agregar({
+            id: fila.id,
+            numero: fila.numero,
+            total: Number(fila.total),
+            nombre: fila.nombre,
+          });
           sonar();
 
           if (
@@ -138,6 +145,18 @@ export function AlertaPedidos() {
     };
   }, []);
 
+  /*
+   * Insiste cada REPETIR_MS mientras quede al menos un pedido sin "Recibido".
+   * Se apaga solo cuando `avisos` llega a cero, que es justo lo que hace ese
+   * botón (acá o desde la tarjeta del pedido en /admin/pedidos).
+   */
+  useEffect(() => {
+    if (avisos.length === 0) return;
+    const t = setInterval(sonar, REPETIR_MS);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avisos.length]);
+
   // el título de la pestaña parpadea mientras haya avisos sin cerrar
   useEffect(() => {
     if (avisos.length === 0) {
@@ -157,8 +176,6 @@ export function AlertaPedidos() {
     };
   }, [avisos.length]);
 
-  const cerrar = (id: string) => setAvisos((prev) => prev.filter((a) => a.id !== id));
-
   return (
     <div className="pointer-events-none fixed right-4 top-4 z-[100] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2.5">
       <AnimatePresence>
@@ -171,25 +188,25 @@ export function AlertaPedidos() {
             transition={{ type: 'spring', damping: 24, stiffness: 300 }}
             className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-sugu/40 bg-night-2 p-4 shadow-2xl shadow-black/40"
           >
-            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-sugu/15 text-sugu">
-              <Bell className="h-5 w-5" />
+            <span className="flex h-10 w-10 flex-none animate-pulse items-center justify-center rounded-full bg-sugu/15 text-sugu">
+              <BellRing className="h-5 w-5" />
             </span>
-            <Link
-              href="/admin/pedidos"
-              onClick={() => cerrar(a.id)}
-              className="min-w-0 flex-1"
-            >
+            {/*
+              A propósito NO cierra el aviso: entrar a ver el pedido no es lo
+              mismo que confirmar que ya se atendió, y el timbre debe seguir
+              sonando hasta que se presione "Recibido" a propósito.
+            */}
+            <Link href="/admin/pedidos" className="min-w-0 flex-1">
               <p className="text-sm font-bold">¡Pedido nuevo! #{a.numero}</p>
               <p className="truncate text-[12px] text-bone-dim">
                 {a.nombre || 'Cliente'} · {soles(a.total)}
               </p>
             </Link>
             <button
-              onClick={() => cerrar(a.id)}
-              className="flex-none rounded-full p-1.5 text-bone-dim transition-colors hover:text-sugu"
-              aria-label="Cerrar aviso"
+              onClick={() => recibido(a.id)}
+              className="flex-none rounded-full border border-emerald-600/40 bg-emerald-600/10 px-3 py-2 text-[12px] font-semibold text-emerald-400 transition-colors hover:bg-emerald-600/20"
             >
-              <X className="h-4 w-4" />
+              Recibido
             </button>
           </motion.div>
         ))}

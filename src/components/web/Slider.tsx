@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -9,6 +9,8 @@ import { traerSlides, type Slide } from '@/lib/contenido';
 import { useAjustes } from '@/lib/useAjustes';
 
 const CADA_MS = 6000;
+/** distancia mínima de arrastre para contar como swipe, no como un toque */
+const UMBRAL_SWIPE = 40;
 
 /**
  * Carrusel de portada a pantalla completa.
@@ -23,6 +25,7 @@ export function Slider() {
   const [slides, setSlides] = useState<Slide[] | null>(null);
   const [actual, setActual] = useState(0);
   const ajustes = useAjustes();
+  const tocandoDesde = useRef<number | null>(null);
 
   useEffect(() => {
     void traerSlides().then(setSlides);
@@ -46,6 +49,22 @@ export function Slider() {
 
   const ir = (n: number) => setActual((n + total) % total);
   const s = slides[actual];
+
+  /*
+   * Swipe táctil: en móvil las flechas se esconden (`hidden sm:block`) y sin
+   * esto el único control manual eran los puntos, chiquitos y poco obvios.
+   * El gesto es el que espera cualquiera que use un carrusel en el celular.
+   */
+  const alTocarInicio = (e: React.TouchEvent) => {
+    tocandoDesde.current = e.touches[0].clientX;
+  };
+  const alTocarFin = (e: React.TouchEvent) => {
+    if (tocandoDesde.current == null || total < 2) return;
+    const delta = e.changedTouches[0].clientX - tocandoDesde.current;
+    tocandoDesde.current = null;
+    if (delta > UMBRAL_SWIPE) ir(actual - 1);
+    else if (delta < -UMBRAL_SWIPE) ir(actual + 1);
+  };
 
   const hayTexto = Boolean(s.titulo || s.subtitulo || s.boton_texto);
   // el panel lo guarda de 0 a 100; aquí hace falta de 0 a 1
@@ -71,6 +90,8 @@ export function Slider() {
         conMovil ? 'aspect-[9/16] md:aspect-[16/9]' : 'aspect-[16/9]'
       }`}
       style={{ marginTop: separacion }}
+      onTouchStart={alTocarInicio}
+      onTouchEnd={alTocarFin}
     >
       <AnimatePresence mode="sync">
         <motion.div

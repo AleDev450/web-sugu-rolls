@@ -17,8 +17,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     [
       { ruta: '', prioridad: 1, frecuencia: 'weekly' },
       { ruta: '/carta', prioridad: 0.9, frecuencia: 'weekly' },
-      { ruta: '/paquetes', prioridad: 0.8, frecuencia: 'weekly' },
-      { ruta: '/promociones', prioridad: 0.8, frecuencia: 'daily' },
+      { ruta: '/promociones', prioridad: 0.8, frecuencia: 'weekly' },
+      { ruta: '/sugu-games', prioridad: 0.8, frecuencia: 'daily' },
       { ruta: '/catering', prioridad: 0.7, frecuencia: 'monthly' },
       { ruta: '/nosotros', prioridad: 0.5, frecuencia: 'monthly' },
       { ruta: '/contacto', prioridad: 0.6, frecuencia: 'monthly' },

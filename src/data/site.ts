@@ -60,18 +60,18 @@ export function whatsappUrl(mensaje: string, numero?: string): string {
 }
 
 /*
- * Las rutas /paquetes y /promociones se quedan como están aunque las
- * etiquetas cambien: renombrar la URL rompería los enlaces que ya circulan y
- * lo que Google tiene indexado. Lo que ve el cliente es la etiqueta, no la
- * URL. Así, "Paquetes" pasó a llamarse "Promociones" y lo que antes se
- * llamaba "Promociones" ahora es "Sugu Games".
+ * Lo que antes era /paquetes ahora es /promociones, y lo que antes era
+ * /promociones (el juego) ahora es /sugu-games. La antigua /paquetes queda
+ * con una redirección 301 en `next.config.ts` para no perder los enlaces que
+ * ya circulan; la antigua /promociones no se puede redirigir porque esa
+ * misma URL pasa a servir el contenido nuevo de promociones.
  */
 export const NAV = [
   { label: 'Inicio', href: '/' },
   { label: 'Nuestra Carta', href: '/carta' },
-  { label: 'Promociones', href: '/paquetes' },
+  { label: 'Promociones', href: '/promociones' },
   { label: 'Catering', href: '/catering' },
-  { label: 'Sugu Games', href: '/promociones' },
+  { label: 'Sugu Games', href: '/sugu-games' },
   { label: 'Nosotros', href: '/nosotros' },
   { label: 'Contacto', href: '/contacto' },
 ] as const;
@@ -79,7 +79,7 @@ export const NAV = [
 export const FOOTER_LINKS = {
   rapidos: [
     { label: 'Nuestra Carta', href: '/carta' },
-    { label: 'Promociones', href: '/paquetes' },
+    { label: 'Promociones', href: '/promociones' },
     { label: 'Catering', href: '/catering' },
     { label: 'Juega y gana', href: '/juego' },
   ],

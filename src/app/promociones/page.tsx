@@ -1,18 +1,18 @@
 import type { Metadata } from 'next';
-import { Juego } from '@/components/web/Juego';
 import { Pagina } from '@/components/web/Pagina';
+import { Paquetes } from '@/components/web/Paquetes';
 
 export const metadata: Metadata = {
   alternates: { canonical: '/promociones' },
-  title: 'Sugu Games',
+  title: 'Promociones para compartir',
   description:
-    'Juega al Sugu Game, alcanza el puntaje y gana descuentos, makis gratis y premios exclusivos.',
+    'Sugu Box Personal, Dúo y Party: makis para compartir con amigos, familia o compañeros de trabajo.',
 };
 
 export default function PromocionesPage() {
   return (
     <Pagina>
-      <Juego />
+      <Paquetes />
     </Pagina>
   );
 }

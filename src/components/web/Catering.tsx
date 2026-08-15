@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -18,12 +18,15 @@ const BENEFICIOS_POR_DEFECTO = [
 ];
 
 const CADA_MS = 5000;
+/** distancia mínima de arrastre para contar como swipe, no como un toque */
+const UMBRAL_SWIPE = 40;
 
 export function Catering() {
   const s = useSeccion('catering');
   const beneficios = lista<string>(s.extra, 'beneficios', BENEFICIOS_POR_DEFECTO);
   const galeria = lista<string>(s.extra, 'galeria', [s.imagen || '/imagenes/web/catering.webp']);
   const [actual, setActual] = useState(0);
+  const tocandoDesde = useRef<number | null>(null);
 
   // avance automático; se detiene con una sola foto
   useEffect(() => {
@@ -39,6 +42,18 @@ export function Catering() {
 
   const ir = (n: number) => setActual((n + galeria.length) % galeria.length);
 
+  /* swipe táctil, para que el carrusel también se pueda mover a mano en el celular */
+  const alTocarInicio = (e: React.TouchEvent) => {
+    tocandoDesde.current = e.touches[0].clientX;
+  };
+  const alTocarFin = (e: React.TouchEvent) => {
+    if (tocandoDesde.current == null || galeria.length < 2) return;
+    const delta = e.changedTouches[0].clientX - tocandoDesde.current;
+    tocandoDesde.current = null;
+    if (delta > UMBRAL_SWIPE) ir(actual - 1);
+    else if (delta < -UMBRAL_SWIPE) ir(actual + 1);
+  };
+
   return (
     <section
       id="catering"
@@ -46,7 +61,11 @@ export function Catering() {
     >
       <div className="wrap grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
         <Aparecer>
-          <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-white/10 sm:aspect-[5/4] lg:aspect-[4/5]">
+          <div
+            className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-white/10 sm:aspect-[5/4] lg:aspect-[4/5]"
+            onTouchStart={alTocarInicio}
+            onTouchEnd={alTocarFin}
+          >
             <AnimatePresence mode="sync">
               <motion.div
                 key={galeria[actual]}

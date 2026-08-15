@@ -210,9 +210,9 @@ export const SECCIONES: Record<SeccionId, Seccion> = {
 export const PAGINAS: { id: PaginaId; nombre: string; ruta: string }[] = [
   { id: 'inicio', nombre: 'Portada', ruta: '/' },
   { id: 'carta', nombre: 'Nuestra Carta', ruta: '/carta' },
-  { id: 'paquetes', nombre: 'Promociones', ruta: '/paquetes' },
+  { id: 'paquetes', nombre: 'Promociones', ruta: '/promociones' },
   { id: 'catering', nombre: 'Catering', ruta: '/catering' },
-  { id: 'promociones', nombre: 'Sugu Games', ruta: '/promociones' },
+  { id: 'promociones', nombre: 'Sugu Games', ruta: '/sugu-games' },
   { id: 'nosotros', nombre: 'Nosotros', ruta: '/nosotros' },
   { id: 'contacto', nombre: 'Contacto', ruta: '/contacto' },
 ];

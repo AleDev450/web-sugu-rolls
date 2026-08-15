@@ -132,7 +132,7 @@ function TarjetaJuego({
 
       <div className="relative flex items-end justify-between gap-4">
         <Link
-          href="/promociones"
+          href="/sugu-games"
           className="inline-flex items-center gap-2.5 rounded-full bg-night px-8 py-4 text-[15px] font-bold text-white transition-transform duration-500 ease-premium hover:-translate-y-1"
         >
           {boton}

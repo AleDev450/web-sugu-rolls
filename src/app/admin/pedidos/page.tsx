@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   BadgeCheck,
   Ban,
+  BellRing,
   Bike,
   CreditCard,
   Download,
@@ -25,6 +26,7 @@ import {
 } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado, claseCampo } from '@/components/admin/ui';
 import { getSupabase } from '@/lib/supabase/client';
+import { useAvisosStore } from '@/store/useAvisosStore';
 
 const FILTROS: { id: EstadoPedido | 'todos'; label: string }[] = [
   { id: 'pendiente', label: 'Por cobrar' },
@@ -133,6 +135,8 @@ export default function PedidosAdmin() {
   /** enlace de pago con tarjeta en edición, por pedido */
   const [links, setLinks] = useState<Record<string, string>>({});
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const avisosPendientes = useAvisosStore((s) => s.avisos);
+  const marcarRecibido = useAvisosStore((s) => s.recibido);
 
   /**
    * `silencioso` es lo que usan el sondeo y el aviso en vivo: no vacía la
@@ -353,8 +357,13 @@ export default function PedidosAdmin() {
         </p>
       ) : (
         <div className="grid gap-5">
-          {items.map((p) => (
-            <article key={p.id} className="card p-7">
+          {items.map((p) => {
+            const sinRecibir = avisosPendientes.some((a) => a.id === p.id);
+            return (
+            <article
+              key={p.id}
+              className={`card p-7 ${sinRecibir ? 'border-sugu/60 shadow-[0_0_0_1px_rgba(227,19,35,0.3)]' : ''}`}
+            >
               <header className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -368,6 +377,15 @@ export default function PedidosAdmin() {
                       <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase text-bone-dim">
                         {ETIQUETA_METODO[p.metodo_pago]}
                       </span>
+                    )}
+                    {sinRecibir && (
+                      <button
+                        onClick={() => marcarRecibido(p.id)}
+                        className="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-sugu/50 bg-sugu/15 px-3 py-1 text-[11px] font-bold uppercase text-sugu transition-colors hover:bg-sugu/25"
+                      >
+                        <BellRing className="h-3 w-3" />
+                        Recibido
+                      </button>
                     )}
                   </div>
                   <p className="mt-1 text-[13px] text-bone-dim">{fecha(p.creado)}</p>
@@ -551,7 +569,8 @@ export default function PedidosAdmin() {
                 )}
               </footer>
             </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

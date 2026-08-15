@@ -115,9 +115,9 @@ export interface Slide {
 /** Rutas que controla cada bandera, para filtrar menús y proteger páginas. */
 export const RUTA_MODULO: Record<string, keyof AjustesSitio> = {
   '/carta': 'mod_carta',
-  '/paquetes': 'mod_paquetes',
+  '/promociones': 'mod_paquetes',
   '/catering': 'mod_catering',
-  '/promociones': 'mod_promociones',
+  '/sugu-games': 'mod_promociones',
   '/nosotros': 'mod_nosotros',
   '/contacto': 'mod_contacto',
   '/cuenta': 'mod_cuenta',
