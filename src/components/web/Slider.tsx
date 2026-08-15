@@ -84,6 +84,12 @@ export function Slider() {
   const conMovil = Boolean(s.imagen_movil);
   const separacion = `calc(var(--header-alto) + ${ajustes?.slider_margen ?? 0}px)`;
 
+  // ¿toda la diapositiva se puede pisar, no solo el botón?
+  const Envoltura: React.ElementType = s.boton_enlace ? Link : 'div';
+  const propsEnvoltura = s.boton_enlace
+    ? { href: s.boton_enlace, 'aria-label': s.titulo || s.boton_texto || 'Ver más' }
+    : {};
+
   return (
     <section
       className={`relative w-full overflow-hidden bg-night ${
@@ -93,6 +99,13 @@ export function Slider() {
       onTouchStart={alTocarInicio}
       onTouchEnd={alTocarFin}
     >
+      {/*
+        Si la diapositiva tiene ruta, TODA la foto es el link, no solo el
+        botón chiquito: antes el botón solo aparecía con texto propio y era
+        lo único clickeable, así que un slide con enlace pero sin texto de
+        botón (o un click fuera del botón) no llevaba a ningún lado.
+      */}
+      <Envoltura {...propsEnvoltura} className="absolute inset-0 z-0 block">
       <AnimatePresence mode="sync">
         <motion.div
           key={s.id}
@@ -165,14 +178,14 @@ export function Slider() {
                 {s.subtitulo}
               </p>
             )}
+            {/* ya no es un <Link> propio: toda la diapositiva es el enlace */}
             {s.boton_texto && s.boton_enlace && (
-              <Link href={s.boton_enlace} className="btn-primary mt-8">
-                {s.boton_texto}
-              </Link>
+              <span className="btn-primary mt-8">{s.boton_texto}</span>
             )}
           </motion.div>
         </div>
       )}
+      </Envoltura>
 
       {total > 1 && (
         <>
