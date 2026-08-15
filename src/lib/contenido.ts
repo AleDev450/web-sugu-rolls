@@ -72,6 +72,24 @@ export interface AjustesSitio {
 
   /** píxeles extra entre el header y el slider; ajuste fino desde el panel */
   slider_margen: number;
+
+  /**
+   * Metas de SEO (/admin/seo). Vacías = se usan las del código
+   * (`src/app/layout.tsx`), que es lo que sale hasta que se editen aquí.
+   */
+  meta_titulo: string;
+  meta_descripcion: string;
+  meta_imagen: string;
+
+  /**
+   * Coordenadas del local y tarifa de delivery, para estimar el costo según
+   * la distancia con Google Maps. Sin coordenadas no se calcula nada: el
+   * checkout solo pide la dirección, igual que antes.
+   */
+  tienda_lat: number | null;
+  tienda_lng: number | null;
+  delivery_tarifa_base: number;
+  delivery_tarifa_km: number;
 }
 
 /** Diapositiva del carrusel de portada. */
@@ -148,6 +166,13 @@ const AJUSTES_LOCALES: AjustesSitio = {
   aviso_cerrado:
     'Estamos cerrados en este momento. Puedes ver la carta y volver en nuestro horario de atención.',
   slider_margen: 0,
+  meta_titulo: '',
+  meta_descripcion: '',
+  meta_imagen: '',
+  tienda_lat: null,
+  tienda_lng: null,
+  delivery_tarifa_base: 0,
+  delivery_tarifa_km: 0,
 };
 
 /** ¿Hay backend configurado? */
@@ -304,7 +329,16 @@ export function traerAjustes(): Promise<AjustesSitio> {
 
     const { data, error } = await sb.from('site_settings').select('*').eq('id', 1).single();
     if (error || !data) return AJUSTES_LOCALES;
-    return data as AjustesSitio;
+
+    // los numéricos de Postgres llegan como texto por JSON
+    const fila = data as Record<string, unknown>;
+    return {
+      ...(data as AjustesSitio),
+      tienda_lat: fila.tienda_lat != null ? Number(fila.tienda_lat) : null,
+      tienda_lng: fila.tienda_lng != null ? Number(fila.tienda_lng) : null,
+      delivery_tarifa_base: Number(fila.delivery_tarifa_base ?? 0),
+      delivery_tarifa_km: Number(fila.delivery_tarifa_km ?? 0),
+    } as AjustesSitio;
   }, AJUSTES_LOCALES);
 }
 

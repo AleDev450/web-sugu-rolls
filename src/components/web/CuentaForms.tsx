@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ingresar, registrarse } from '@/lib/tienda';
+import { CampoDireccion } from './CampoDireccion';
 
 export const campoClase =
   'w-full rounded-xl border border-white/15 bg-night px-4 py-3 text-sm outline-none transition-colors placeholder:text-white/30 focus:border-sugu';
@@ -225,13 +226,11 @@ export function FormRegistro({ alEntrar }: { alEntrar: () => void }) {
         />
       </Campo>
       <Campo etiqueta="Dirección de entrega" ancho="completo">
-        <input
+        <CampoDireccion
           required
           value={d.direccion}
-          onChange={set('direccion')}
+          onChange={(direccion) => setD({ ...d, direccion })}
           className={campoClase}
-          placeholder="Calle, número, referencia, distrito"
-          autoComplete="street-address"
         />
       </Campo>
 

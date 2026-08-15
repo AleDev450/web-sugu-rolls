@@ -83,7 +83,7 @@ export const SECCIONES: Record<SeccionId, Seccion> = {
           href: '/catering',
         },
       ],
-      juego_titulo: 'Promociones y Juego',
+      juego_titulo: 'Sugu Games',
       juego_texto: 'Juega, gana y disfruta de descuentos, makis gratis y premios exclusivos.',
       juego_boton: 'Jugar ahora',
     },
@@ -104,9 +104,9 @@ export const SECCIONES: Record<SeccionId, Seccion> = {
   paquetes: {
     id: 'paquetes',
     pagina: 'paquetes',
-    titulo_panel: 'Paquetes',
+    titulo_panel: 'Promociones',
     etiqueta: 'Para compartir',
-    titulo: 'Paquetes para',
+    titulo: 'Promociones para',
     manuscrito: 'compartir',
     bajada:
       'Elige el paquete perfecto para disfrutar con amigos, familia o compañeros de trabajo.',
@@ -135,13 +135,15 @@ export const SECCIONES: Record<SeccionId, Seccion> = {
       boton: 'Solicitar cotización',
       dato_valor: '+150',
       dato_texto: 'eventos atendidos',
+      /** fotos del carrusel; vacío = se muestra solo `imagen` */
+      galeria: [] as string[],
     },
   },
 
   juego: {
     id: 'juego',
     pagina: 'promociones',
-    titulo_panel: 'Promociones y Juego',
+    titulo_panel: 'Sugu Games',
     etiqueta: 'Sugu Game',
     titulo: 'Juega y gana con',
     manuscrito: 'Sugu Rolls',
@@ -208,9 +210,9 @@ export const SECCIONES: Record<SeccionId, Seccion> = {
 export const PAGINAS: { id: PaginaId; nombre: string; ruta: string }[] = [
   { id: 'inicio', nombre: 'Portada', ruta: '/' },
   { id: 'carta', nombre: 'Nuestra Carta', ruta: '/carta' },
-  { id: 'paquetes', nombre: 'Paquetes', ruta: '/paquetes' },
+  { id: 'paquetes', nombre: 'Promociones', ruta: '/paquetes' },
   { id: 'catering', nombre: 'Catering', ruta: '/catering' },
-  { id: 'promociones', nombre: 'Promociones y Juego', ruta: '/promociones' },
+  { id: 'promociones', nombre: 'Sugu Games', ruta: '/promociones' },
   { id: 'nosotros', nombre: 'Nosotros', ruta: '/nosotros' },
   { id: 'contacto', nombre: 'Contacto', ruta: '/contacto' },
 ];

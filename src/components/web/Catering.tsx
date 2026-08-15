@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Check } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { lista, texto } from '@/data/secciones';
 import { SITE, whatsappUrl } from '@/data/site';
 import { Aparecer } from './Seccion';
@@ -15,9 +17,27 @@ const BENEFICIOS_POR_DEFECTO = [
   'Atención para grupos grandes',
 ];
 
+const CADA_MS = 5000;
+
 export function Catering() {
   const s = useSeccion('catering');
   const beneficios = lista<string>(s.extra, 'beneficios', BENEFICIOS_POR_DEFECTO);
+  const galeria = lista<string>(s.extra, 'galeria', [s.imagen || '/imagenes/web/catering.webp']);
+  const [actual, setActual] = useState(0);
+
+  // avance automático; se detiene con una sola foto
+  useEffect(() => {
+    if (galeria.length < 2) return;
+    const t = setInterval(() => setActual((i) => (i + 1) % galeria.length), CADA_MS);
+    return () => clearInterval(t);
+  }, [galeria.length]);
+
+  // si el panel quita fotos y el índice actual se queda fuera de rango
+  useEffect(() => {
+    if (actual >= galeria.length) setActual(0);
+  }, [actual, galeria.length]);
+
+  const ir = (n: number) => setActual((n + galeria.length) % galeria.length);
 
   return (
     <section
@@ -27,13 +47,59 @@ export function Catering() {
       <div className="wrap grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
         <Aparecer>
           <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-white/10 sm:aspect-[5/4] lg:aspect-[4/5]">
-            <Image
-              src={s.imagen || '/imagenes/web/catering.webp'}
-              alt="Bandejas de makis Sugu Rolls preparadas para un evento"
-              fill
-              sizes="(max-width: 1024px) 92vw, 560px"
-              className="object-cover"
-            />
+            <AnimatePresence mode="sync">
+              <motion.div
+                key={galeria[actual]}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                className="absolute inset-0"
+              >
+                <Image
+                  src={galeria[actual]}
+                  alt="Bandejas de makis Sugu Rolls preparadas para un evento"
+                  fill
+                  priority={actual === 0}
+                  sizes="(max-width: 1024px) 92vw, 560px"
+                  className="object-cover"
+                />
+              </motion.div>
+            </AnimatePresence>
+
+            {galeria.length > 1 && (
+              <>
+                <button
+                  onClick={() => ir(actual - 1)}
+                  className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-night/40 p-2.5 text-white backdrop-blur transition-colors hover:border-white/60"
+                  aria-label="Foto anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => ir(actual + 1)}
+                  className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-night/40 p-2.5 text-white backdrop-blur transition-colors hover:border-white/60"
+                  aria-label="Foto siguiente"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+
+                <div className="absolute inset-x-0 bottom-24 z-10 flex justify-center gap-2">
+                  {galeria.map((url, i) => (
+                    <button
+                      key={`${url}-${i}`}
+                      onClick={() => setActual(i)}
+                      aria-label={`Ir a la foto ${i + 1}`}
+                      aria-current={i === actual}
+                      className={`h-1.5 rounded-full transition-all duration-500 ${
+                        i === actual ? 'w-6 bg-sugu' : 'w-2.5 bg-white/40 hover:bg-white/70'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
             <div className="absolute inset-0 bg-gradient-to-t from-night/80 via-transparent to-transparent" />
 
             <div className="absolute bottom-6 left-6 rounded-2xl border border-white/10 bg-night/80 px-5 py-4 backdrop-blur-md">

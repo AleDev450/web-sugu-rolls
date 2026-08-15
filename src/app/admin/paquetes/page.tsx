@@ -57,7 +57,7 @@ export default function PaquetesAdmin() {
         incluye: edicion.incluye.map((l) => l.trim()).filter(Boolean),
       });
       setEdicion(null);
-      setAviso({ tipo: 'ok', texto: 'Paquete guardado.' });
+      setAviso({ tipo: 'ok', texto: 'Promoción guardada.' });
       void cargar();
     } catch (err) {
       setAviso({ tipo: 'error', texto: (err as Error).message });
@@ -79,12 +79,12 @@ export default function PaquetesAdmin() {
   return (
     <>
       <Encabezado
-        titulo="Paquetes"
+        titulo="Promociones"
         bajada="Las cajas para compartir que aparecen en la portada."
         accion={
           <button onClick={() => setEdicion({ ...NUEVO, orden: items.length + 1 })} className="btn-primary">
             <Plus className="h-4 w-4" />
-            Nuevo paquete
+            Nueva promoción
           </button>
         }
       />
@@ -150,13 +150,13 @@ export default function PaquetesAdmin() {
 
       {items.length === 0 && (
         <p className="rounded-2xl border border-white/10 p-16 text-center text-sm text-bone-dim">
-          Todavía no hay paquetes.
+          Todavía no hay promociones.
         </p>
       )}
 
       <Modal
         abierto={edicion !== null}
-        titulo={edicion?.id ? 'Editar paquete' : 'Nuevo paquete'}
+        titulo={edicion?.id ? 'Editar promoción' : 'Nueva promoción'}
         alCerrar={() => setEdicion(null)}
       >
         {edicion && (
@@ -219,7 +219,7 @@ export default function PaquetesAdmin() {
               />
             </Campo>
 
-            <Campo etiqueta="Imagen del paquete" ancho="completo">
+            <Campo etiqueta="Imagen de la promoción" ancho="completo">
               <SubirImagen
                 valor={edicion.imagen}
                 nombreBase={edicion.slug || edicion.nombre}

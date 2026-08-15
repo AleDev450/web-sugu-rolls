@@ -59,17 +59,18 @@ export function whatsappUrl(mensaje: string, numero?: string): string {
   return `https://wa.me/${numero || SITE.whatsapp}?text=${encodeURIComponent(mensaje)}`;
 }
 
-/** Cada entrada es una página propia. */
+/*
+ * Las rutas /paquetes y /promociones se quedan como están aunque las
+ * etiquetas cambien: renombrar la URL rompería los enlaces que ya circulan y
+ * lo que Google tiene indexado. Lo que ve el cliente es la etiqueta, no la
+ * URL. Así, "Paquetes" pasó a llamarse "Promociones" y lo que antes se
+ * llamaba "Promociones" ahora es "Sugu Games".
+ */
 export const NAV = [
   { label: 'Inicio', href: '/' },
   { label: 'Nuestra Carta', href: '/carta' },
-  { label: 'Paquetes', href: '/paquetes' },
+  { label: 'Promociones', href: '/paquetes' },
   { label: 'Catering', href: '/catering' },
-  /*
-   * La ruta sigue siendo /promociones aunque el nombre cambie: renombrarla
-   * rompería los enlaces que ya circulan y lo que Google tiene indexado.
-   * Lo que ve el cliente es la etiqueta, no la URL.
-   */
   { label: 'Sugu Games', href: '/promociones' },
   { label: 'Nosotros', href: '/nosotros' },
   { label: 'Contacto', href: '/contacto' },
@@ -78,7 +79,7 @@ export const NAV = [
 export const FOOTER_LINKS = {
   rapidos: [
     { label: 'Nuestra Carta', href: '/carta' },
-    { label: 'Paquetes', href: '/paquetes' },
+    { label: 'Promociones', href: '/paquetes' },
     { label: 'Catering', href: '/catering' },
     { label: 'Juega y gana', href: '/juego' },
   ],

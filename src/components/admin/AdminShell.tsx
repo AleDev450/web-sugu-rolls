@@ -8,6 +8,7 @@ import {
   Boxes,
   ExternalLink,
   FileText,
+  Globe,
   Images,
   KeyRound,
   LayoutDashboard,
@@ -36,12 +37,13 @@ const MENU = [
   { href: '/admin/slider', label: 'Slider', icono: Images },
   { href: '/admin/categorias', label: 'Categorías', icono: Tags },
   { href: '/admin/productos', label: 'Productos', icono: UtensilsCrossed },
-  { href: '/admin/paquetes', label: 'Paquetes', icono: Boxes },
+  { href: '/admin/paquetes', label: 'Promociones', icono: Boxes },
   { href: '/admin/codigos', label: 'Códigos del juego', icono: KeyRound },
   { href: '/admin/ranking', label: 'Ranking del juego', icono: Trophy },
   { href: '/admin/qr', label: 'Código QR', icono: QrCode },
   { href: '/admin/legales', label: 'Documentos legales', icono: Scale },
   { href: '/admin/modulos', label: 'Módulos de la web', icono: SlidersHorizontal },
+  { href: '/admin/seo', label: 'SEO y metadatos', icono: Globe },
   { href: '/admin/ajustes', label: 'Ajustes del sitio', icono: Settings },
 ];
 

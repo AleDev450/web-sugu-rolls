@@ -7,6 +7,7 @@ import { SITE, whatsappUrl } from '@/data/site';
 import { useCartStore } from '@/store/useCartStore';
 import { tiendaAbierta } from '@/lib/contenido';
 import { useAjustes } from '@/lib/useAjustes';
+import { distanciaKm } from '@/lib/googleMaps';
 import {
   adjuntarComprobante,
   crearPedido,
@@ -15,6 +16,7 @@ import {
   type Perfil,
 } from '@/lib/tienda';
 import { campoClase } from './CuentaForms';
+import { CampoDireccion, type LugarElegido } from './CampoDireccion';
 
 const METODOS: { id: MetodoPago; label: string }[] = [
   { id: 'yape', label: 'Yape' },
@@ -64,6 +66,21 @@ function SelectorMetodoPago({
   );
 }
 
+/** Distrito detectado y estimado de delivery, debajo del campo de dirección. */
+function EstimadoDelivery({ distrito, monto }: { distrito: string | null; monto: number | null }) {
+  if (!distrito) return null;
+  return (
+    <p className="mt-2 text-[12px] leading-relaxed text-white/40">
+      Distrito detectado: <span className="text-bone-dim">{distrito}</span>
+      {monto != null && (
+        <>
+          {' · '}Delivery estimado: <span className="text-bone-dim">{soles(monto)}</span>
+        </>
+      )}
+    </p>
+  );
+}
+
 /**
  * Cierre del pedido dentro de la web.
  *
@@ -90,6 +107,8 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
   const ajustes = useAjustes();
   const [abierto, setAbierto] = useState(false);
   const [direccion, setDireccion] = useState('');
+  const [distrito, setDistrito] = useState<string | null>(null);
+  const [deliveryEstimado, setDeliveryEstimado] = useState<number | null>(null);
   const [nota, setNota] = useState('');
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('yape');
   const [enviando, setEnviando] = useState(false);
@@ -141,6 +160,27 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
       .join('\n');
   };
 
+  /**
+   * Al elegir una sugerencia real de Google (no al escribir a mano) se
+   * guarda el distrito y, si el panel tiene las coordenadas del local
+   * (`/admin/ajustes`), se calcula un estimado de delivery por distancia.
+   * Es solo referencial: el costo real lo confirma el local por WhatsApp.
+   */
+  const elegirLugar = async (lugar: LugarElegido) => {
+    setDistrito(lugar.distrito);
+    setDeliveryEstimado(null);
+    if (lugar.lat == null || lugar.lng == null) return;
+    if (ajustes?.tienda_lat == null || ajustes?.tienda_lng == null) return;
+
+    const km = await distanciaKm(
+      { lat: ajustes.tienda_lat, lng: ajustes.tienda_lng },
+      { lat: lugar.lat, lng: lugar.lng }
+    );
+    if (km == null) return;
+    const costo = ajustes.delivery_tarifa_base + km * ajustes.delivery_tarifa_km;
+    setDeliveryEstimado(Math.round(costo * 2) / 2);
+  };
+
   const confirmar = async () => {
     setEnviando(true);
     setError(null);
@@ -162,7 +202,12 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
 
       const mensaje = construirMensaje(
         `¡Hola ${ajustes?.nombre ?? SITE.nombre}! Acabo de registrar el pedido #${numero} en la web 🍣`,
-        [`*Dirección:* ${direccion}`, nota && `*Nota:* ${nota}`]
+        [
+          `*Dirección:* ${direccion}`,
+          distrito ? `*Distrito:* ${distrito}` : false,
+          deliveryEstimado != null ? `*Delivery estimado:* ${soles(deliveryEstimado)} (referencial)` : false,
+          nota && `*Nota:* ${nota}`,
+        ]
       );
 
       window.open(whatsappUrl(mensaje, ajustes?.whatsapp), '_blank', 'noopener,noreferrer');
@@ -191,6 +236,8 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
       `*Nombre:* ${nombreInvitado}`,
       `*Teléfono:* ${telefonoInvitado}`,
       `*Dirección:* ${direccion}`,
+      distrito ? `*Distrito:* ${distrito}` : false,
+      deliveryEstimado != null ? `*Delivery estimado:* ${soles(deliveryEstimado)} (referencial)` : false,
       nota && `*Nota:* ${nota}`,
     ]);
 
@@ -365,12 +412,13 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
 
         <label className="block">
           <span className="mb-2 block text-[13px] font-medium">Dirección de entrega</span>
-          <input
+          <CampoDireccion
             value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
+            onChange={setDireccion}
+            onLugar={(l) => void elegirLugar(l)}
             className={campoClase}
-            placeholder="Calle, número, referencia, distrito"
           />
+          <EstimadoDelivery distrito={distrito} monto={deliveryEstimado} />
         </label>
 
         <label className="block">
@@ -407,12 +455,13 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
     <div className="space-y-3">
       <label className="block">
         <span className="mb-2 block text-[13px] font-medium">Dirección de entrega</span>
-        <input
+        <CampoDireccion
           value={direccion}
-          onChange={(e) => setDireccion(e.target.value)}
+          onChange={setDireccion}
+          onLugar={(l) => void elegirLugar(l)}
           className={campoClase}
-          placeholder="Calle, número, referencia, distrito"
         />
+        <EstimadoDelivery distrito={distrito} monto={deliveryEstimado} />
       </label>
 
       <label className="block">

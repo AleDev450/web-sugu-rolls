@@ -41,7 +41,7 @@ export default function AdminInicio() {
 
   const tarjetas = [
     { titulo: 'Productos', valor: r.productos, icono: UtensilsCrossed, href: '/admin/productos' },
-    { titulo: 'Paquetes', valor: r.paquetes, icono: Boxes, href: '/admin/paquetes' },
+    { titulo: 'Promociones', valor: r.paquetes, icono: Boxes, href: '/admin/paquetes' },
     {
       titulo: 'Códigos sin usar',
       valor: r.codigosDisponibles,

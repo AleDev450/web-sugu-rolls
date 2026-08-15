@@ -19,9 +19,9 @@ type Clave =
 
 const MODULOS: { clave: Clave; titulo: string; ruta: string; bajada: string }[] = [
   { clave: 'mod_carta', titulo: 'Nuestra Carta', ruta: '/carta', bajada: 'Catálogo de productos y carrito.' },
-  { clave: 'mod_paquetes', titulo: 'Paquetes', ruta: '/paquetes', bajada: 'Combos para compartir.' },
+  { clave: 'mod_paquetes', titulo: 'Promociones', ruta: '/paquetes', bajada: 'Combos para compartir.' },
   { clave: 'mod_catering', titulo: 'Catering', ruta: '/catering', bajada: 'Servicio para eventos y su formulario.' },
-  { clave: 'mod_promociones', titulo: 'Promociones', ruta: '/promociones', bajada: 'Ofertas vigentes.' },
+  { clave: 'mod_promociones', titulo: 'Sugu Games', ruta: '/promociones', bajada: 'El juego y sus premios.' },
   { clave: 'mod_nosotros', titulo: 'Nosotros', ruta: '/nosotros', bajada: 'Historia y equipo.' },
   { clave: 'mod_contacto', titulo: 'Contacto', ruta: '/contacto', bajada: 'Datos, mapa y formulario.' },
   {

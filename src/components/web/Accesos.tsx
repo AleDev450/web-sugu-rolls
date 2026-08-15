@@ -45,7 +45,7 @@ export function Accesos() {
 
         <Aparecer delay={tarjetas.length * 0.08}>
           <TarjetaJuego
-            titulo={texto(s.extra, 'juego_titulo', 'Promociones y Juego')}
+            titulo={texto(s.extra, 'juego_titulo', 'Sugu Games')}
             descripcion={texto(
               s.extra,
               'juego_texto',

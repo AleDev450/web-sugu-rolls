@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ExternalLink, Pencil } from 'lucide-react';
 import { guardarSeccion, listarSecciones, type SeccionAdmin } from '@/lib/admin';
 import { SubirImagen } from '@/components/admin/SubirImagen';
+import { GaleriaImagenes } from '@/components/admin/GaleriaImagenes';
 import { PAGINAS } from '@/data/secciones';
 import {
   Aviso,
@@ -203,11 +204,31 @@ export default function PaginasAdmin() {
                 tipo={edicion.id === 'hero' ? 'hero' : 'seccion'}
                 alCambiar={(url) => setEdicion({ ...edicion, imagen: url })}
               />
+              {edicion.id === 'catering' && (
+                <p className="mt-1.5 text-[11px] text-white/40">
+                  Se usa solo si la galería de abajo está vacía.
+                </p>
+              )}
             </Campo>
+
+            {edicion.id === 'catering' && (
+              <Campo etiqueta="Galería (carrusel)" ancho="completo">
+                <GaleriaImagenes
+                  valor={
+                    Array.isArray(edicion.extra.galeria) ? (edicion.extra.galeria as string[]) : []
+                  }
+                  nombreBase="catering"
+                  alCambiar={(galeria) =>
+                    setEdicion({ ...edicion, extra: { ...edicion.extra, galeria } })
+                  }
+                />
+              </Campo>
+            )}
 
             <div className="sm:col-span-2">
               <EditorExtra
                 extra={edicion.extra}
+                excluir={edicion.id === 'catering' ? ['galeria'] : undefined}
                 alCambiar={(extra) => setEdicion({ ...edicion, extra })}
               />
             </div>

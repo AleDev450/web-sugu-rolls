@@ -7,6 +7,7 @@ import { Footer } from '@/components/web/Footer';
 import { Cart } from '@/components/web/Cart';
 import { WhatsappFab } from '@/components/web/WhatsappFab';
 import { Campo, FormIngreso, FormRegistro } from '@/components/web/CuentaForms';
+import { CampoDireccion } from '@/components/web/CampoDireccion';
 import { AccesoGoogle } from '@/components/web/BotonGoogle';
 import { AccesosCuenta } from '@/components/web/AccesosCuenta';
 import { EstatusSocio, ProgresoNivel, TarjetaSugu } from '@/components/web/TarjetaSugu';
@@ -333,9 +334,9 @@ function Panel({
             />
           </Campo>
           <Campo etiqueta="Dirección de entrega">
-            <input
+            <CampoDireccion
               value={datos.address}
-              onChange={(e) => setDatos({ ...datos, address: e.target.value })}
+              onChange={(address) => setDatos({ ...datos, address })}
               className="campo-perfil"
             />
           </Campo>

@@ -45,3 +45,4 @@ Cuando corras una, márcala aquí:
 | `019-metodo-pago-y-filtro-fecha.sql` | Método de pago (Yape/Plin/Tarjeta), enlace de pago manual y filtro por fecha en pedidos | ☐ |
 | `020-extras-con-precio.sql` | Opciones de producto con precio extra (toppings que cobran más) | ☐ |
 | `021-realtime-pedidos.sql` | Habilita el aviso en vivo (timbre + notificación) de pedidos nuevos en el panel | ☐ |
+| `022-metas-seo-y-delivery.sql` | Metas de SEO editables (título, descripción, imagen) y costo de delivery por distancia | ☐ |

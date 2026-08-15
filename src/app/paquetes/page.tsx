@@ -4,7 +4,7 @@ import { Paquetes } from '@/components/web/Paquetes';
 
 export const metadata: Metadata = {
   alternates: { canonical: '/paquetes' },
-  title: 'Paquetes para compartir',
+  title: 'Promociones para compartir',
   description:
     'Sugu Box Personal, Dúo y Party: makis para compartir con amigos, familia o compañeros de trabajo.',
 };

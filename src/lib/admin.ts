@@ -229,7 +229,7 @@ export async function guardarModulos(campos: Record<string, boolean>) {
   exigirFilas(data, error);
 }
 
-export async function guardarAjustes(campos: Record<string, string>) {
+export async function guardarAjustes(campos: Record<string, unknown>) {
   const { data, error } = await sb()
     .from('site_settings')
     .update(campos)

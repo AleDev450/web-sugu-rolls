@@ -43,6 +43,10 @@ export const DESTINOS = {
    * recortada — en un teléfono el recorte deja fuera casi todo.
    */
   sliderMovil: { carpeta: 'slider', ancho: 1080, alto: 1920 },
+  /** Miniatura para Google y redes (Open Graph): 1200×630, el estándar. */
+  meta: { carpeta: 'secciones', ancho: 1200, alto: 630 },
+  /** Foto del carrusel de catering: 4:5, igual que el recuadro donde se ve. */
+  catering: { carpeta: 'secciones', ancho: 1120, alto: 1400 },
 } as const satisfies Record<string, DestinoImagen>;
 
 export type TipoImagen = keyof typeof DESTINOS;

@@ -21,11 +21,14 @@ function legible(clave: string): string {
 export function EditorExtra({
   extra,
   alCambiar,
+  excluir,
 }: {
   extra: Record<string, unknown>;
   alCambiar: (e: Record<string, unknown>) => void;
+  /** claves que ya tienen su propio campo especial fuera de aquí (p. ej. una galería) */
+  excluir?: string[];
 }) {
-  const claves = Object.keys(extra ?? {});
+  const claves = Object.keys(extra ?? {}).filter((c) => !excluir?.includes(c));
   if (claves.length === 0) return null;
 
   const set = (clave: string, valor: unknown) => alCambiar({ ...extra, [clave]: valor });
