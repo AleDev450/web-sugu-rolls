@@ -248,6 +248,28 @@ export const PRODUCTOS: Producto[] = [
 
 export const FAVORITOS = PRODUCTOS.filter((p) => p.destacado);
 
+/**
+ * Grupo de sabores que el cliente debe elegir dentro de una promoción, de
+ * una categoría real de la carta (Makis, Temaki…), no de una lista escrita
+ * a mano.
+ *
+ * La cantidad a elegir no se guarda: sale de `piezas_asignadas /
+ * piezas_por_sabor`. Con 20 piezas asignadas y 10 piezas por sabor, el
+ * cliente elige exactamente 2 sabores de esa categoría.
+ */
+export interface GrupoSaboresPromo {
+  /** lo que ve el cliente sobre la lista, p. ej. "Elige tus sabores de Makis" */
+  titulo: string;
+  /**
+   * Id de la categoría (`categories.id`). No se tipa como `CategoriaId`
+   * porque esa unión es solo el respaldo local; las categorías reales se
+   * crean desde el panel y pueden tener cualquier id.
+   */
+  categoria: string;
+  piezas_asignadas: number;
+  piezas_por_sabor: number;
+}
+
 export interface Paquete {
   id: string;
   nombre: string;
@@ -257,6 +279,17 @@ export interface Paquete {
   incluye: string[];
   imagen: string;
   masPedido?: boolean;
+  /** vacío = promoción sin personalizar, se pide de un clic como siempre */
+  grupos?: GrupoSaboresPromo[];
+}
+
+/**
+ * Cuántos sabores hay que elegir en un grupo. Misma cuenta que hace
+ * `crear_pedido` en la base, para que lo que ve el cliente aquí sea
+ * exactamente lo que la base va a exigir al confirmar.
+ */
+export function cantidadSabores(g: GrupoSaboresPromo): number {
+  return Math.max(1, Math.floor(g.piezas_asignadas / Math.max(g.piezas_por_sabor, 1)));
 }
 
 export const PAQUETES: Paquete[] = [

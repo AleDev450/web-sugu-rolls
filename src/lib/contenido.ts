@@ -3,6 +3,7 @@
 import { getSupabase } from '@/lib/supabase/client';
 import {
   type GrupoOpciones,
+  type GrupoSaboresPromo,
   PRODUCTOS,
   PAQUETES,
   TESTIMONIOS,
@@ -234,6 +235,7 @@ interface FilaPaquete {
   mas_pedido: boolean;
   activo: boolean;
   orden: number;
+  grupos: GrupoSaboresPromo[] | null;
 }
 
 interface FilaTestimonio {
@@ -284,6 +286,7 @@ function aPaquete(f: FilaPaquete): Paquete {
     incluye: f.incluye ?? [],
     imagen: f.imagen,
     masPedido: f.mas_pedido,
+    grupos: f.grupos ?? [],
   };
 }
 

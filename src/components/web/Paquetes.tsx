@@ -3,20 +3,52 @@
 import Image from 'next/image';
 import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { PAQUETES, soles, type Paquete } from '@/data/productos';
-import { traerPaquetes } from '@/lib/contenido';
+import { cantidadSabores, PAQUETES, soles, type Paquete, type Producto } from '@/data/productos';
+import { traerPaquetes, traerProductos } from '@/lib/contenido';
 import { useCartStore } from '@/store/useCartStore';
 import { Aparecer, TituloSeccion } from './Seccion';
+import { Configurador } from './Configurador';
 import { useSeccion } from './useSeccion';
 
 export function Paquetes() {
   const agregar = useCartStore((s) => s.agregar);
   const s = useSeccion('paquetes');
   const [paquetes, setPaquetes] = useState<Paquete[]>(PAQUETES);
+  const [productos, setProductos] = useState<Producto[]>([]);
+  /** promoción abierta en el configurador de sabores; null = cerrado */
+  const [config, setConfig] = useState<Paquete | null>(null);
 
   useEffect(() => {
     void traerPaquetes().then(setPaquetes);
+    void traerProductos().then(setProductos);
   }, []);
+
+  /*
+   * El configurador está hecho para `Producto` (bowls, bases, toppings…),
+   * así que la promoción se disfraza de uno: cada grupo de sabores se ve
+   * como un grupo de opciones con `min = max` = lo que toque elegir, y la
+   * lista de opciones sale de los productos activos de esa categoría —no de
+   * texto escrito a mano, así un maki nuevo aparece solo.
+   */
+  const comoProducto = (p: Paquete): Producto => ({
+    id: p.id,
+    nombre: p.nombre,
+    descripcion: p.ideal,
+    precio: p.precio,
+    categoria: 'makis',
+    imagen: p.imagen,
+    opciones: (p.grupos ?? []).map((g) => {
+      const cantidad = cantidadSabores(g);
+      return {
+        titulo: g.titulo,
+        min: cantidad,
+        max: cantidad,
+        opciones: productos
+          .filter((pr) => pr.categoria === g.categoria)
+          .map((pr) => ({ nombre: pr.nombre, precio: 0 })),
+      };
+    }),
+  });
 
   return (
     <section id="paquetes" className="wrap section scroll-mt-24">
@@ -73,22 +105,46 @@ export function Paquetes() {
 
                 <button
                   onClick={() =>
-                    agregar({
-                      id: paquete.id,
-                      nombre: paquete.nombre,
-                      precio: paquete.precio,
-                      imagen: paquete.imagen,
-                    })
+                    paquete.grupos && paquete.grupos.length > 0
+                      ? setConfig(paquete)
+                      : agregar({
+                          id: paquete.id,
+                          nombre: paquete.nombre,
+                          precio: paquete.precio,
+                          imagen: paquete.imagen,
+                        })
                   }
                   className={`mt-10 w-full ${paquete.masPedido ? 'btn-primary' : 'btn-ghost'}`}
                 >
-                  Pedir paquete
+                  {paquete.grupos && paquete.grupos.length > 0
+                    ? 'Elegir sabores y pedir'
+                    : 'Pedir paquete'}
                 </button>
               </div>
             </article>
           </Aparecer>
         ))}
       </div>
+
+      {config && (
+        <Configurador
+          producto={comoProducto(config)}
+          precio={config.precio}
+          piezas={config.piezas}
+          abierto={config !== null}
+          alCerrar={() => setConfig(null)}
+          alConfirmar={(opciones, precioUnitario, cantidad) => {
+            agregar(
+              { id: config.id, nombre: config.nombre, precio: config.precio, imagen: config.imagen },
+              undefined,
+              precioUnitario,
+              opciones,
+              cantidad
+            );
+            setConfig(null);
+          }}
+        />
+      )}
     </section>
   );
 }

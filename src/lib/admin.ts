@@ -1,6 +1,7 @@
 'use client';
 
 import { getSupabase } from '@/lib/supabase/client';
+import type { GrupoSaboresPromo } from '@/data/productos';
 
 /**
  * Operaciones del panel de administración.
@@ -45,6 +46,8 @@ export interface PaqueteAdmin {
   mas_pedido: boolean;
   activo: boolean;
   orden: number;
+  /** vacío = promoción sin personalizar, se pide de un clic como siempre */
+  grupos: GrupoSaboresPromo[];
 }
 
 export interface TestimonioAdmin {
@@ -161,7 +164,11 @@ export async function listarProductos(): Promise<ProductoAdmin[]> {
 export async function listarPaquetes(): Promise<PaqueteAdmin[]> {
   const { data, error } = await sb().from('packages').select('*').order('orden');
   if (error) throw error;
-  return (data ?? []).map((p) => ({ ...p, precio: Number(p.precio) })) as PaqueteAdmin[];
+  return (data ?? []).map((p) => ({
+    ...p,
+    precio: Number(p.precio),
+    grupos: p.grupos ?? [],
+  })) as PaqueteAdmin[];
 }
 
 export async function listarTestimonios(): Promise<TestimonioAdmin[]> {
@@ -235,6 +242,35 @@ export async function guardarAjustes(campos: Record<string, unknown>) {
     .update(campos)
     .eq('id', 1)
     .select('id');
+  exigirFilas(data, error);
+}
+
+// ---------- SEO por página ----------
+
+export interface PaginaSeoAdmin {
+  ruta: string;
+  titulo: string;
+  descripcion: string;
+}
+
+/**
+ * Título/descripción propios de una ruta puntual, para completar lo que
+ * pide el título del código. Sin fila para esa ruta, se devuelven campos
+ * vacíos —"usa lo del código"—, no un error: la mayoría de páginas no
+ * necesita nada especial.
+ */
+export async function listarSeoPaginas(): Promise<PaginaSeoAdmin[]> {
+  const { data, error } = await sb().from('page_seo').select('*').order('ruta');
+  if (error) throw error;
+  return (data ?? []) as PaginaSeoAdmin[];
+}
+
+/** Inserta o actualiza según ya exista una fila para esa ruta. */
+export async function guardarSeoPagina(p: PaginaSeoAdmin) {
+  const { data, error } = await sb()
+    .from('page_seo')
+    .upsert(p, { onConflict: 'ruta' })
+    .select('ruta');
   exigirFilas(data, error);
 }
 

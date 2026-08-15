@@ -28,17 +28,32 @@ const TITULO_POR_DEFECTO = 'Sugu Rolls — Makis que te hacen feliz | Delivery d
 const DESCRIPCION_POR_DEFECTO =
   'Makis preparados al momento con ingredientes frescos. Carta, paquetes para compartir, catering y delivery de sushi en Lima. Pide por WhatsApp y juega para ganar premios.';
 const IMAGEN_POR_DEFECTO = '/imagenes/web/hero-makis.webp';
+const PLANTILLA_POR_DEFECTO = '%s | Sugu Rolls';
 
 /*
- * Dinámica en vez de un objeto fijo: título, descripción e imagen se pueden
- * editar desde /admin/seo (tabla `site_settings`). Vacíos en la base = se
- * usa lo de aquí, así que un panel sin llenar no deja la web sin metadatos.
+ * ISR, no estático puro ni SSR en cada visita: `/admin/seo` guarda en
+ * Supabase, y sin esto el cambio solo se vería después de un redeploy (las
+ * páginas se generan una vez, en el build). Con `revalidate` Next sirve la
+ * versión ya generada y la refresca en segundo plano cuando pasan estos
+ * segundos y llega una visita — la consulta a Supabase no se repite en cada
+ * render, solo cuando toca refrescar. `traerMetaSitio` además cachea 60s por
+ * su cuenta, para la tanda de páginas que comparten esta misma consulta.
+ */
+export const revalidate = 300;
+
+/*
+ * Dinámica en vez de un objeto fijo: identidad, título, descripción, imagen,
+ * plantilla e index/follow se editan desde /admin/seo (tabla
+ * `site_settings`). Vacíos en la base = se usa lo de aquí, así que un panel
+ * sin llenar no deja la web sin metadatos.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const ajustes = await traerMetaSitio();
+  const nombreSitio = ajustes.seo_nombre_sitio.trim() || ajustes.nombre.trim() || SITE.nombre;
   const titulo = ajustes.meta_titulo.trim() || TITULO_POR_DEFECTO;
   const descripcion = ajustes.meta_descripcion.trim() || DESCRIPCION_POR_DEFECTO;
   const imagen = ajustes.meta_imagen.trim() || IMAGEN_POR_DEFECTO;
+  const plantilla = ajustes.seo_plantilla_titulo.trim() || PLANTILLA_POR_DEFECTO;
 
   return {
     /*
@@ -48,10 +63,10 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(DOMINIO),
     title: {
       default: titulo,
-      template: `%s · ${ajustes.nombre || SITE.nombre}`,
+      template: plantilla,
     },
     description: descripcion,
-    applicationName: ajustes.nombre || SITE.nombre,
+    applicationName: nombreSitio,
     keywords: [
       'makis',
       'sushi',
@@ -62,34 +77,49 @@ export async function generateMetadata(): Promise<Metadata> {
       'rolls',
       'Sugu Rolls',
     ],
-    authors: [{ name: ajustes.nombre || SITE.nombre, url: DOMINIO }],
-    creator: ajustes.nombre || SITE.nombre,
-    publisher: ajustes.nombre || SITE.nombre,
+    authors: [{ name: nombreSitio, url: DOMINIO }],
+    creator: nombreSitio,
+    publisher: nombreSitio,
 
     // canónica de la portada; cada página añade la suya
     alternates: { canonical: '/' },
 
     /*
-     * Sin `index` explícito Google decide solo, pero declararlo evita sustos
-     * si algún proxy mete un `noindex` por defecto. `max-image-preview: large`
-     * es lo que permite que salga la foto grande en los resultados.
+     * Activados por defecto: sin fila en la base (o con Supabase caído),
+     * `traerMetaSitio` ya devuelve `true` para los dos, así que un fallo de
+     * conexión nunca le pide a Google que deje de indexar el sitio.
+     * `max-image-preview: large` es lo que permite que salga la foto grande
+     * en los resultados.
      */
     robots: {
-      index: true,
-      follow: true,
+      index: ajustes.seo_robots_index,
+      follow: ajustes.seo_robots_follow,
       googleBot: {
-        index: true,
-        follow: true,
+        index: ajustes.seo_robots_index,
+        follow: ajustes.seo_robots_follow,
         'max-image-preview': 'large',
         'max-snippet': -1,
       },
+    },
+
+    /*
+     * `/icon.png` y `/favicon.ico` NO son archivos: son rutas de Next
+     * (`src/app/icon.png/route.ts`) que leen el favicon guardado en
+     * `site_settings.seo_favicon` y lo retransmiten. La URL es siempre la
+     * misma aunque el admin reemplace el favicon, que es justo lo que hace
+     * falta para que Google no siga mostrando una versión vieja en caché.
+     */
+    icons: {
+      icon: '/icon.png',
+      shortcut: '/favicon.ico',
+      apple: '/icon.png',
     },
 
     openGraph: {
       type: 'website',
       locale: 'es_PE',
       url: DOMINIO,
-      siteName: ajustes.nombre || SITE.nombre,
+      siteName: nombreSitio,
       title: titulo,
       description: descripcion,
       images: [
@@ -97,7 +127,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: imagen,
           width: 1200,
           height: 630,
-          alt: ajustes.nombre || SITE.nombre,
+          alt: nombreSitio,
         },
       ],
     },
@@ -108,13 +138,6 @@ export async function generateMetadata(): Promise<Metadata> {
       description: descripcion,
       images: [imagen],
     },
-
-    /*
-     * Los iconos NO se declaran aquí: Next los detecta por convención desde
-     * src/app/icon.png y src/app/apple-icon.png, y genera las etiquetas con un
-     * hash en la URL para que un cambio de logo se propague sin caché vieja.
-     * Declararlos a mano además pisaría esa detección.
-     */
 
     /*
      * Verificación de Google Search Console. Se pega aquí el código que da

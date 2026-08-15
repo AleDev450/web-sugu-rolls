@@ -2,8 +2,16 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { borrar, guardarPaquete, listarPaquetes, type PaqueteAdmin } from '@/lib/admin';
+import {
+  borrar,
+  guardarPaquete,
+  listarCategorias,
+  listarPaquetes,
+  type CategoriaAdmin,
+  type PaqueteAdmin,
+} from '@/lib/admin';
 import { SubirImagen } from '@/components/admin/SubirImagen';
+import { GruposSabores } from '@/components/admin/GruposSabores';
 import { soles } from '@/data/productos';
 import {
   Aviso,
@@ -26,10 +34,12 @@ const NUEVO: PaqueteAdmin = {
   mas_pedido: false,
   activo: true,
   orden: 0,
+  grupos: [],
 };
 
 export default function PaquetesAdmin() {
   const [items, setItems] = useState<PaqueteAdmin[] | null>(null);
+  const [categorias, setCategorias] = useState<CategoriaAdmin[]>([]);
   const [edicion, setEdicion] = useState<PaqueteAdmin | null>(null);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
@@ -44,6 +54,12 @@ export default function PaquetesAdmin() {
 
   useEffect(() => {
     void cargar();
+    void listarCategorias()
+      .then((c) => setCategorias(c as CategoriaAdmin[]))
+      .catch(() => {
+        // sin categorías el resto del panel sigue funcionando; solo no se
+        // podrá armar un grupo de sabores nuevo hasta recargar
+      });
   }, []);
 
   const enviar = async (e: FormEvent) => {
@@ -216,6 +232,15 @@ export default function PaquetesAdmin() {
                 }
                 className={claseCampo}
                 placeholder={'40 piezas\n4 sabores a elección\n2 bebidas'}
+              />
+            </Campo>
+
+            <Campo etiqueta="Sabores por categoría (opcional)" ancho="completo">
+              <GruposSabores
+                valor={edicion.grupos}
+                categorias={categorias}
+                piezasPromo={edicion.piezas}
+                alCambiar={(grupos) => setEdicion({ ...edicion, grupos })}
               />
             </Campo>
 

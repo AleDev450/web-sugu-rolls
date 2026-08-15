@@ -46,3 +46,5 @@ Cuando corras una, márcala aquí:
 | `020-extras-con-precio.sql` | Opciones de producto con precio extra (toppings que cobran más) | ☐ |
 | `021-realtime-pedidos.sql` | Habilita el aviso en vivo (timbre + notificación) de pedidos nuevos en el panel | ☐ |
 | `022-metas-seo-y-delivery.sql` | Metas de SEO editables (título, descripción, imagen) y costo de delivery por distancia | ☐ |
+| `023-sabores-en-promociones.sql` | Las promociones pueden pedir elegir sabores reales por categoría, con cupo según las piezas | ☐ |
+| `024-seo-avanzado.sql` | Identidad SEO (nombre, favicon, logo), index/follow, plantilla de título y SEO por página | ☐ |

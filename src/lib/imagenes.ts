@@ -153,3 +153,96 @@ export async function subirImagen(
   const { data } = sb.storage.from('imagenes').getPublicUrl(ruta);
   return { url: data.publicUrl, pesoKB: Math.round(blob.size / 1024) };
 }
+
+// ---------------------------------------------------------------------
+// Favicon y logo: identidad del sitio
+// ---------------------------------------------------------------------
+
+const TIPOS_FAVICON = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+];
+
+export interface ResultadoIdentidad extends ResultadoSubida {
+  ancho: number | null;
+  alto: number | null;
+}
+
+/**
+ * Mide una imagen sin subirla. Devuelve `null` si el navegador no puede
+ * decodificarla —los .ico no son un formato web estándar y no todos los
+ * navegadores saben abrirlos con `createImageBitmap`—, no como error: la
+ * validación de tamaño simplemente se salta para esos casos.
+ */
+async function medirImagen(archivo: File): Promise<{ ancho: number; alto: number } | null> {
+  try {
+    const bitmap = await createImageBitmap(archivo);
+    const medida = { ancho: bitmap.width, alto: bitmap.height };
+    bitmap.close();
+    return medida;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sube el favicon o el logo a una ruta FIJA (`secciones/favicon`,
+ * `secciones/logo`, sin extensión ni sufijo de tiempo) y sobrescribe lo que
+ * hubiera antes (`upsert`).
+ *
+ * A diferencia de `subirImagen`, el archivo NO se recorta ni se recomprime:
+ * un favicon en WebP no lo reconocen todos los navegadores como icono de
+ * pestaña, así que se sube tal cual lo subió el admin, en su formato
+ * original (PNG, JPG, WEBP o ICO).
+ *
+ * La ruta fija es justamente lo que hace posible servirlo desde una URL que
+ * nunca cambia (`/icon.png`, `/favicon.ico`): esas rutas leen siempre el
+ * mismo objeto del almacén, así que reemplazar el favicon no rompe la URL
+ * que Google ya tiene cacheada.
+ */
+export async function subirImagenIdentidad(
+  archivo: File,
+  ruta: 'secciones/favicon' | 'secciones/logo',
+  opciones: { cuadrada?: boolean; ladoMinimo?: number } = {}
+): Promise<ResultadoIdentidad> {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase no está configurado.');
+
+  if (!TIPOS_FAVICON.includes(archivo.type)) {
+    throw new Error('La imagen debe ser PNG, JPG, WEBP o ICO.');
+  }
+  if (archivo.size > MAX_ENTRADA_MB * 1024 * 1024) {
+    throw new Error(`El archivo no puede pasar de ${MAX_ENTRADA_MB} MB.`);
+  }
+
+  const medida = await medirImagen(archivo);
+  if (medida && opciones.cuadrada && medida.ancho !== medida.alto) {
+    throw new Error(`Debe ser una imagen cuadrada (esta mide ${medida.ancho}×${medida.alto} px).`);
+  }
+  if (medida && opciones.ladoMinimo && Math.min(medida.ancho, medida.alto) < opciones.ladoMinimo) {
+    throw new Error(
+      `Muy pequeña: mide ${medida.ancho}×${medida.alto} px y el mínimo recomendado es ${opciones.ladoMinimo}×${opciones.ladoMinimo} px.`
+    );
+  }
+
+  const { error } = await sb.storage.from('imagenes').upload(ruta, archivo, {
+    contentType: archivo.type,
+    // corto: el próximo `/icon.png` debe poder recoger un reemplazo pronto
+    cacheControl: '300',
+    upsert: true,
+  });
+  if (error) throw error;
+
+  const { data } = sb.storage.from('imagenes').getPublicUrl(ruta);
+  // cache-busting SOLO en la URL que queda guardada en la base, para que la
+  // vista previa del panel se refresque sola; `/icon.png` no la usa tal cual
+  return {
+    url: `${data.publicUrl}?v=${Date.now()}`,
+    pesoKB: Math.round(archivo.size / 1024),
+    ancho: medida?.ancho ?? null,
+    alto: medida?.alto ?? null,
+  };
+}
