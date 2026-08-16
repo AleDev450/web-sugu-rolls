@@ -30,6 +30,44 @@ const ETIQUETA_METODO: Record<MetodoPago, string> = {
   tarjeta: 'Tarjeta (enlace de pago)',
 };
 
+type TipoEntrega = 'delivery' | 'recojo';
+
+const TIPOS_ENTREGA: { id: TipoEntrega; label: string }[] = [
+  { id: 'delivery', label: 'Delivery' },
+  { id: 'recojo', label: 'Recojo en tienda' },
+];
+
+/** Delivery o recojo en tienda, igual en el checkout con cuenta y sin ella. */
+function SelectorTipoEntrega({
+  tipo,
+  setTipo,
+}: {
+  tipo: TipoEntrega;
+  setTipo: (t: TipoEntrega) => void;
+}) {
+  return (
+    <div>
+      <span className="mb-2 block text-[13px] font-medium">¿Cómo lo quieres recibir?</span>
+      <div className="flex gap-2">
+        {TIPOS_ENTREGA.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTipo(t.id)}
+            className={`flex-1 rounded-xl border px-3 py-2.5 text-[13px] font-medium transition-colors ${
+              tipo === t.id
+                ? 'border-sugu bg-sugu/10 text-sugu'
+                : 'border-white/15 text-bone-dim hover:border-white/30'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Chips de Yape/Plin/Tarjeta, iguales en el checkout con cuenta y sin ella. */
 function SelectorMetodoPago({
   metodoPago,
@@ -106,6 +144,7 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
   const [abierta, setAbierta] = useState<boolean | null>(null);
   const ajustes = useAjustes();
   const [abierto, setAbierto] = useState(false);
+  const [tipoEntrega, setTipoEntrega] = useState<TipoEntrega>('delivery');
   const [direccion, setDireccion] = useState('');
   const [distrito, setDistrito] = useState<string | null>(null);
   const [deliveryEstimado, setDeliveryEstimado] = useState<number | null>(null);
@@ -113,9 +152,12 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('yape');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hecho, setHecho] = useState<{ id: string; numero: number; metodo: MetodoPago } | null>(
-    null
-  );
+  const [hecho, setHecho] = useState<{
+    id: string;
+    numero: number;
+    metodo: MetodoPago;
+    tipoEntrega: TipoEntrega;
+  } | null>(null);
   const [comprobante, setComprobante] = useState<'falta' | 'subiendo' | 'listo'>('falta');
 
   // solo para quien no tiene cuenta: sin perfil no hay de dónde sacar estos datos
@@ -151,7 +193,9 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
       lineas,
       '',
       `*Subtotal: ${soles(subtotal)}*`,
-      '_El delivery se confirma según mi distrito._',
+      tipoEntrega === 'delivery'
+        ? '_El delivery se confirma según mi distrito._'
+        : '_Paso a recogerlo a la tienda._',
       '',
       ...datosCliente,
       `*Método de pago:* ${ETIQUETA_METODO[metodoPago]}`,
@@ -195,7 +239,7 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
           cantidad: i.cantidad,
           opciones: aplanarOpciones(i.opciones),
         })),
-        direccion,
+        tipoEntrega === 'delivery' ? direccion : 'Recojo en tienda',
         nota,
         metodoPago
       );
@@ -203,16 +247,18 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
       const mensaje = construirMensaje(
         `¡Hola ${ajustes?.nombre ?? SITE.nombre}! Acabo de registrar el pedido #${numero} en la web 🍣`,
         [
-          `*Dirección:* ${direccion}`,
-          distrito ? `*Distrito:* ${distrito}` : false,
-          deliveryEstimado != null ? `*Delivery estimado:* ${soles(deliveryEstimado)} (referencial)` : false,
+          tipoEntrega === 'delivery' ? `*Dirección:* ${direccion}` : '*Tipo de pedido:* Recojo en tienda',
+          tipoEntrega === 'delivery' && distrito ? `*Distrito:* ${distrito}` : false,
+          tipoEntrega === 'delivery' && deliveryEstimado != null
+            ? `*Delivery estimado:* ${soles(deliveryEstimado)} (referencial)`
+            : false,
           nota && `*Nota:* ${nota}`,
         ]
       );
 
       window.open(whatsappUrl(mensaje, ajustes?.whatsapp), '_blank', 'noopener,noreferrer');
 
-      setHecho({ id, numero, metodo: metodoPago });
+      setHecho({ id, numero, metodo: metodoPago, tipoEntrega });
       alConfirmarPedido?.();
       vaciar();
     } catch {
@@ -230,14 +276,21 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
    * tarea de escribir él mismo sus datos dentro del chat.
    */
   const confirmarInvitado = () => {
-    if (!nombreInvitado.trim() || !telefonoInvitado.trim() || !direccion.trim()) return;
+    if (
+      !nombreInvitado.trim() ||
+      !telefonoInvitado.trim() ||
+      (tipoEntrega === 'delivery' && !direccion.trim())
+    )
+      return;
 
     const mensaje = construirMensaje(`¡Hola ${ajustes?.nombre ?? SITE.nombre}! Quisiera hacer un pedido 🍣`, [
       `*Nombre:* ${nombreInvitado}`,
       `*Teléfono:* ${telefonoInvitado}`,
-      `*Dirección:* ${direccion}`,
-      distrito ? `*Distrito:* ${distrito}` : false,
-      deliveryEstimado != null ? `*Delivery estimado:* ${soles(deliveryEstimado)} (referencial)` : false,
+      tipoEntrega === 'delivery' ? `*Dirección:* ${direccion}` : '*Tipo de pedido:* Recojo en tienda',
+      tipoEntrega === 'delivery' && distrito ? `*Distrito:* ${distrito}` : false,
+      tipoEntrega === 'delivery' && deliveryEstimado != null
+        ? `*Delivery estimado:* ${soles(deliveryEstimado)} (referencial)`
+        : false,
       nota && `*Nota:* ${nota}`,
     ]);
 
@@ -267,8 +320,17 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
       <div className="rounded-2xl border border-emerald-600/40 bg-emerald-600/10 p-5 text-[13px] leading-relaxed">
         <p className="font-bold text-emerald-400">Pedido #{hecho.numero} registrado</p>
         <p className="mt-2 text-bone-dim">
-          El <b className="text-white">costo del delivery se evalúa según tu distrito</b> y te lo
-          confirmamos por WhatsApp junto con el total a pagar.
+          {hecho.tipoEntrega === 'delivery' ? (
+            <>
+              El <b className="text-white">costo del delivery se evalúa según tu distrito</b> y te
+              lo confirmamos por WhatsApp junto con el total a pagar.
+            </>
+          ) : (
+            <>
+              Te confirmamos por WhatsApp cuándo está listo para{' '}
+              <b className="text-white">recoger en tienda</b>.
+            </>
+          )}
         </p>
 
         {/*
@@ -410,16 +472,20 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
           />
         </label>
 
-        <label className="block">
-          <span className="mb-2 block text-[13px] font-medium">Dirección de entrega</span>
-          <CampoDireccion
-            value={direccion}
-            onChange={setDireccion}
-            onLugar={(l) => void elegirLugar(l)}
-            className={campoClase}
-          />
-          <EstimadoDelivery distrito={distrito} monto={deliveryEstimado} />
-        </label>
+        <SelectorTipoEntrega tipo={tipoEntrega} setTipo={setTipoEntrega} />
+
+        {tipoEntrega === 'delivery' && (
+          <label className="block">
+            <span className="mb-2 block text-[13px] font-medium">Dirección de entrega</span>
+            <CampoDireccion
+              value={direccion}
+              onChange={setDireccion}
+              onLugar={(l) => void elegirLugar(l)}
+              className={campoClase}
+            />
+            <EstimadoDelivery distrito={distrito} monto={deliveryEstimado} />
+          </label>
+        )}
 
         <label className="block">
           <span className="mb-2 block text-[13px] font-medium">Nota (opcional)</span>
@@ -435,7 +501,11 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
 
         <button
           onClick={confirmarInvitado}
-          disabled={!nombreInvitado.trim() || !telefonoInvitado.trim() || !direccion.trim()}
+          disabled={
+            !nombreInvitado.trim() ||
+            !telefonoInvitado.trim() ||
+            (tipoEntrega === 'delivery' && !direccion.trim())
+          }
           className="btn-primary w-full disabled:pointer-events-none disabled:opacity-50"
         >
           Continuar por WhatsApp
@@ -453,16 +523,20 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
 
   return (
     <div className="space-y-3">
-      <label className="block">
-        <span className="mb-2 block text-[13px] font-medium">Dirección de entrega</span>
-        <CampoDireccion
-          value={direccion}
-          onChange={setDireccion}
-          onLugar={(l) => void elegirLugar(l)}
-          className={campoClase}
-        />
-        <EstimadoDelivery distrito={distrito} monto={deliveryEstimado} />
-      </label>
+      <SelectorTipoEntrega tipo={tipoEntrega} setTipo={setTipoEntrega} />
+
+      {tipoEntrega === 'delivery' && (
+        <label className="block">
+          <span className="mb-2 block text-[13px] font-medium">Dirección de entrega</span>
+          <CampoDireccion
+            value={direccion}
+            onChange={setDireccion}
+            onLugar={(l) => void elegirLugar(l)}
+            className={campoClase}
+          />
+          <EstimadoDelivery distrito={distrito} monto={deliveryEstimado} />
+        </label>
+      )}
 
       <label className="block">
         <span className="mb-2 block text-[13px] font-medium">Nota (opcional)</span>
@@ -480,7 +554,7 @@ export function Checkout({ alConfirmarPedido }: { alConfirmarPedido?: () => void
 
       <button
         onClick={() => void confirmar()}
-        disabled={enviando || !direccion.trim()}
+        disabled={enviando || (tipoEntrega === 'delivery' && !direccion.trim())}
         className="btn-primary w-full disabled:pointer-events-none disabled:opacity-50"
       >
         {enviando ? 'Registrando…' : 'Confirmar pedido'}

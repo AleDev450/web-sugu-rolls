@@ -341,6 +341,38 @@ export async function responderReclamo(
   if (error) throw error;
 }
 
+// ---------- trabaja con nosotros ----------
+
+export interface PostulacionAdmin {
+  id: string;
+  nombre: string;
+  correo: string;
+  telefono: string;
+  puesto: string | null;
+  mensaje: string | null;
+  /** ruta del CV en el bucket privado `cv-postulantes` */
+  cv_path: string;
+  creado: string;
+}
+
+export async function listarPostulaciones(): Promise<PostulacionAdmin[]> {
+  const { data, error } = await sb().rpc('admin_postulaciones', { p_limit: 300 });
+  if (error) throw error;
+  return (data ?? []) as PostulacionAdmin[];
+}
+
+/**
+ * Enlace temporal para descargar un CV.
+ *
+ * El bucket es privado —son datos personales de postulantes— así que no hay
+ * URL fija: se firma una que caduca en cinco minutos cada vez que se abre.
+ */
+export async function verCV(ruta: string): Promise<string> {
+  const { data, error } = await sb().storage.from('cv-postulantes').createSignedUrl(ruta, 300);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
 // ---------- secciones de las páginas ----------
 
 export interface SeccionAdmin {

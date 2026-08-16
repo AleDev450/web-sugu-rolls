@@ -328,9 +328,13 @@ function Panel({
           </Campo>
           <Campo etiqueta="Teléfono">
             <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               value={datos.phone}
               onChange={(e) => setDatos({ ...datos, phone: e.target.value })}
               className="campo-perfil"
+              placeholder="999 123 456"
             />
           </Campo>
           <Campo etiqueta="Dirección de entrega">

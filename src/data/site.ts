@@ -82,6 +82,7 @@ export const FOOTER_LINKS = {
     { label: 'Promociones', href: '/promociones' },
     { label: 'Catering', href: '/catering' },
     { label: 'Juega y gana', href: '/juego' },
+    { label: 'Trabaja con nosotros', href: '/trabaja-con-nosotros' },
   ],
   ayuda: [
     { label: 'Zonas de delivery', href: '/contacto' },

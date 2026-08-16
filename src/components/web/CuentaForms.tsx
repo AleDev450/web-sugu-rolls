@@ -205,6 +205,7 @@ export function FormRegistro({ alEntrar }: { alEntrar: () => void }) {
       <Campo etiqueta="Teléfono">
         <input
           type="tel"
+          inputMode="tel"
           required
           value={d.telefono}
           onChange={(e) => setD({ ...d, telefono: e.target.value.replace(/[^\d+\s-]/g, '') })}

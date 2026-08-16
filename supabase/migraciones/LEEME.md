@@ -48,3 +48,5 @@ Cuando corras una, márcala aquí:
 | `022-metas-seo-y-delivery.sql` | Metas de SEO editables (título, descripción, imagen) y costo de delivery por distancia | ☐ |
 | `023-sabores-en-promociones.sql` | Las promociones pueden pedir elegir sabores reales por categoría, con cupo según las piezas | ☐ |
 | `024-seo-avanzado.sql` | Identidad SEO (nombre, favicon, logo), index/follow, plantilla de título y SEO por página | ☐ |
+| `025-quitar-techo-de-puntaje.sql` | Quita el límite de puntaje según el tiempo jugado en el juego | ☐ |
+| `026-trabaja-con-nosotros.sql` | Postulaciones públicas con CV adjunto, descargables desde el panel | ☐ |

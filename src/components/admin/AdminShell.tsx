@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   BookOpen,
   Boxes,
+  Briefcase,
   ExternalLink,
   FileText,
   Globe,
@@ -33,6 +34,7 @@ const MENU = [
   { href: '/admin/pedidos', label: 'Pedidos', icono: ShoppingBag },
   { href: '/admin/usuarios', label: 'Usuarios', icono: Users },
   { href: '/admin/reclamos', label: 'Reclamaciones', icono: BookOpen },
+  { href: '/admin/postulaciones', label: 'Trabaja con nosotros', icono: Briefcase },
   { href: '/admin/paginas', label: 'Páginas', icono: FileText },
   { href: '/admin/slider', label: 'Slider', icono: Images },
   { href: '/admin/categorias', label: 'Categorías', icono: Tags },
