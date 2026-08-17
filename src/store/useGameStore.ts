@@ -78,7 +78,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       return { status: 'gameover', lives: 0 };
     }),
 
-  reset: () => set({ status: 'idle', combo: 0 }),
+  /**
+   * Vuelve al menú DESCARTANDO la partida.
+   *
+   * El puntaje se pone a cero aquí y no solo en `start()`: mientras no lo
+   * hiciera, quedaba un estado intermedio ('idle' con el puntaje de la partida
+   * anterior) del que se podía volver a 'playing' sin pasar por `start()` —
+   * tablero vacío, puntaje viejo. Una partida abandonada no vale nada, así que
+   * el marcador muere con ella. `best` no se toca: es histórico.
+   */
+  reset: () => set({ status: 'idle', score: 0, combo: 0, lastMergeAt: 0 }),
 
   addScore: (points) =>
     set((s) => {

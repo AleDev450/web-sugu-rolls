@@ -51,9 +51,14 @@ export default function Page() {
     reset();
     // Dentro del click, para que el navegador permita el autoplay.
     startMusic();
-    // `reset()` deja el status en 'idle'; el motor limpia el tablero al verlo
-    // y `start()` en el siguiente tick arranca con el tablero ya vacío.
-    requestAnimationFrame(() => start());
+    /*
+     * Sin `requestAnimationFrame`: el motor ya limpia el tablero al entrar en
+     * partida venga de donde venga (menú o game over), así que no hace falta
+     * pasar por un frame intermedio. Ese salto era además una carrera — si la
+     * pestaña se ocultaba justo ahí, el frame no llegaba y `start()` se
+     * quedaba sin ejecutar.
+     */
+    start();
   };
 
   const toMenu = () => {

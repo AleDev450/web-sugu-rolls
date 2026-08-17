@@ -65,6 +65,17 @@ export const VIP = {
   standX: 96,
   standY: DESIGN.height - 52,
 
+  /**
+   * Tope del multiplicador de poderes (RJ × Fever × Festival).
+   *
+   * 2026-08-17: los tres se acumulaban sin límite y daban 2 × 1.5 × 2 = 6x,
+   * que encima se multiplicaba por el combo. Justo durante el festival —el
+   * momento en el que más se encadena— coincidían los tres. Con el tope en 3
+   * siguen mereciendo la pena y siguen sumándose entre ellos, pero el techo
+   * deja de dispararse.
+   */
+  maxScoreMul: 3,
+
   powers: {
     koyaMs: 8_000,
     koyaGravityMul: 0.45,
@@ -88,8 +99,17 @@ export const VIP = {
     /** "la velocidad aumenta ligeramente" */
     gravityMul: 1.12,
     musicRate: 1.12,
-    /** pesos de spawn cargados a tiers altos (más comida de alto nivel) */
-    spawnWeights: [10, 22, 30, 38] as const,
+    /**
+     * Pesos de spawn cargados a tiers altos (más comida de alto nivel).
+     *
+     * 2026-08-17: [10, 22, 30, 38] -> [24, 30, 30, 16]. El reparto anterior
+     * era una manguera de temaki justo en los 20 s en los que todo puntúa
+     * doble: se encadenaban cascadas enteras sin construir nada. Sigue siendo
+     * bastante mejor que el reparto normal —el temaki más que dobla su
+     * probabilidad— pero ahora el festival premia al que llega con la pila
+     * bien montada, no al que espera que le caiga hecho.
+     */
+    spawnWeights: [24, 30, 30, 16] as const,
     /** ms entre ráfagas de confeti del renderer */
     confettiEveryMs: 700,
     /** pausa tras el festival antes de que vuelvan los clientes */

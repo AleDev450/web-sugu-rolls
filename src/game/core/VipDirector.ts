@@ -94,13 +94,13 @@ export class VipDirector {
 
   // ---------- lo que el motor consulta cada frame ----------
 
-  /** Multiplicador de puntos vigente (RJ × Fever × Festival). */
+  /** Multiplicador de puntos vigente (RJ × Fever × Festival), con tope. */
   scoreMultiplier(): number {
     let m = 1;
     if (this.fx.rjMs > 0) m *= VIP.powers.rjMul;
     if (this.fx.feverMs > 0) m *= VIP.powers.feverMul;
     if (this.festivalMs > 0) m *= VIP.festival.scoreMul;
-    return m;
+    return Math.min(VIP.maxScoreMul, m);
   }
 
   /** Factor sobre la gravedad base (KOYA la baja, el festival la sube). */

@@ -62,6 +62,19 @@ export const RULES = {
   /** ms que dura la ventana de combo */
   comboWindowMs: 1500,
   /**
+   * Multiplicador por encadenar fusiones: cada eslabón suma `comboStep` y el
+   * total se corta en `comboMaxMul`.
+   *
+   * 2026-08-17: antes era `1 + (combo-1) * 0.5` SIN TOPE. En una cascada de
+   * festival se encadenan quince o veinte fusiones sin despeinarse, así que el
+   * factor llegaba a 10x y se multiplicaba encima por los poderes: una sola
+   * pieza podía pagar decenas de miles de puntos y las partidas se iban al
+   * millón. Ahora el tope se alcanza a los 7 encadenados y de ahí no sube:
+   * encadenar sigue siendo lo más rentable, pero deja de ser infinito.
+   */
+  comboStep: 0.35,
+  comboMaxMul: 3,
+  /**
    * Premio por juntar dos Sugu Supreme. Es la jugada más difícil del juego:
    * hay que completar dos cadenas enteras teniéndolas a la vez en el tablero,
    * ocupando sitio. Crear UN supreme da 550.

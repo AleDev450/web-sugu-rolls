@@ -177,7 +177,18 @@ export const MAX_TIER = TIERS.length - 1;
 
 /** Solo los primeros tiers caen desde arriba. */
 export const SPAWN_MAX_TIER = 3;
-export const SPAWN_WEIGHTS = [34, 28, 22, 16];
+
+/**
+ * Probabilidad de que caiga cada tier (onigiri, gyoza, hosomaki, temaki).
+ *
+ * 2026-08-17: [34, 28, 22, 16] -> [46, 30, 17, 7]. Con el reparto anterior
+ * casi la mitad de las fichas ya venían medio hechas y las cadenas se
+ * resolvían solas; el temaki, que es el escalón que abre los pedidos de los
+ * clientes, salía una de cada seis veces. Ahora la mayoría de lo que cae es
+ * onigiri y gyoza: el tablero sube de nivel porque LO FUSIONAS, no porque te
+ * lo regalen. La suma no tiene por qué dar 100, `rollSpawnTier` normaliza.
+ */
+export const SPAWN_WEIGHTS = [46, 30, 17, 7];
 
 export function rollSpawnTier(
   rand: () => number = Math.random,

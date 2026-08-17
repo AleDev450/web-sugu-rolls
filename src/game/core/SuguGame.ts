@@ -84,9 +84,17 @@ export class SuguGame {
 
     this.renderer.setDanger(false);
     this.bindInput();
+    this.descartarPartidaHuerfana();
 
     this.unsubStatus = useGameStore.subscribe((s, prev) => {
-      if (s.status === 'playing' && prev.status === 'idle') this.onStart();
+      /*
+       * Se entra en partida desde el menú Y desde el game over: si solo se
+       * mirara 'idle', volver a jugar tras perder dejaba el tablero anterior
+       * en pie y el director sin reiniciar.
+       */
+      if (s.status === 'playing' && prev.status !== 'playing' && prev.status !== 'paused') {
+        this.onStart();
+      }
       if (s.status === 'idle' && prev.status !== 'idle') {
         this.clearBoard();
         this.director.endRun();
@@ -103,6 +111,27 @@ export class SuguGame {
     this.unbindInput();
     this.physics?.destroy();
     this.renderer.destroy();
+  }
+
+  /**
+   * Tira la partida que quedó colgando de un montaje anterior.
+   *
+   * Los dos stores (juego y VIP) son singletons de módulo: viven fuera del
+   * canvas y SOBREVIVEN a salir de /juego y volver. El motor, en cambio, se
+   * reconstruye entero — física nueva, tablero vacío. Sin esto el store seguía
+   * diciendo 'playing' con el puntaje y el festival de antes, y como el status
+   * nunca cambiaba la suscripción tampoco disparaba `onStart()`: se seguía
+   * jugando sobre un tablero limpio conservando la puntuación. O sea, salir y
+   * volver era un "reinicio gratis" que dejaba farmear puntos sin límite.
+   *
+   * Una partida sin su tablero no se puede continuar, así que se descarta y se
+   * vuelve al menú. El récord no se pierde: `best` es histórico y va aparte.
+   */
+  private descartarPartidaHuerfana() {
+    const st = useGameStore.getState();
+    if (st.status === 'playing' || st.status === 'paused') st.reset();
+    // el espejo VIP también persiste: dejaba el festival encendido al volver
+    this.director.endRun();
   }
 
   // ---------- ciclo ----------
@@ -284,7 +313,10 @@ export class SuguGame {
     const tier = tierAt(e.newTier);
     const combo = store.registerMerge(e.newTier);
 
-    const bonus = 1 + Math.max(0, combo - 1) * 0.5;
+    const bonus = Math.min(
+      RULES.comboMaxMul,
+      1 + Math.max(0, combo - 1) * RULES.comboStep
+    );
     // RJ (x2), Fever de TATA y el festival multiplican los puntos
     const gained = Math.round(tier.points * bonus * this.director.scoreMultiplier());
     store.addScore(gained);
