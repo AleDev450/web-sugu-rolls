@@ -523,6 +523,38 @@ export async function listarPartidas(
   });
 }
 
+/**
+ * Corrige a mano el puntaje de UNA partida.
+ *
+ * Es la salida para una anomalía puntual: antes, el único botón disponible
+ * era resetear el ranking entero y con él se iban también las partidas
+ * buenas. El código canjeado no se toca — sigue marcado como usado.
+ */
+export async function editarPuntaje(sesionId: string, puntaje: number): Promise<number> {
+  const { data, error } = await sb().rpc('admin_editar_puntaje', {
+    p_session: sesionId,
+    p_score: puntaje,
+  });
+  if (error) throw new Error(mensajePartida(error.message));
+  return Number(data ?? puntaje);
+}
+
+/** Saca una partida del ranking. El código sigue gastado, no se libera. */
+export async function borrarPartida(sesionId: string): Promise<void> {
+  const { error } = await sb().rpc('admin_borrar_partida', { p_session: sesionId });
+  if (error) throw new Error(mensajePartida(error.message));
+}
+
+function mensajePartida(mensaje: string): string {
+  if (mensaje.includes('PUNTAJE_INVALIDO')) return 'El puntaje debe estar entre 0 y 10 000 000.';
+  if (mensaje.includes('PARTIDA_NO_EXISTE')) return 'Esa partida ya no existe. Actualiza la lista.';
+  if (mensaje.includes('NO_AUTORIZADO')) return 'Tu cuenta no tiene permiso para esto.';
+  if (mensaje.includes('Could not find the function')) {
+    return 'Falta ejecutar la migración 027 en Supabase.';
+  }
+  return mensaje;
+}
+
 // ---------- slider de portada ----------
 
 export interface SlideAdmin {

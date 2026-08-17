@@ -50,3 +50,4 @@ Cuando corras una, márcala aquí:
 | `024-seo-avanzado.sql` | Identidad SEO (nombre, favicon, logo), index/follow, plantilla de título y SEO por página | ☐ |
 | `025-quitar-techo-de-puntaje.sql` | Quita el límite de puntaje según el tiempo jugado en el juego | ☐ |
 | `026-trabaja-con-nosotros.sql` | Postulaciones públicas con CV adjunto, descargables desde el panel | ☐ |
+| `027-editar-y-borrar-partidas.sql` | Corregir el puntaje de una partida o borrarla del ranking, sin resetearlo entero | ☐ |

@@ -1,18 +1,44 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, RefreshCw, Trash2 } from 'lucide-react';
-import { listarPartidas, resetearRanking, type PartidaAdmin } from '@/lib/admin';
+import { Download, Pencil, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  borrarPartida,
+  editarPuntaje,
+  listarPartidas,
+  resetearRanking,
+  type PartidaAdmin,
+} from '@/lib/admin';
 import {
   Aviso,
   Cargando,
   ConfirmarPeligro,
   Encabezado,
   Interruptor,
+  Modal,
+  claseCampo,
 } from '@/components/admin/ui';
 
 /** Medallas de los tres primeros puestos. */
 const PODIO = ['🥇', '🥈', '🥉'];
+
+/** Una línea del resumen de la partida en el modal de revisión. */
+function Dato({
+  etiqueta,
+  valor,
+  alerta = false,
+}: {
+  etiqueta: string;
+  valor: string;
+  alerta?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-[11px] uppercase tracking-widest text-white/35">{etiqueta}</dt>
+      <dd className={`mt-1 text-[14px] ${alerta ? 'font-bold text-sugu' : ''}`}>{valor}</dd>
+    </div>
+  );
+}
 
 /**
  * Puntos por minuto de partida.
@@ -45,6 +71,13 @@ export default function RankingAdmin() {
   const [reseteando, setReseteando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
 
+  // partida abierta para revisar, y la que está esperando confirmación de borrado
+  const [revisar, setRevisar] = useState<PartidaAdmin | null>(null);
+  const [nuevoPuntaje, setNuevoPuntaje] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [aBorrar, setABorrar] = useState<PartidaAdmin | null>(null);
+  const [borrando, setBorrando] = useState(false);
+
   const cargar = async (terminadas: boolean) => {
     setItems(null);
     try {
@@ -71,6 +104,52 @@ export default function RankingAdmin() {
     } finally {
       setReseteando(false);
       setConfirmar(false);
+    }
+  };
+
+  const abrirRevision = (p: PartidaAdmin) => {
+    setRevisar(p);
+    setNuevoPuntaje(p.score === null ? '' : String(p.score));
+  };
+
+  const guardarPuntaje = async () => {
+    if (!revisar) return;
+    const valor = Number(nuevoPuntaje);
+    if (!Number.isFinite(valor) || valor < 0) {
+      setAviso({ tipo: 'error', texto: 'Escribe un puntaje válido.' });
+      return;
+    }
+    setGuardando(true);
+    try {
+      await editarPuntaje(revisar.id, Math.round(valor));
+      setAviso({
+        tipo: 'ok',
+        texto: `Puntaje de ${revisar.nickname ?? 'la partida'} corregido a ${Math.round(valor).toLocaleString('es')}.`,
+      });
+      setRevisar(null);
+      void cargar(soloTerminadas);
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const eliminar = async () => {
+    if (!aBorrar) return;
+    setBorrando(true);
+    try {
+      await borrarPartida(aBorrar.id);
+      setAviso({
+        tipo: 'ok',
+        texto: `Partida de ${aBorrar.nickname ?? 'jugador anónimo'} eliminada del ranking.`,
+      });
+      setABorrar(null);
+      void cargar(soloTerminadas);
+    } catch (e) {
+      setAviso({ tipo: 'error', texto: (e as Error).message });
+    } finally {
+      setBorrando(false);
     }
   };
 
@@ -156,7 +235,7 @@ export default function RankingAdmin() {
         <Cargando />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-white/10">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1020px] text-left text-sm">
             <thead className="border-b border-white/10 bg-night-soft">
               <tr className="text-[11px] uppercase tracking-widest text-bone-dim">
                 <th className="p-4">#</th>
@@ -168,6 +247,7 @@ export default function RankingAdmin() {
                 <th className="p-4">Código</th>
                 <th className="p-4">Código creado</th>
                 <th className="p-4">Jugada</th>
+                <th className="p-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -219,6 +299,26 @@ export default function RankingAdmin() {
                   </td>
                   <td className="p-4 text-bone-dim">{fecha(p.codigo_creado)}</td>
                   <td className="p-4 text-bone-dim">{fecha(p.finished_at ?? p.started_at)}</td>
+                  <td className="p-4">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => abrirRevision(p)}
+                        className="rounded-lg border border-white/15 p-2 transition-colors hover:border-white/40"
+                        aria-label={`Revisar la partida de ${p.nickname ?? 'jugador anónimo'}`}
+                        title="Revisar y corregir el puntaje"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setABorrar(p)}
+                        className="rounded-lg border border-white/15 p-2 text-bone-dim transition-colors hover:border-sugu hover:text-sugu"
+                        aria-label={`Eliminar la partida de ${p.nickname ?? 'jugador anónimo'}`}
+                        title="Eliminar del ranking"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -231,6 +331,110 @@ export default function RankingAdmin() {
           )}
         </div>
       )}
+
+      {/*
+        Revisión de UNA partida. El puntaje se corrige aquí en vez de tener que
+        resetear el ranking entero, que era la única salida y se llevaba por
+        delante también las partidas buenas.
+      */}
+      <Modal
+        abierto={revisar !== null}
+        titulo="Revisar partida"
+        alCerrar={() => setRevisar(null)}
+      >
+        {revisar && (
+          <div className="space-y-6 text-sm">
+            <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+              <Dato etiqueta="Nickname" valor={revisar.nickname ?? '—'} />
+              <Dato etiqueta="Nombre" valor={revisar.full_name ?? '—'} />
+              <Dato etiqueta="Teléfono" valor={revisar.phone ?? '—'} />
+              <Dato etiqueta="Código" valor={revisar.codigo ?? '—'} />
+              <Dato etiqueta="Jugada" valor={fecha(revisar.finished_at ?? revisar.started_at)} />
+              <Dato
+                etiqueta="Ritmo"
+                valor={
+                  ritmo(revisar) === null
+                    ? '—'
+                    : `${ritmo(revisar)!.toLocaleString('es')} p/min`
+                }
+                alerta={(ritmo(revisar) ?? 0) > RITMO_SOSPECHOSO}
+              />
+            </dl>
+
+            <label className="block border-t border-white/10 pt-5">
+              <span className="mb-2 block text-[13px] font-medium">Puntaje</span>
+              <input
+                type="number"
+                min={0}
+                max={10000000}
+                value={nuevoPuntaje}
+                onChange={(e) => setNuevoPuntaje(e.target.value)}
+                className={`${claseCampo} font-mono tabular-nums`}
+              />
+              <span className="mt-1.5 block text-[11px] text-white/40">
+                Se guarda tal cual lo escribas. La fecha de la partida no cambia, así que el
+                ritmo por minuto se recalcula solo con el nuevo valor.
+              </span>
+            </label>
+
+            <div className="flex flex-wrap justify-between gap-3">
+              <button
+                onClick={() => {
+                  setABorrar(revisar);
+                  setRevisar(null);
+                }}
+                className="btn-ghost !text-sugu"
+              >
+                <Trash2 className="h-4 w-4" />
+                Eliminar del ranking
+              </button>
+
+              <div className="flex gap-3">
+                <button onClick={() => setRevisar(null)} className="btn-ghost">
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => void guardarPuntaje()}
+                  disabled={guardando}
+                  className="btn-primary disabled:pointer-events-none disabled:opacity-40"
+                >
+                  {guardando ? 'Guardando…' : 'Guardar puntaje'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmarPeligro
+        abierto={aBorrar !== null}
+        titulo="Eliminar partida"
+        textoBoton="Eliminar partida"
+        trabajando={borrando}
+        alCerrar={() => setABorrar(null)}
+        alConfirmar={eliminar}
+        descripcion={
+          <>
+            <p>
+              Se borra la partida de{' '}
+              <b>{aBorrar?.nickname ?? 'jugador anónimo'}</b>
+              {aBorrar?.score != null && (
+                <>
+                  {' '}
+                  con <b>{aBorrar.score.toLocaleString('es')}</b> puntos
+                </>
+              )}
+              . Desaparece de aquí y del ranking que ven los jugadores.
+            </p>
+            <p className="mt-3">
+              El código <b>{aBorrar?.codigo ?? '—'}</b> sigue marcado como usado: nadie podrá
+              volver a jugar con él. Si además quieres liberarlo, bórralo desde{' '}
+              <b>Códigos del juego</b>.
+            </p>
+            <p className="mt-3">Esto no se puede deshacer.</p>
+          </>
+        }
+      />
 
       <ConfirmarPeligro
         abierto={confirmar}
