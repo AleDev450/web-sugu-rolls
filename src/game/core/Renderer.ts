@@ -30,11 +30,16 @@ const SPRITE_SCALE = 1.05;
 /**
  * Interruptor maestro de la vista de colliders (los círculos verdes).
  *
- * En false no se enciende por nada: ni con la tecla D, ni con `?debug` en la
- * URL, ni desde el muestrario. Ponlo en true cuando toque volver a ajustar
- * los `hitScale` de `tiers.ts` y todo vuelve a funcionar.
+ * En false no se enciende por nada: ni con Ctrl+D, ni con `?debug` en la URL,
+ * ni desde el muestrario.
+ *
+ * 2026-08-18: estaba en false porque el atajo era la tecla `D` a secas y
+ * cualquiera la pulsaba sin querer mientras jugaba. Ahora el atajo es Ctrl+D,
+ * que nadie teclea por accidente, así que se puede dejar encendido: sirve para
+ * comprobar de un vistazo que los `hitScale` de `tiers.ts` siguen calzando
+ * después de mover `ESCALA_PIEZAS`.
  */
-const DEBUG_COLISIONES = false;
+const DEBUG_COLISIONES = true;
 
 export class Renderer {
   app!: Application;
@@ -502,8 +507,16 @@ export class Renderer {
     if (!this.debug) this.debugGfx.clear();
   }
 
+  /**
+   * Ctrl+D (o Cmd+D en Mac) enciende y apaga los colliders.
+   *
+   * Hay que cortar el evento: en todos los navegadores ese atajo abre el
+   * diálogo de "añadir a marcadores", que taparía justo lo que se quiere ver.
+   */
   private alTeclear = (e: KeyboardEvent) => {
     if (e.key !== 'd' && e.key !== 'D') return;
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
     this.debug = !this.debug;
     if (!this.debug) this.debugGfx.clear();
   };

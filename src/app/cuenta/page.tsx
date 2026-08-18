@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Inbox, LogOut, Package, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowDown, Inbox, LogOut, Package, UserRound } from 'lucide-react';
 import { Header } from '@/components/web/Header';
 import { Footer } from '@/components/web/Footer';
 import { Cart } from '@/components/web/Cart';
@@ -177,6 +177,24 @@ function Panel({
   const abrirCarrito = useCartStore((s) => s.abrir);
   const [guardado, setGuardado] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const campoTelefono = useRef<HTMLInputElement>(null);
+
+  /**
+   * Lleva al campo de teléfono desde el aviso de arriba.
+   *
+   * El aviso decía "complétalo abajo, en Mis datos" y dejaba al cliente
+   * buscándolo a mano: en móvil queda a varias pantallas de scroll, debajo de
+   * la tarjeta, los canjes y toda la lista de pedidos. Ahora el aviso es el
+   * botón que lleva hasta él y lo deja enfocado, listo para escribir.
+   */
+  const irAlTelefono = () => {
+    const input = campoTelefono.current;
+    if (!input) return;
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // el foco va tras el desplazamiento: enfocar antes provoca un salto seco
+    // en móvil, porque el teclado se abre y recoloca la página a mitad de camino
+    window.setTimeout(() => input.focus({ preventScroll: true }), 450);
+  };
 
   const guardar = async () => {
     setGuardando(true);
@@ -217,10 +235,16 @@ function Panel({
         enterrado en "Mis datos".
       */}
       {!datos.phone.trim() && (
-        <p className="mt-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-[13px] leading-relaxed text-amber-300">
-          Falta tu <b>teléfono</b> para poder entregarte los pedidos. Complétalo abajo, en{' '}
-          <b>Mis datos</b>.
-        </p>
+        <button
+          onClick={irAlTelefono}
+          className="mt-6 flex w-full items-center gap-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-left text-[13px] leading-relaxed text-amber-300 transition-colors hover:border-amber-500/70 hover:bg-amber-500/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+        >
+          <span className="flex-1">
+            Falta tu <b>teléfono</b> para poder entregarte los pedidos.{' '}
+            <span className="underline underline-offset-4">Toca aquí para completarlo</span>.
+          </span>
+          <ArrowDown className="h-4 w-4 flex-none" aria-hidden />
+        </button>
       )}
 
       {/*
@@ -328,6 +352,7 @@ function Panel({
           </Campo>
           <Campo etiqueta="Teléfono">
             <input
+              ref={campoTelefono}
               type="tel"
               inputMode="tel"
               autoComplete="tel"

@@ -6,7 +6,9 @@
  * aunque cambie el tamaño de pantalla.
  *
  * 2026-07-31: radios subidos ~22% (los productos se veían muy pequeños).
- * Para agrandar/achicar más, tocar solo estos números.
+ * Para agrandar/achicar TODA la cadena a la vez, tocar `ESCALA_PIEZAS`; los
+ * números de aquí abajo son las proporciones de diseño y no hace falta
+ * moverlos salvo que se quiera cambiar una pieza suelta respecto al resto.
  *
  * `sprite` apunta a una clave del manifest de assets. Mientras la imagen no
  * exista, el renderer dibuja el fallback procedural con `palette`.
@@ -56,13 +58,39 @@ export interface Tier {
   };
 }
 
+/**
+ * Cuánto se agrandan TODAS las piezas respecto al tamaño de diseño original.
+ *
+ * 2026-08-18: 1 -> 1.15 -> 1.25. Las partidas duraban demasiado: con las
+ * piezas pequeñas cabía tanto en la caja que llenarla costaba muchísimo. Lo
+ * que importa no es el radio sino la superficie, que va al cuadrado: con 1.25
+ * cada pieza ocupa un 56% más que al principio, así que en la caja entran
+ * ~36% menos piezas y la línea de peligro llega bastante antes.
+ *
+ * Es el único número que hay que tocar para ajustar la duración: sube para
+ * partidas más cortas, baja para más largas. Mantiene las proporciones de toda
+ * la cadena, que están pensadas para que cada escalón se note.
+ *
+ * EFECTO EN LA PUNTA DE LA CADENA. Las dos piezas más grandes dejan de caber
+ * lado a lado en los 380px de la caja: el Supreme a partir de ~1.08 y el Sugu
+ * Especial a partir de ~1.10. No rompe nada —dos iguales siguen fusionando al
+ * tocarse, apilada una sobre otra— pero a partir de ahí la punta de la cadena
+ * se juega en vertical y empuja la pila hacia arriba mucho más rápido. Es
+ * parte de por qué las partidas se acortan; si algún día se quiere revertir
+ * solo eso, bajar `ESCALA_PIEZAS` por debajo de 1.08.
+ */
+export const ESCALA_PIEZAS = 1.25;
+
+/** Aplica la escala al radio de diseño. Una decimal basta: la física no nota más. */
+const r = (base: number) => Math.round(base * ESCALA_PIEZAS * 10) / 10;
+
 export const TIERS: Tier[] = [
   {
     index: 0,
     id: 'onigiri',
     name: 'Onigiri',
     kind: 'onigiri',
-    radius: 20,
+    radius: r(20),
     hitScale: 0.88,
     points: 10,
     sprite: '01-onigiri',
@@ -73,7 +101,7 @@ export const TIERS: Tier[] = [
     id: 'gyoza',
     name: 'Gyoza',
     kind: 'gyoza',
-    radius: 26,
+    radius: r(26),
     hitScale: 0.9,
     points: 30,
     sprite: '02-gyoza',
@@ -84,7 +112,7 @@ export const TIERS: Tier[] = [
     id: 'hosomaki',
     name: 'Hosomaki',
     kind: 'maki',
-    radius: 33,
+    radius: r(33),
     points: 60,
     sprite: '03-hosomaki',
     palette: { base: '#1a2129', accent: '#8bb04a', fill: '#8bb04a' },
@@ -96,7 +124,7 @@ export const TIERS: Tier[] = [
     id: 'temaki',
     name: 'Temaki',
     kind: 'futomaki',
-    radius: 42,
+    radius: r(42),
     // cono en diagonal: dos esquinas del cuadro quedan completamente vacías
     hitScale: 0.84,
     points: 100,
@@ -108,7 +136,7 @@ export const TIERS: Tier[] = [
     id: 'ebi-roll',
     name: 'Ebi Roll',
     kind: 'roll',
-    radius: 50,
+    radius: r(50),
     hitScale: 0.86,
     points: 150,
     sprite: '05-ebi-roll',
@@ -120,7 +148,7 @@ export const TIERS: Tier[] = [
     id: 'pokebowl',
     name: 'Poke Bowl',
     kind: 'california',
-    radius: 60,
+    radius: r(60),
     hitScale: 0.9,
     points: 210,
     sprite: '06-pokebowl',
@@ -131,7 +159,7 @@ export const TIERS: Tier[] = [
     id: 'dragon-roll',
     name: 'Dragon Roll',
     kind: 'dragon',
-    radius: 71,
+    radius: r(71),
     hitScale: 0.86,
     points: 280,
     sprite: '07-dragon-roll',
@@ -142,7 +170,7 @@ export const TIERS: Tier[] = [
     id: 'acevichado-roll',
     name: 'Acevichado Roll',
     kind: 'acevichado',
-    radius: 83,
+    radius: r(83),
     hitScale: 0.84,
     points: 360,
     sprite: '08-acevichado-roll',
@@ -153,7 +181,7 @@ export const TIERS: Tier[] = [
     id: 'sugu-especial',
     name: 'Sugu Especial',
     kind: 'especial',
-    radius: 96,
+    radius: r(96),
     hitScale: 0.9,
     points: 450,
     sprite: '09-sugu-especial',
@@ -164,7 +192,7 @@ export const TIERS: Tier[] = [
     id: 'sugu-supreme',
     name: 'Sugu Supreme',
     kind: 'supreme',
-    radius: 110,
+    radius: r(110),
     // cilindro de esquinas redondeadas: el círculo que lo envuelve sobra mucho
     hitScale: 0.8,
     points: 550,
