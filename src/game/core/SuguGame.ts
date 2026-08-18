@@ -16,6 +16,7 @@ import {
 } from '@/game/config/layout';
 import { MAX_TIER, TIERS, hitRadius, tierAt } from '@/game/config/tiers';
 import { VIP } from '@/game/config/vip';
+import { ajustesEnCache } from '@/lib/useAjustes';
 import { useGameStore } from '@/store/useGameStore';
 
 /**
@@ -58,6 +59,18 @@ export class SuguGame {
 
   /** ms JUGADOS de la partida en curso; alimenta la rampa de dificultad */
   private runMs = 0;
+
+  /**
+   * Duración máxima de la partida en ms, tomada del panel al empezar. `0` =
+   * sin límite (se juega hasta llenar la caja, como antes de existir esto).
+   *
+   * Se mide contra `runMs`, que solo avanza jugando: pausar o irse a otra app
+   * NO consume tiempo. Es el mismo criterio que la rampa de dificultad y la
+   * cuenta atrás de derrota — nadie pierde por dejar el móvil en la mesa.
+   */
+  private limiteMs = 0;
+  /** último segundo espejado al store, para no repintar el HUD a 60fps */
+  private segundoMostrado = -1;
 
   /** muestrario de colliders abierto: ni se suelta ficha ni se puede perder */
   private inspeccion = false;
@@ -147,6 +160,7 @@ export class SuguGame {
         PHYSICS.gravityY * this.director.gravityFactor() * this.rampaGravedad();
       this.physics.update(dtMs);
       this.director.update(dtMs);
+      this.updateTiempo();
       this.updateDefeat(dtMs);
       this.updateAutoDrop(dtMs);
       this.updateAim();
@@ -165,6 +179,26 @@ export class SuguGame {
   private rampaGravedad(): number {
     const avance = Math.min(1, this.runMs / RAMPA.fullAtMs);
     return 1 + (RAMPA.maxGravityMul - 1) * avance;
+  }
+
+  /**
+   * Temporizador de la partida. Espeja al store el tiempo que queda
+   * —redondeado al segundo, para que el HUD no se repinte a 60fps— y termina
+   * la partida al llegar a cero.
+   *
+   * Con `limiteMs` en 0 no hace nada: partida sin límite, como antes.
+   */
+  private updateTiempo() {
+    if (this.limiteMs <= 0) return;
+
+    const restante = Math.max(0, this.limiteMs - this.runMs);
+    const segundo = Math.ceil(restante / 1000);
+    if (segundo !== this.segundoMostrado) {
+      this.segundoMostrado = segundo;
+      useGameStore.getState().setTiempoRestante(restante);
+    }
+
+    if (restante <= 0) this.endRun(true);
   }
 
   /**
@@ -235,19 +269,40 @@ export class SuguGame {
     }
   }
 
-  private endRun() {
+  private endRun(porTiempo = false) {
+    /*
+     * Puede entrar dos veces en el mismo frame: el temporizador se comprueba
+     * antes que la derrota por pila, así que una partida que se acaba justo
+     * con la caja desbordada llamaba aquí dos veces y el "game over" sonaba
+     * doble. El store ya ignora el segundo aviso; esto evita también el audio.
+     */
+    if (useGameStore.getState().status === 'gameover') return;
+
     this.dangerActive = false;
     this.renderer.setDanger(false);
     this.renderer.showDangerCountdown(null);
     this.renderer.hideAim();
     play('gameover');
     haptic(60);
-    useGameStore.getState().gameOver();
+    useGameStore.getState().gameOver(porTiempo);
   }
 
   private onStart() {
     unlockAudio();
     this.clearBoard();
+
+    /*
+     * La duración la fija el panel (`/admin/ajustes`) y se lee UNA vez, al
+     * empezar: cambiarla a mitad de partida movería la meta con el jugador
+     * dentro. Si los ajustes aún no llegaron de la base se usa el mismo valor
+     * por defecto que la propia columna, así que nunca queda sin temporizador
+     * por un problema de red.
+     */
+    const segundos = ajustesEnCache()?.juego_duracion_seg ?? 300;
+    this.limiteMs = Math.max(0, segundos) * 1000;
+    this.segundoMostrado = -1;
+    useGameStore.getState().setTiempoRestante(this.limiteMs > 0 ? this.limiteMs : null);
+
     this.director.startRun();
   }
 

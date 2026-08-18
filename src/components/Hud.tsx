@@ -11,6 +11,28 @@ import { TierImage } from './TierImage';
  * · SIGUIENTE (derecha). Los números se posicionan en % sobre la imagen,
  * así escalan con cualquier ancho. Si la imagen faltara, cae al HUD simple.
  */
+/** ms restantes por debajo de los cuales el reloj avisa en rojo. */
+const APURO_MS = 30_000;
+
+/**
+ * Reloj de la partida. No se dibuja si no hay límite configurado (el panel
+ * permite poner 0 = sin temporizador), así el juego se ve igual que antes.
+ */
+function Reloj() {
+  const restanteMs = useGameStore((s) => s.tiempoRestanteMs);
+  if (restanteMs === null) return null;
+
+  const total = Math.ceil(restanteMs / 1000);
+  const mm = Math.floor(total / 60);
+  const ss = total % 60;
+
+  return (
+    <div className={`hud-reloj${restanteMs <= APURO_MS ? ' apuro' : ''}`}>
+      {mm}:{String(ss).padStart(2, '0')}
+    </div>
+  );
+}
+
 export function Hud({ onPause, onBook }: { onPause: () => void; onBook: () => void }) {
   const score = useGameStore((s) => s.score);
   const best = useGameStore((s) => s.best);
@@ -26,6 +48,7 @@ export function Hud({ onPause, onBook }: { onPause: () => void; onBook: () => vo
           <div className="score-val">{score.toLocaleString('es')}</div>
           <div className="best-val">Mejor · {best.toLocaleString('es')}</div>
         </div>
+        <Reloj />
         <div className="hud-right">
           <div className="next-box">
             <div className="next-label">SIGUIENTE</div>
@@ -57,6 +80,8 @@ export function Hud({ onPause, onBook }: { onPause: () => void; onBook: () => vo
       <div className="hud-next-zone">
         <TierImage tier={nextTier} size={44} className="hud-next-img" />
       </div>
+      {/* debajo del marco, a la izquierda: el arte no deja sitio dentro */}
+      <Reloj />
       <div className="hud-btns">
         <button className="icon-btn" onClick={onBook} aria-label="Colección">📖</button>
         <button className="icon-btn" onClick={onPause} aria-label="Pausa">⏸</button>

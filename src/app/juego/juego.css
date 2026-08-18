@@ -185,6 +185,51 @@
   font-size: 15px;
 }
 
+/*
+ * Reloj de la partida.
+ *
+ * Va FUERA del marco, justo debajo y a la izquierda: dentro no hay hueco (el
+ * arte reparte la barra entre logo, puntuación y SIGUIENTE) y encima del
+ * tablero taparía la zona de tiro. Queda simétrico con los botones de la
+ * derecha, en la misma franja oscura que sobra fuera de la vitrina.
+ */
+.hud-reloj {
+  position: absolute;
+  top: 100%;
+  left: 1.2%;
+  margin-top: 6px;
+  z-index: 13;
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(10, 10, 12, 0.62);
+  backdrop-filter: blur(4px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  color: #f4efe4;
+  pointer-events: none;
+}
+
+/* último medio minuto: rojo y latiendo, para que se note sin mirar el número */
+.hud-reloj.apuro {
+  color: #fff;
+  border-color: rgba(227, 19, 35, 0.85);
+  background: rgba(227, 19, 35, 0.85);
+  animation: relojApuro 1s ease-in-out infinite;
+}
+
+@keyframes relojApuro {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.09);
+  }
+}
+
 /* ---------- HUD (fallback sin arte) ---------- */
 .hud {
   position: absolute;
@@ -481,22 +526,43 @@
   pointer-events: none;
 }
 
-/* aviso de que la partida entró con el código de pruebas */
-.go-prueba {
+/*
+ * Avisos bajo el puntaje: fin por tiempo y/o modo de pruebas. Van en una
+ * columna compartida porque pueden salir los dos a la vez y antes cada uno
+ * estaba clavado en el mismo `top`, así que se habrían pisado.
+ */
+.go-avisos {
   position: absolute;
   top: 46.4%;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.go-aviso {
   padding: 3px 11px;
   border-radius: 999px;
-  background: var(--gold);
-  color: #4a2f0a;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 1px;
   white-space: nowrap;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  pointer-events: none;
+}
+
+/* la partida terminó porque se agotó el temporizador */
+.go-tiempo {
+  background: var(--sugu, #e31323);
+  color: #fff;
+}
+
+/* aviso de que la partida entró con el código de pruebas */
+.go-prueba {
+  background: var(--gold);
+  color: #4a2f0a;
 }
 
 /* inputs transparentes sobre los campos pintados */

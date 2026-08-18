@@ -39,12 +39,25 @@ const CAMPOS_DELIVERY: { clave: string; etiqueta: string; ayuda?: string }[] = [
   { clave: 'delivery_tarifa_km', etiqueta: 'S/ por kilómetro', ayuda: 'Se suma a la tarifa base según la distancia.' },
 ];
 
+/** Duraciones de partida más habituales, para no teclear segundos a mano. */
+const DURACIONES = [
+  { seg: 0, texto: 'Sin límite' },
+  { seg: 120, texto: '2 minutos' },
+  { seg: 180, texto: '3 minutos' },
+  { seg: 240, texto: '4 minutos' },
+  { seg: 300, texto: '5 minutos' },
+  { seg: 420, texto: '7 minutos' },
+  { seg: 600, texto: '10 minutos' },
+];
+
 export default function AjustesAdmin() {
   const [datos, setDatos] = useState<Record<string, string> | null>(null);
   const [delivery, setDelivery] = useState<Record<string, string> | null>(null);
+  const [duracion, setDuracion] = useState('300');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [guardandoDelivery, setGuardandoDelivery] = useState(false);
+  const [guardandoJuego, setGuardandoJuego] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -60,6 +73,9 @@ export default function AjustesAdmin() {
           limpioDelivery[clave] = v == null ? '' : String(v);
         }
         setDelivery(limpioDelivery);
+
+        const seg = (fila as never as Record<string, unknown>).juego_duracion_seg;
+        setDuracion(seg == null ? '300' : String(seg));
       } catch (e) {
         setDatos({});
         setDelivery({});
@@ -99,6 +115,26 @@ export default function AjustesAdmin() {
       setAviso({ tipo: 'error', texto: (err as Error).message });
     } finally {
       setGuardandoDelivery(false);
+    }
+  };
+
+  const enviarJuego = async (e: FormEvent) => {
+    e.preventDefault();
+    setGuardandoJuego(true);
+    try {
+      const seg = Math.max(0, Math.min(3600, Math.round(Number(duracion) || 0)));
+      await guardarAjustes({ juego_duracion_seg: seg });
+      setAviso({
+        tipo: 'ok',
+        texto:
+          seg === 0
+            ? 'Guardado: las partidas ya no tienen límite de tiempo.'
+            : `Guardado: cada partida durará ${Math.floor(seg / 60)}:${String(seg % 60).padStart(2, '0')}.`,
+      });
+    } catch (err) {
+      setAviso({ tipo: 'error', texto: (err as Error).message });
+    } finally {
+      setGuardandoJuego(false);
     }
   };
 
@@ -163,6 +199,52 @@ export default function AjustesAdmin() {
 
         <button type="submit" disabled={guardandoDelivery} className="btn-primary mt-8">
           {guardandoDelivery ? 'Guardando…' : 'Guardar delivery'}
+        </button>
+      </form>
+
+      <form onSubmit={enviarJuego} className="card mt-8 max-w-3xl p-8">
+        <h2 className="font-bold">Duración de la partida (juego)</h2>
+        <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-bone-dim">
+          Cuánto dura una partida antes de terminar sola. Con un límite, todas las partidas duran
+          lo mismo y el ranking compara habilidad y no aguante. El reloj solo corre mientras se
+          juega: pausar o irse a otra app no consume tiempo.
+        </p>
+
+        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          <Campo etiqueta="Duración">
+            <select
+              value={DURACIONES.some((d) => String(d.seg) === duracion) ? duracion : 'otro'}
+              onChange={(e) => e.target.value !== 'otro' && setDuracion(e.target.value)}
+              className={claseCampo}
+            >
+              {DURACIONES.map((d) => (
+                <option key={d.seg} value={d.seg} className="bg-night-2">
+                  {d.texto}
+                </option>
+              ))}
+              <option value="otro" className="bg-night-2">
+                Otro (segundos exactos)
+              </option>
+            </select>
+          </Campo>
+
+          <Campo etiqueta="Segundos exactos">
+            <input
+              type="number"
+              min={0}
+              max={3600}
+              value={duracion}
+              onChange={(e) => setDuracion(e.target.value)}
+              className={claseCampo}
+            />
+            <span className="mt-1.5 block text-[11px] text-white/40">
+              0 = sin límite. Máximo 3600 (una hora). Útil para afinar: 150 = 2:30.
+            </span>
+          </Campo>
+        </div>
+
+        <button type="submit" disabled={guardandoJuego} className="btn-primary mt-8">
+          {guardandoJuego ? 'Guardando…' : 'Guardar duración'}
         </button>
       </form>
     </>

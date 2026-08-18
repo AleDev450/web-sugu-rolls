@@ -91,6 +91,13 @@ export interface AjustesSitio {
   tienda_lng: number | null;
   delivery_tarifa_base: number;
   delivery_tarifa_km: number;
+
+  /**
+   * Cuánto dura una partida del juego, en segundos. `0` = sin límite, se juega
+   * hasta llenar la caja. Con límite, todas las partidas duran lo mismo y el
+   * ranking compara habilidad en vez de aguante.
+   */
+  juego_duracion_seg: number;
 }
 
 /** Diapositiva del carrusel de portada. */
@@ -174,6 +181,7 @@ const AJUSTES_LOCALES: AjustesSitio = {
   tienda_lng: null,
   delivery_tarifa_base: 0,
   delivery_tarifa_km: 0,
+  juego_duracion_seg: 300,
 };
 
 /** ¿Hay backend configurado? */
@@ -341,6 +349,8 @@ export function traerAjustes(): Promise<AjustesSitio> {
       tienda_lng: fila.tienda_lng != null ? Number(fila.tienda_lng) : null,
       delivery_tarifa_base: Number(fila.delivery_tarifa_base ?? 0),
       delivery_tarifa_km: Number(fila.delivery_tarifa_km ?? 0),
+      // sin la migración 028 la columna no existe: se cae a los 5 minutos
+      juego_duracion_seg: Number(fila.juego_duracion_seg ?? 300),
     } as AjustesSitio;
   }, AJUSTES_LOCALES);
 }

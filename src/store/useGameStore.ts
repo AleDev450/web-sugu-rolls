@@ -24,12 +24,21 @@ interface GameState {
   /** tiers vistos al menos una vez, para la colección */
   unlocked: number[];
 
+  /**
+   * Espejo del temporizador que lleva el motor, en ms y redondeado al segundo
+   * para no repintar a 60fps. `null` = partida sin límite de tiempo.
+   */
+  tiempoRestanteMs: number | null;
+  /** la partida terminó porque se acabó el tiempo, no por llenar la caja */
+  finPorTiempo: boolean;
+
   // --- acciones ---
   start: () => void;
   pause: () => void;
   resume: () => void;
-  gameOver: () => void;
+  gameOver: (porTiempo?: boolean) => void;
   reset: () => void;
+  setTiempoRestante: (ms: number | null) => void;
 
   addScore: (points: number) => void;
   registerMerge: (newTier: number) => number;
@@ -58,6 +67,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   unlocked: [],
 
+  tiempoRestanteMs: null,
+  finPorTiempo: false,
+
   start: () =>
     set({
       status: 'playing',
@@ -67,16 +79,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       lastMergeAt: 0,
       currentTier: rollSpawnTier(),
       nextTier: rollSpawnTier(),
+      // lo rellena el motor en el primer tick, ya con la duración del panel
+      tiempoRestanteMs: null,
+      finPorTiempo: false,
     }),
 
   pause: () => set((s) => (s.status === 'playing' ? { status: 'paused' } : {})),
   resume: () => set((s) => (s.status === 'paused' ? { status: 'playing' } : {})),
 
-  gameOver: () =>
+  gameOver: (porTiempo = false) =>
     set((s) => {
       if (s.status === 'gameover') return {};
-      return { status: 'gameover', lives: 0 };
+      return { status: 'gameover', lives: 0, finPorTiempo: porTiempo };
     }),
+
+  setTiempoRestante: (tiempoRestanteMs) =>
+    set((s) => (s.tiempoRestanteMs === tiempoRestanteMs ? {} : { tiempoRestanteMs })),
 
   /**
    * Vuelve al menú DESCARTANDO la partida.
@@ -87,7 +105,15 @@ export const useGameStore = create<GameState>((set, get) => ({
    * tablero vacío, puntaje viejo. Una partida abandonada no vale nada, así que
    * el marcador muere con ella. `best` no se toca: es histórico.
    */
-  reset: () => set({ status: 'idle', score: 0, combo: 0, lastMergeAt: 0 }),
+  reset: () =>
+    set({
+      status: 'idle',
+      score: 0,
+      combo: 0,
+      lastMergeAt: 0,
+      tiempoRestanteMs: null,
+      finPorTiempo: false,
+    }),
 
   addScore: (points) =>
     set((s) => {

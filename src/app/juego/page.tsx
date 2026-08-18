@@ -16,6 +16,7 @@ import {
 } from '@/components/Overlays';
 import { useGameStore, hydrateFromStorage } from '@/store/useGameStore';
 import { useVipStore } from '@/store/useVipStore';
+import { useAjustes } from '@/lib/useAjustes';
 import { VipBar } from '@/components/VipBar';
 import { preloadMusic, startMusic, stopMusic } from '@/game/audio/audio';
 import { useEscalaJuego } from '@/lib/escala';
@@ -29,6 +30,12 @@ export default function Page() {
 
   const status = useGameStore((s) => s.status);
   const festivalOn = useVipStore((s) => s.festivalActive);
+  /*
+   * No se usa aquí: se llama para que los ajustes estén en caché ANTES de que
+   * el jugador pulse JUGAR. El motor lee de esa caché la duración de la
+   * partida, y no puede usar hooks porque no es un componente de React.
+   */
+  useAjustes();
   const start = useGameStore((s) => s.start);
   const pause = useGameStore((s) => s.pause);
   const resume = useGameStore((s) => s.resume);

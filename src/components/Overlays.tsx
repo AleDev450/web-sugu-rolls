@@ -289,6 +289,7 @@ export function GameOverFormOverlay({
   datos?: DatosJugador;
 }) {
   const score = useGameStore((s) => s.score);
+  const finPorTiempo = useGameStore((s) => s.finPorTiempo);
   const [nickname, setNickname] = useState(datos?.nickname ?? '');
   const [name, setName] = useState(datos?.name ?? '');
   const [phone, setPhone] = useState(datos?.phone ?? '');
@@ -339,7 +340,16 @@ export function GameOverFormOverlay({
           draggable={false}
         />
         <div className="go-score">{score.toLocaleString('es')}</div>
-        {prueba && <span className="go-prueba">MODO DE PRUEBAS · NO SE REGISTRA</span>}
+        {/*
+          Sin este aviso, terminar por tiempo con el tablero a medias parece
+          un fallo del juego: no hay pila desbordada que explique la derrota.
+        */}
+        {(finPorTiempo || prueba) && (
+          <div className="go-avisos">
+            {finPorTiempo && <span className="go-aviso go-tiempo">¡SE ACABÓ EL TIEMPO!</span>}
+            {prueba && <span className="go-aviso go-prueba">MODO DE PRUEBAS · NO SE REGISTRA</span>}
+          </div>
+        )}
         <input
           className="go-input"
           style={{ top: '51.7%' }}
