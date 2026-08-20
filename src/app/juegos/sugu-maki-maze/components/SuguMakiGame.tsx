@@ -16,7 +16,7 @@ import {
   NivelCompletado,
   Pausa,
 } from './GameOverlay';
-import { PistaTactil, useSwipe } from './MobileControls';
+import { Cruceta, PistaTactil, useSinZoom, useSwipe } from './MobileControls';
 
 /**
  * Pantalla completa de Sugu Maki Maze: monta el motor, escucha los controles y
@@ -119,7 +119,9 @@ export default function SuguMakiGame() {
     return () => window.removeEventListener('keydown', alPulsar);
   }, [mover, alternarPausa]);
 
-  useSwipe(hostRef, mover, status === 'playing' || status === 'countdown');
+  const enJuego = status === 'playing' || status === 'countdown';
+  useSwipe(hostRef, mover, enJuego);
+  useSinZoom();
 
   // pierdes el foco de la pestaña a mitad de partida: se pausa solo
   useEffect(() => {
@@ -172,6 +174,8 @@ export default function SuguMakiGame() {
 
         <BarraProgreso />
       </div>
+
+      <Cruceta onDir={mover} activo={enJuego} />
     </div>
   );
 }

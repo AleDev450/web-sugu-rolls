@@ -24,6 +24,11 @@
 
   --arcade: var(--font-arcade), 'Courier New', monospace;
 
+  /* aire alrededor de la cabina; entra en la cuenta que reserva la cruceta */
+  --aire: clamp(6px, 2vh, 22px);
+  /* lado de la cruceta. Es EL número para agrandar o encoger el mando. */
+  --dpad: clamp(132px, 40vw, 200px);
+
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -35,8 +40,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(6px, 2vh, 22px);
+  padding: var(--aire);
+  /*
+   * Ni pellizco ni doble toque dentro de la recreativa. Es la mitad del arreglo
+   * —la otra es `useSinZoom`, para los gestos propietarios de Safari—: el
+   * `maximum-scale=1` del viewport hace años que no lo respeta nadie.
+   */
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
   user-select: none;
 }
 
@@ -339,6 +351,8 @@
   background: rgba(3, 3, 3, 0.86);
   backdrop-filter: blur(3px);
   overflow-y: auto;
+  /* la raíz corta todos los gestos: aquí hace falta devolver el scroll */
+  touch-action: pan-y;
 }
 
 .maze-overlay-suave {
@@ -370,6 +384,7 @@
 .maze-panel-fin {
   max-height: 100%;
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 .maze-titulo {
@@ -817,6 +832,119 @@
   border: 1px solid rgba(255, 122, 61, 0.35);
   border-radius: 999px;
   pointer-events: none;
+}
+
+/* --- cruceta táctil ----------------------------------------------------- */
+
+/*
+ * El mando de dirección de las pantallas táctiles. Vive fuera de la cabina, en
+ * su propia franja, y la cabina encoge para dejarle sitio: superpuesto al
+ * tablero taparía parte del laberinto, que es justo donde hay que mirar.
+ *
+ * El dibujo entero es el fondo del contenedor y los cuatro brazos son botones
+ * colocados en absoluto con las medidas del PNG (ver `MobileControls.tsx`), así
+ * que el brillo cae sobre el brazo real y no sobre un cuadrado aproximado.
+ */
+
+.maze-cruceta {
+  display: none;
+  position: relative;
+  flex: none;
+  width: var(--dpad);
+  height: var(--dpad);
+  /* el pulgar rueda por encima: nada de scroll, zoom ni lupa */
+  touch-action: none;
+  background: url('/games/sugu-maki-maze/dpad.webp') center / contain no-repeat;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6));
+  transition: opacity 0.25s ease;
+}
+
+/* en el menú, la pausa o el game over el mando está ahí pero no manda */
+.maze-cruceta.apagada {
+  opacity: 0.32;
+  pointer-events: none;
+}
+
+.maze-cruceta-brazo {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 16%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * El brazo pulsado se enciende con una luz por encima, no cambiando el dibujo:
+ * `screen` suma sobre el naranja que ya trae la imagen y el degradado se apaga
+ * antes del borde, así que no se ve el rectángulo del botón.
+ */
+.maze-cruceta-brazo::after {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 240, 205, 0.8),
+    rgba(255, 122, 61, 0.38) 55%,
+    rgba(255, 59, 31, 0) 78%
+  );
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.08s ease, transform 0.08s ease;
+}
+
+.maze-cruceta-brazo.pulsado::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .maze-root {
+    --aire: clamp(6px, 1.4vh, 14px);
+    /* la barra de gestos del iPhone se come el borde de abajo */
+    padding-bottom: calc(var(--aire) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maze-cruceta {
+    display: block;
+  }
+
+  .maze-marco {
+    flex-direction: column;
+    gap: var(--aire);
+  }
+
+  /*
+   * La cabina cede el alto que ocupa la cruceta. El tope se le pasa ya
+   * convertido a ANCHO —de ahí el 21/29— porque su alto lo deduce el
+   * `aspect-ratio` a partir del ancho: recortarle el alto sin más la
+   * deformaría. Los tres aires son el borde de arriba, el hueco hasta la
+   * cruceta y el borde de abajo.
+   */
+  .maze-cabina {
+    width: min(100%, 58vh, (100vh - var(--dpad) - 3 * var(--aire) - env(safe-area-inset-bottom, 0px)) * 21 / 29);
+    width: min(100%, 58dvh, (100dvh - var(--dpad) - 3 * var(--aire) - env(safe-area-inset-bottom, 0px)) * 21 / 29);
+  }
+}
+
+/* tumbado sobra ancho y falta alto: la cruceta se pone al lado, no debajo */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .maze-root {
+    --dpad: clamp(104px, 30vh, 168px);
+  }
+
+  .maze-marco {
+    flex-direction: row;
+  }
+
+  .maze-cabina {
+    width: min(58vh, calc(100% - var(--dpad) - 2 * var(--aire)));
+    width: min(58dvh, calc(100% - var(--dpad) - 2 * var(--aire)));
+  }
 }
 
 /* --- accesibilidad ------------------------------------------------------ */

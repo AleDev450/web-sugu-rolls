@@ -13,7 +13,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "assets:sync": "node scripts/sync-assets.mjs",
-    "assets:slice": "node scripts/slice-boceto.mjs"
+    "assets:slice": "node scripts/slice-boceto.mjs",
+    "assets:dpad": "node scripts/optimize-dpad.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

@@ -91,7 +91,9 @@ function ComoJugar({ onCerrar }: { onCerrar: () => void }) {
           <p className="maze-solo-escritorio">
             <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> o las flechas · <kbd>ESC</kbd> pausa
           </p>
-          <p className="maze-solo-movil">Desliza el dedo sobre el tablero para moverte</p>
+          <p className="maze-solo-movil">
+            La cruceta de abajo · también vale deslizar el dedo sobre el tablero
+          </p>
         </div>
 
         <ul className="maze-leyenda">
