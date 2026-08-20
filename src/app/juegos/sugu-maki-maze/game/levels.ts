@@ -1,4 +1,16 @@
-import { LEVEL_SECONDS, LOOP_ENEMY_SPEED, LOOP_PLAYER_SPEED, LOOP_CYCLE_SHRINK, MODE_CYCLE_MS, ENEMY_SPEED, PLAYER_SPEED } from './config';
+import {
+  CHASE_MULT,
+  ENEMY_SPEED,
+  ENEMY_SPEED_MAX,
+  ENEMY_SPEED_STEP,
+  LEVEL_SECONDS,
+  LOOP_CYCLE_SHRINK,
+  LOOP_PLAYER_SPEED,
+  MODE_CYCLE_MS,
+  PLAYER_SPEED,
+  POWER_MS_POR_NIVEL,
+  SCATTER_MULT,
+} from './config';
 import type { EnemyKind } from './types';
 
 /**
@@ -18,6 +30,9 @@ import type { EnemyKind } from './types';
  *   W   wasabi (power-up SUGU POWER)
  *   N   nigiri (250 pts)
  *   R   gari (100 pts + velocidad)
+ *   S   shoyu (300 pts + unos segundos a doble puntuación)
+ *   O   ohashi (400 pts + unos segundos recogiendo arroz a distancia)
+ *   H   corazón (una vida más; si ya están al tope, 750 pts)
  *   B   punto donde asoma el maki dorado
  *   T   túnel: al salir por un borde se aparece en el opuesto
  *
@@ -35,7 +50,7 @@ const MAPA_1 = [
   '#.#.###.#.#.#.###.#.#',
   '#...#N....#....N#...#',
   '#.#.#.###.#.###.#.#.#',
-  '#...................#',
+  '#.........S.........#',
   '#.###.##.#.#.##.###.#',
   '#...#...#...#...#...#',
   '#.#.#.####-####.#.#.#',
@@ -49,7 +64,7 @@ const MAPA_1 = [
   '#.#.###.#.#.#.###.#.#',
   '#W..#...#.#.#...#..W#',
   '#.#.#.#.#####.#.#.#.#',
-  '#...................#',
+  '#.........O.........#',
   '#.###.####.####.###.#',
   '#.........P.........#',
   '#####################',
@@ -60,13 +75,13 @@ const MAPA_2 = [
   '#####################',
   '#.........#.........#',
   '#.#######.#.#######.#',
-  '#W.................W#',
+  '#W........S........W#',
   '#.###.###.#.###.###.#',
   '#N..#...#.#.#...#..N#',
   '###.#.#.#####.#.#.###',
   'T.........#.........T',
   '#.###.##.#.#.##.###.#',
-  '#.#...............#.#',
+  '#.#.......O.......#.#',
   '#.#.#.####-####.#.#.#',
   '#...#.##     ##.#...#',
   '#.#.#.##1 2 3##.#.#.#',
@@ -89,9 +104,9 @@ const MAPA_3 = [
   '#####################',
   '#....#....#....#....#',
   '#.##.#.##.#.##.#.##.#',
-  '#W.................W#',
+  '#W........S........W#',
   '###.###.#####.###.###',
-  '#N....#.......#....N#',
+  '#N....#...H...#....N#',
   '#.#####.#.#.#.#####.#',
   '#.#.R.#.#.#.#.#.R.#.#',
   '#.#.#.#.#.#.#.#.#.#.#',
@@ -103,7 +118,7 @@ const MAPA_3 = [
   '#.#.#.#########.#.#.#',
   '#.........B.........#',
   '#.###.###.#.###.###.#',
-  '#...#...#...#...#...#',
+  '#...#...#.O.#...#...#',
   '#.#.#.#.#.#.#.#.#.#.#',
   '#.#...#.......#...#.#',
   '#.#.#####.#.#####.#.#',
@@ -116,7 +131,7 @@ const MAPA_3 = [
 /** Nivel 4 — bucles largos por fuera, embudos por dentro. */
 const MAPA_4 = [
   '#####################',
-  '#...................#',
+  '#.........S.........#',
   '#.###.#.#####.#.###.#',
   '#N..#.#.......#.#..N#',
   '###.#.#.#####.#.#.###',
@@ -124,7 +139,7 @@ const MAPA_4 = [
   '#.#.#.#.#.#.#.#.#.#.#',
   '#W#...#...#...#...#W#',
   '#.#.#####.#.#####.#.#',
-  '#...................#',
+  '#.........O.........#',
   '#.#.#.####-####.#.#.#',
   'T...#.##     ##.#...T',
   '#.#.#.##1 2 3##.#.#.#',
@@ -147,13 +162,13 @@ const MAPA_5 = [
   '#####################',
   '#W...#.........#...W#',
   '#.##.#.#######.#.##.#',
-  '#...#...........#...#',
+  '#...#.....S.....#...#',
   '#.#.#.#.#.#.#.#.#.#.#',
   '#.#N......#......N#.#',
   '#.#.#####.#.#####.#.#',
   'T.........#.........T',
   '#.###.###.#.###.###.#',
-  '#...#...#...#...#...#',
+  '#...#...#.H.#...#...#',
   '#.#.#.####-####.#.#.#',
   '#...#.##     ##.#...#',
   '#.#.#.##1 2 3##.#.#.#',
@@ -165,7 +180,7 @@ const MAPA_5 = [
   '#.#.#####.#.#####.#.#',
   'T.........#.........T',
   '#.#######.#.#######.#',
-  '#W.................W#',
+  '#W........O........W#',
   '#.###.#########.###.#',
   '#.........P.........#',
   '#####################',
@@ -173,11 +188,18 @@ const MAPA_5 = [
 
 export const MAPS: readonly string[][] = [MAPA_1, MAPA_2, MAPA_3, MAPA_4, MAPA_5];
 
-/** Reparto de enemigos por nivel: se van sumando personalidades. */
+/**
+ * Reparto de enemigos por nivel: se van sumando personalidades de una en una.
+ *
+ * El primer nivel tiene UN enemigo. Con dos desde el principio el jugador
+ * todavía no sabe por dónde salen ni cómo se mueven y ya está encerrado; con
+ * uno se aprende el mapa, se prueba el wasabi y se llega al segundo sabiendo
+ * jugar. Cada nivel presenta una persecución nueva.
+ */
 const ENEMIGOS_POR_NIVEL: readonly EnemyKind[][] = [
+  ['chili'],
   ['chili', 'wasabi'],
   ['chili', 'wasabi', 'ebi'],
-  ['chili', 'wasabi', 'ebi', 'sauce'],
   ['chili', 'wasabi', 'ebi', 'sauce'],
   ['chili', 'wasabi', 'ebi', 'sauce'],
 ];
@@ -190,6 +212,8 @@ export interface LevelConfig {
   map: readonly string[];
   seconds: number;
   enemies: readonly EnemyKind[];
+  /** Cuánto dura el SUGU POWER en este nivel, en ms. */
+  powerMs: number;
   playerSpeed: number;
   enemySpeed: number;
   /** Tramos scatter/chase, ya acortados por la vuelta que toque. */
@@ -208,20 +232,40 @@ export function getLevelConfig(level: number): LevelConfig {
   const index = (level - 1) % MAPS.length;
   const loop = Math.floor((level - 1) / MAPS.length);
 
+  /*
+   * La dificultad la marca el NIVEL, no el mapa.
+   *
+   * Es la diferencia que importa a partir del sexto: ahí se vuelve al primer
+   * laberinto, y atándolo al índice del mapa se volvía también a un enemigo y
+   * a la velocidad del principio. Después de haber ganado el nivel 5 con
+   * cuatro persiguiéndote, eso es un escalón hacia abajo. Con el nivel como
+   * referencia el mapa se repite pero la presión nunca baja.
+   *
+   * Del quinto en adelante se queda en el tope: cuatro enemigos, el ciclo
+   * scatter/chase crudo y el power corto. Lo que sigue subiendo es la
+   * velocidad.
+   */
+  const dificultad = Math.min(level - 1, ENEMIGOS_POR_NIVEL.length - 1);
+
   return {
     level,
     mapIndex: index,
     map: MAPS[index],
+    // el reloj sí es cosa del mapa: depende de cuánto arroz hay que recorrer
     seconds: LEVEL_SECONDS[index],
-    enemies: ENEMIGOS_POR_NIVEL[index],
+    enemies: ENEMIGOS_POR_NIVEL[dificultad],
+    powerMs: POWER_MS_POR_NIVEL[dificultad],
     playerSpeed: PLAYER_SPEED + loop * LOOP_PLAYER_SPEED,
+    enemySpeed: Math.min(ENEMY_SPEED + (level - 1) * ENEMY_SPEED_STEP, ENEMY_SPEED_MAX),
     /*
-     * El nivel 4 y el 5 ya llevan enemigos más rápidos dentro de la primera
-     * vuelta: el mapa se repite del 1 al 3, así que la subida tiene que venir
-     * del propio índice, no solo de la vuelta.
+     * Los tramos pares son scatter y los impares chase (lo decide la paridad
+     * del índice en `modoDelCiclo`), así que el ajuste por nivel se aplica
+     * según en qué posición caiga cada tramo.
      */
-    enemySpeed: ENEMY_SPEED + index * 4 + loop * LOOP_ENEMY_SPEED,
-    modeCycle: MODE_CYCLE_MS.map((ms) => Math.round(ms * LOOP_CYCLE_SHRINK ** loop)),
+    modeCycle: MODE_CYCLE_MS.map((ms, i) => {
+      const porNivel = i % 2 === 0 ? SCATTER_MULT[dificultad] : CHASE_MULT[dificultad];
+      return Math.round(ms * porNivel * LOOP_CYCLE_SHRINK ** loop);
+    }),
     loop,
   };
 }

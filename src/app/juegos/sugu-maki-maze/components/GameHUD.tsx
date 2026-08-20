@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Pause, Play } from 'lucide-react';
 import { TIME_WARNING_S } from '../game/config';
+import type { FrameId } from '../game/sprites';
 import { useSuguMakiStore } from '../store/useSuguMakiStore';
 import { SpriteImg } from './SpriteImg';
 
@@ -130,12 +131,29 @@ export function GameHUD({ onPausa }: { onPausa: () => void }) {
 export function BarraProgreso() {
   const progress = useSuguMakiStore((s) => s.progress);
   const powerMs = useSuguMakiStore((s) => s.powerMs);
+  const shoyuMs = useSuguMakiStore((s) => s.shoyuMs);
+  const imanMs = useSuguMakiStore((s) => s.imanMs);
   const BLOQUES = 14;
   const llenos = Math.round(progress * BLOQUES);
 
+  /*
+   * El icono de la izquierda dice qué potenciador está corriendo. Cuando hay
+   * dos a la vez manda el wasabi: es el único que cambia a quién puedes tocar,
+   * y confundirse con eso cuesta una vida.
+   */
+  const icono: FrameId =
+    powerMs > 0
+      ? 'item.wasabi'
+      : shoyuMs > 0
+        ? 'item.shoyu'
+        : imanMs > 0
+          ? 'item.ohashi'
+          : 'item.rice';
+  const activo = powerMs > 0 || shoyuMs > 0 || imanMs > 0;
+
   return (
-    <footer className={`maze-progreso${powerMs > 0 ? ' con-power' : ''}`}>
-      <SpriteImg frame={powerMs > 0 ? 'item.wasabi' : 'item.rice'} size={24} />
+    <footer className={`maze-progreso${activo ? ' con-power' : ''}`}>
+      <SpriteImg frame={icono} size={24} />
       <div className="maze-bloques" role="progressbar" aria-valuenow={Math.round(progress * 100)}>
         {Array.from({ length: BLOQUES }, (_, i) => (
           <span key={i} className={`maze-bloque${i < llenos ? ' lleno' : ''}`} />

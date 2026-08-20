@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Gamepad2, Music, Volume2, VolumeX, X } from 'lucide-react';
 
 import { audio } from '../game/AudioManager';
-import { PTS } from '../game/config';
+import { MAX_LIVES, OHASHI_MS, PTS, SHOYU_MS } from '../game/config';
 import { useSuguMakiStore } from '../store/useSuguMakiStore';
 import { formatearTiempo } from './GameHUD';
 import { SpriteAnim, SpriteImg } from './SpriteImg';
@@ -116,10 +116,31 @@ function ComoJugar({ onCerrar }: { onCerrar: () => void }) {
             </span>
           </li>
           <li>
+            <SpriteImg frame="item.shoyu" size={26} />
+            <span>
+              <strong>Shoyu</strong> — {PTS.shoyu} pts y un baño de salsa: durante {SHOYU_MS / 1000}{' '}
+              segundos <em>todo vale el doble</em>.
+            </span>
+          </li>
+          <li>
+            <SpriteImg frame="item.ohashi" size={26} />
+            <span>
+              <strong>Ohashi</strong> — {PTS.ohashi} pts y {OHASHI_MS / 1000} segundos recogiendo el
+              arroz de alrededor sin pasar por encima.
+            </span>
+          </li>
+          <li>
+            <SpriteImg frame="item.heart" size={26} />
+            <span>
+              <strong>Corazón</strong> — una vida más (hasta {MAX_LIVES}). Si ya las tienes todas,{' '}
+              {PTS.heart} pts.
+            </span>
+          </li>
+          <li>
             <SpriteImg frame="item.wasabi" size={26} />
             <span>
-              <strong>Wasabi</strong> — activa el <em>SUGU POWER</em>: 7 segundos para comerte a los
-              enemigos ({PTS.enemyChain.join(' / ')} pts en cadena).
+              <strong>Wasabi</strong> — activa el <em>SUGU POWER</em>: unos segundos para comerte a
+              los enemigos ({PTS.enemyChain.join(' / ')} pts en cadena).
             </span>
           </li>
           <li>
@@ -130,6 +151,11 @@ function ComoJugar({ onCerrar }: { onCerrar: () => void }) {
             </span>
           </li>
         </ul>
+
+        <p className="maze-ayuda-nota">
+          Termina un nivel sin perder ninguna vida y te llevas {PTS.noDamage} pts de propina, más{' '}
+          {PTS.perSecondLeft} por cada segundo que sobre en el reloj.
+        </p>
 
         <div className="maze-ayuda-bloque">
           <h3>CUIDADO CON</h3>

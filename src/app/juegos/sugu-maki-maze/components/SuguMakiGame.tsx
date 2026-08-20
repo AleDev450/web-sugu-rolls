@@ -162,22 +162,35 @@ export default function SuguMakiGame() {
           <AvisoFlotante />
           <PistaTactil visible={status === 'countdown'} />
 
+          {/*
+            * Carteles de DENTRO de la partida: van sobre el tablero porque lo
+            * que dicen solo se entiende viendo el laberinto debajo.
+            */}
           <AnimatePresence mode="wait">
-            {status === 'menu' && <MenuInicio key="menu" onJugar={jugar} />}
             {status === 'countdown' && (
               <CuentaAtras key="cuenta" onFin={() => engineRef.current?.arrancar()} />
             )}
-            {status === 'paused' && (
-              <Pausa key="pausa" onSeguir={alternarPausa} onSalir={salirAlMenu} />
-            )}
             {status === 'level-complete' && <NivelCompletado key="nivel" />}
-            {status === 'game-over' && <GameOver key="fin" onReiniciar={jugar} />}
           </AnimatePresence>
 
           {!listo && <div className="maze-cargando">CARGANDO…</div>}
         </div>
 
         <BarraProgreso />
+
+        {/*
+          * Pantallas COMPLETAS: menú, pausa y game over cuelgan de la cabina y
+          * no del tablero, así que tapan también el marcador y la barra de
+          * progreso. En un móvil, encerradas en el tablero, quedaban flotando
+          * en el centro con un marcador a cero encima que no dice nada todavía.
+          */}
+        <AnimatePresence mode="wait">
+          {status === 'menu' && <MenuInicio key="menu" onJugar={jugar} />}
+          {status === 'paused' && (
+            <Pausa key="pausa" onSeguir={alternarPausa} onSalir={salirAlMenu} />
+          )}
+          {status === 'game-over' && <GameOver key="fin" onReiniciar={jugar} />}
+        </AnimatePresence>
       </div>
     </div>
   );

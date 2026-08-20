@@ -38,6 +38,10 @@ interface SuguMakiState {
   progress: number;
   /** Milisegundos que queda de SUGU POWER. 0 = apagado. */
   powerMs: number;
+  /** Milisegundos que queda de baño de shoyu (todo vale el doble). */
+  shoyuMs: number;
+  /** Milisegundos que queda de palillos largos. */
+  imanMs: number;
 
   aviso: Aviso | null;
   result: GameResult | null;
@@ -69,6 +73,8 @@ const INICIAL = {
   combo: 0,
   progress: 0,
   powerMs: 0,
+  shoyuMs: 0,
+  imanMs: 0,
   aviso: null,
   result: null,
 };

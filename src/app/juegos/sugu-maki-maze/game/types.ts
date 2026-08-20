@@ -30,7 +30,15 @@ export function opuesta(d: Dir): Dir {
   return 'none';
 }
 
-export type ItemKind = 'rice' | 'nigiri' | 'gari' | 'wasabi' | 'golden';
+export type ItemKind =
+  | 'rice'
+  | 'nigiri'
+  | 'gari'
+  | 'wasabi'
+  | 'shoyu'
+  | 'ohashi'
+  | 'heart'
+  | 'golden';
 
 export type EnemyKind = 'chili' | 'wasabi' | 'ebi' | 'sauce';
 

@@ -364,6 +364,14 @@
   z-index: 20;
 }
 
+/*
+ * El menú, la pausa y el game over cuelgan de la cabina, no del tablero, así
+ * que hay que devolverles el radio del marco o pisarían la esquina redondeada.
+ */
+.maze-cabina > .maze-overlay {
+  border-radius: 12px;
+}
+
 .maze-panel {
   display: flex;
   flex-direction: column;
@@ -578,6 +586,18 @@
 
 .maze-ayuda-bloque {
   width: 100%;
+}
+
+.maze-ayuda-nota {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--crema-dim);
+  text-align: left;
+  background: rgba(242, 193, 78, 0.08);
+  border-left: 2px solid var(--oro);
+  border-radius: 0 7px 7px 0;
 }
 
 .maze-ayuda-bloque h3 {
@@ -836,6 +856,43 @@
   border: 1px solid rgba(255, 122, 61, 0.35);
   border-radius: 999px;
   pointer-events: none;
+}
+
+/* --- pantalla completa en el móvil -------------------------------------- */
+
+/*
+ * En una pantalla táctil la cabina deja de guardar su proporción 21/29 y ocupa
+ * todo lo que hay.
+ *
+ * Esa proporción está pensada para el escritorio, donde la ventana es apaisada
+ * y manda el alto. En un móvil manda el ancho, así que la cabina se quedaba en
+ * 383x529 dentro de 412x720 y sobraban 95 px de negro arriba y otros 96 abajo:
+ * más de una cuarta parte de la pantalla en nada. Soltando la proporción el
+ * marco llega a los bordes y el laberinto gana un 10 % de tamaño.
+ *
+ * El tablero sigue con su 21/25 y se centra en el hueco con `margin-block:
+ * auto`: como es más ancho que alto no hay forma de que llene un móvil sin
+ * deformarlo, y deformarlo no es una opción.
+ */
+@media (pointer: coarse) {
+  .maze-root {
+    padding: 6px;
+    /* la barra de gestos del iPhone se come el borde de abajo */
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .maze-cabina {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    aspect-ratio: auto;
+  }
+
+  .maze-tablero {
+    flex: 0 1 auto;
+    width: 100%;
+    margin-block: auto;
+  }
 }
 
 /* --- joystick táctil ---------------------------------------------------- */

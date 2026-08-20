@@ -31,7 +31,7 @@ export class Maze {
 
   /** Casillas con arroz al empezar el nivel. */
   readonly pellets: Tile[] = [];
-  /** Objetos especiales (nigiri, gari, wasabi) con su casilla. */
+  /** Objetos especiales (nigiri, gari, wasabi, shoyu, ohashi, corazón). */
   readonly items: ItemSpawn[] = [];
   /** Dónde asoma el maki dorado. */
   bonusTile: Tile = { x: 10, y: 15 };
@@ -71,6 +71,15 @@ export class Maze {
             break;
           case 'R':
             this.items.push({ tile: { x, y }, kind: 'gari' });
+            break;
+          case 'S':
+            this.items.push({ tile: { x, y }, kind: 'shoyu' });
+            break;
+          case 'O':
+            this.items.push({ tile: { x, y }, kind: 'ohashi' });
+            break;
+          case 'H':
+            this.items.push({ tile: { x, y }, kind: 'heart' });
             break;
           case 'B':
             this.bonusTile = { x, y };

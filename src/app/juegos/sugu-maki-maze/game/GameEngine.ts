@@ -19,7 +19,11 @@ import {
   HIT_RADIUS,
   LEVEL_COMPLETE_MS,
   MASTER_SCORE,
-  POWER_MS,
+  MAX_LIVES,
+  OHASHI_MS,
+  OHASHI_RADIO,
+  SHOYU_MS,
+  SHOYU_MULT,
   POWER_WARN_MS,
   PTS,
   ROWS,
@@ -107,6 +111,10 @@ export class GameEngine {
   private tiempoMs = 0;
   private tiempoTotalMs = 1;
   private powerMs = 0;
+  /** Milisegundos que queda de baño de shoyu (todo vale el doble). */
+  private shoyuMs = 0;
+  /** Milisegundos que queda de palillos (el arroz cercano se recoge solo). */
+  private imanMs = 0;
   private cadena = 0;
   private rachaMs = 0;
   private racha = 0;
@@ -123,9 +131,14 @@ export class GameEngine {
     nigiri: 0,
     gari: 0,
     wasabi: 0,
+    shoyu: 0,
+    ohashi: 0,
+    heart: 0,
     golden: 0,
   };
   private enemigosComidos = 0;
+  /** Vidas perdidas en el nivel en curso: a cero se cobra el bonus. */
+  private muertesDelNivel = 0;
   private coronaMostrada = false;
   private maestroMostrado = false;
 
@@ -235,7 +248,16 @@ export class GameEngine {
     this.enemigosComidos = 0;
     this.coronaMostrada = false;
     this.maestroMostrado = false;
-    this.recuento = { rice: 0, nigiri: 0, gari: 0, wasabi: 0, golden: 0 };
+    this.recuento = {
+      rice: 0,
+      nigiri: 0,
+      gari: 0,
+      wasabi: 0,
+      shoyu: 0,
+      ohashi: 0,
+      heart: 0,
+      golden: 0,
+    };
 
     const store = useSuguMakiStore.getState();
     store.setResult(null);
@@ -353,6 +375,8 @@ export class GameEngine {
     this.tiempoTotalMs = this.nivel.seconds * 1000;
     this.tiempoMs = this.tiempoTotalMs;
     this.powerMs = 0;
+    this.shoyuMs = 0;
+    this.imanMs = 0;
     this.cadena = 0;
     this.racha = 0;
     this.rachaMs = 0;
@@ -360,6 +384,7 @@ export class GameEngine {
     this.cicloMs = this.nivel.modeCycle[0];
     this.goldenMs = 0;
     this.goldenUsado = false;
+    this.muertesDelNivel = 0;
     this.faseMs = 0;
 
     useSuguMakiStore.getState().sync({
@@ -391,14 +416,13 @@ export class GameEngine {
   }
 
   private crearObjeto(tile: Tile, kind: ItemKind) {
-    const id: FrameId =
-      kind === 'nigiri'
-        ? 'item.nigiri'
-        : kind === 'gari'
-          ? 'item.gari'
-          : kind === 'wasabi'
-            ? 'item.wasabi'
-            : 'item.golden';
+    /*
+     * Cada `ItemKind` tiene su recorte `item.<kind>` en el atlas, así que el
+     * nombre se arma con la plantilla. Sin `as`: TypeScript comprueba que la
+     * unión resultante entra en `FrameId`, o sea que si mañana se añade un
+     * objeto sin dibujo, el fallo salta aquí y no en pantalla.
+     */
+    const id: FrameId = `item.${kind}`;
 
     const s = new Sprite(frame(id));
     s.anchor.set(0.5);
@@ -488,6 +512,10 @@ export class GameEngine {
       }
     }
 
+    // --- shoyu y palillos: solo cuentan atrás
+    if (this.shoyuMs > 0) this.shoyuMs = Math.max(0, this.shoyuMs - ms);
+    if (this.imanMs > 0) this.imanMs = Math.max(0, this.imanMs - ms);
+
     // --- SUGU POWER
     if (this.powerMs > 0) {
       this.powerMs = Math.max(0, this.powerMs - ms);
@@ -571,6 +599,9 @@ export class GameEngine {
       audio.play('collect', this.recuento.rice);
     }
 
+    // palillos: alcanzan el arroz de alrededor sin pasar por encima
+    if (this.imanMs > 0) this.imantar(t);
+
     // objeto especial
     const obj = this.objetos.get(i);
     if (obj) {
@@ -598,6 +629,48 @@ export class GameEngine {
     if (this.puntos.size === 0 && this.fase === 'jugando') this.completarNivel();
   }
 
+  /**
+   * Recoge el arroz que quede al alcance de los palillos.
+   *
+   * Solo mira el cuadrado de casillas alrededor del jugador (unas 25), no la
+   * lista entera de arroz: da igual que el nivel tenga 250 granos.
+   *
+   * El alcance atraviesa paredes a propósito. Comprobar la línea de visión
+   * dejaba los palillos casi inútiles —en un laberinto de pasillos de una
+   * casilla casi todo lo cercano está detrás de un muro— y además obligaba a
+   * mirar el mapa para entender por qué unos granos sí y otros no.
+   */
+  private imantar(centro: Tile) {
+    const r = Math.ceil(OHASHI_RADIO);
+    let sono = false;
+
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > OHASHI_RADIO * OHASHI_RADIO) continue;
+
+        const x = centro.x + dx;
+        const y = centro.y + dy;
+        if (x < 0 || y < 0 || x >= COLS || y >= ROWS) continue;
+
+        const i = y * COLS + x;
+        const grano = this.puntos.get(i);
+        if (!grano) continue;
+
+        this.puntos.delete(i);
+        grano.destroy();
+        this.recogidos++;
+        this.recuento.rice++;
+        this.sumar(PTS.rice, null);
+
+        // un solo sonido por frame: si no, cinco granos a la vez son un ruido
+        if (!sono) {
+          audio.play('collect', this.recuento.rice);
+          sono = true;
+        }
+      }
+    }
+  }
+
   private recogerObjeto(kind: ItemKind, t: Tile) {
     this.recuento[kind]++;
     this.player.celebrar();
@@ -617,8 +690,51 @@ export class GameEngine {
       return;
     }
 
+    // shoyu: unos segundos a doble puntuación
+    if (kind === 'shoyu') {
+      /*
+       * El x2 se enciende DESPUÉS de cobrar el shoyu. Al revés se doblaba a sí
+       * mismo y el número flotante decía +300 mientras el marcador subía 600:
+       * el jugador no tiene forma de cuadrar eso.
+       */
+      this.sumar(PTS.shoyu, t, `+${PTS.shoyu}`);
+      this.shoyuMs = SHOYU_MS;
+      this.efecto('fx.star', t, 1.5);
+      audio.play('item');
+      useSuguMakiStore.getState().mostrarAviso('¡BAÑO DE SHOYU! x2', 'oro');
+      return;
+    }
+
+    // ohashi: unos segundos recogiendo arroz a distancia
+    if (kind === 'ohashi') {
+      this.imanMs = OHASHI_MS;
+      this.sumar(PTS.ohashi, t, `+${PTS.ohashi}`);
+      this.efecto('fx.sparkle', t, 1.5);
+      audio.play('item');
+      useSuguMakiStore.getState().mostrarAviso('¡PALILLOS LARGOS!', 'verde');
+      return;
+    }
+
+    /*
+     * Corazón: una vida más. Con las vidas al tope no se tira —eso sentaría
+     * fatal después de haber jugado limpio—: se cobra en puntos.
+     */
+    if (kind === 'heart') {
+      const store = useSuguMakiStore.getState();
+      if (this.vidas < MAX_LIVES) {
+        this.vidas++;
+        store.mostrarAviso('¡VIDA EXTRA!', 'verde');
+      } else {
+        this.sumar(PTS.heart, t, `+${PTS.heart}`);
+        store.mostrarAviso('¡CORAZÓN LLENO!', 'oro');
+      }
+      this.efecto('fx.sparkle', t, 1.6);
+      audio.play('item');
+      return;
+    }
+
     // wasabi: SUGU POWER
-    this.powerMs = POWER_MS;
+    this.powerMs = this.nivel.powerMs;
     this.cadena = 0;
     for (const e of this.enemigos) if (!e.comido) e.setMode('frightened');
     this.efecto('fx.orb', t, 1.8);
@@ -635,7 +751,7 @@ export class GameEngine {
     this.rachaMs = COMBO_MS;
 
     const combo = this.comboActual();
-    const total = base * combo;
+    const total = base * combo * (this.shoyuMs > 0 ? SHOYU_MULT : 1);
     this.puntuacion += total;
 
     if (t && texto) this.textoFlotante(texto, t);
@@ -722,8 +838,11 @@ export class GameEngine {
     if (this.fase !== 'jugando') return;
 
     this.vidas = Math.max(0, this.vidas - 1);
+    this.muertesDelNivel++;
     this.player.morir();
     this.powerMs = 0;
+    this.shoyuMs = 0;
+    this.imanMs = 0;
     this.racha = 0;
     audio.play('death');
     audio.setMusicRate(1);
@@ -743,6 +862,12 @@ export class GameEngine {
 
     const bonusTiempo = Math.floor(this.tiempoMs / 1000) * PTS.perSecondLeft;
     this.puntuacion += PTS.levelComplete + bonusTiempo;
+
+    // premio a la ronda limpia: es lo que empuja a esquivar en vez de a correr
+    if (this.muertesDelNivel === 0) {
+      this.puntuacion += PTS.noDamage;
+      useSuguMakiStore.getState().mostrarAviso('¡SIN UN RASGUÑO! +1000', 'oro');
+    }
 
     audio.play('levelComplete');
     audio.setMusicRate(1);
@@ -951,6 +1076,8 @@ export class GameEngine {
       combo: this.racha > 0 ? this.comboActual() : 0,
       progress: this.totalRecogibles ? this.recogidos / this.totalRecogibles : 0,
       powerMs: Math.round(this.powerMs / 250) * 250,
+      shoyuMs: Math.round(this.shoyuMs / 250) * 250,
+      imanMs: Math.round(this.imanMs / 250) * 250,
     });
   }
 }
