@@ -95,11 +95,15 @@ export const SHOYU_MS = 8000;
 export const SHOYU_MULT = 2;
 
 /**
- * Ohashi: los palillos alargan el brazo. Mientras duran, el arroz que quede a
- * este radio (en casillas) se recoge solo, sin pasar por encima.
+ * Ohashi: los palillos alargan el brazo. Mientras duran, el arroz de las cuatro
+ * casillas pegadas al maki se recoge solo, sin pasar por encima.
+ *
+ * El radio es 1 y no más: con 2,5 barría cinco filas de golpe, se limpiaban
+ * pasillos enteros sin recorrerlos y el nivel se acababa solo. Un comecocos va
+ * de elegir la ruta; los palillos dan un pellizco de ventaja, no un atajo.
  */
 export const OHASHI_MS = 6000;
-export const OHASHI_RADIO = 2.5;
+export const OHASHI_RADIO = 1;
 
 /** Tope de vidas. El corazón por encima de esto se paga en puntos. */
 export const MAX_LIVES = 5;

@@ -126,7 +126,7 @@ function ComoJugar({ onCerrar }: { onCerrar: () => void }) {
             <SpriteImg frame="item.ohashi" size={26} />
             <span>
               <strong>Ohashi</strong> — {PTS.ohashi} pts y {OHASHI_MS / 1000} segundos recogiendo el
-              arroz de alrededor sin pasar por encima.
+              arroz de las casillas de al lado sin pasar por encima.
             </span>
           </li>
           <li>
