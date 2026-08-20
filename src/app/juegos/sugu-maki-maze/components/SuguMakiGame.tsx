@@ -16,7 +16,7 @@ import {
   NivelCompletado,
   Pausa,
 } from './GameOverlay';
-import { Cruceta, PistaTactil, useSinZoom, useSwipe, useTactil } from './MobileControls';
+import { PistaTactil, useJoystick, useSinZoom, useTactil } from './MobileControls';
 
 /**
  * Pantalla completa de Sugu Maki Maze: monta el motor, escucha los controles y
@@ -41,6 +41,7 @@ const TECLAS: Record<string, Dir> = {
 
 export default function SuguMakiGame() {
   const hostRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const [listo, setListo] = useState(false);
 
@@ -121,7 +122,7 @@ export default function SuguMakiGame() {
 
   const enJuego = status === 'playing' || status === 'countdown';
   const tactil = useTactil();
-  useSwipe(hostRef, mover, enJuego);
+  useJoystick(stickRef, mover, tactil && enJuego);
   useSinZoom();
 
   // pierdes el foco de la pestaña a mitad de partida: se pausa solo
@@ -148,12 +149,15 @@ export default function SuguMakiGame() {
   }, [reset]);
 
   return (
-    <div className={`maze-marco${tactil ? ' con-cruceta' : ''}`}>
+    <div className="maze-marco">
       <div className="maze-cabina">
         <GameHUD onPausa={alternarPausa} />
 
         <div className="maze-tablero">
           <div ref={hostRef} className="maze-canvas" />
+
+          {/* zona del joystick: todo el tablero, por debajo de los carteles */}
+          {tactil && <div ref={stickRef} className="maze-stick" />}
 
           <AvisoFlotante />
           <PistaTactil visible={status === 'countdown'} />
@@ -175,8 +179,6 @@ export default function SuguMakiGame() {
 
         <BarraProgreso />
       </div>
-
-      {tactil && <Cruceta onDir={mover} activo={enJuego} />}
     </div>
   );
 }

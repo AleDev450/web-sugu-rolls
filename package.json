@@ -13,8 +13,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "assets:sync": "node scripts/sync-assets.mjs",
-    "assets:slice": "node scripts/slice-boceto.mjs",
-    "assets:dpad": "node scripts/optimize-dpad.mjs"
+    "assets:slice": "node scripts/slice-boceto.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -26,6 +25,7 @@
     "lucide-react": "^1.28.0",
     "matter-js": "^0.20.0",
     "next": "^15.3.0",
+    "nipplejs": "^1.0.4",
     "pixi.js": "^8.9.0",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",

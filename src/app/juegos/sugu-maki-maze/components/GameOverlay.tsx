@@ -92,7 +92,7 @@ function ComoJugar({ onCerrar }: { onCerrar: () => void }) {
             <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> o las flechas · <kbd>ESC</kbd> pausa
           </p>
           <p className="maze-solo-movil">
-            La cruceta de abajo · también vale deslizar el dedo sobre el tablero
+            Arrastra el dedo por el tablero: el joystick aparece donde lo pongas
           </p>
         </div>
 
