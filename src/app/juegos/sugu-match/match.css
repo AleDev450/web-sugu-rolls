@@ -1,0 +1,680 @@
+/*
+ * Sugu Match — estilos de la pantalla de juego.
+ *
+ * Todo cuelga de `.match-root` para que no se escape nada al resto de la web,
+ * igual que hacen `/juego` con `.juego-root` y Sugu Maki Maze con `.maze-root`.
+ *
+ * REGLA PRINCIPAL DE ESTE ARCHIVO: los marcos no se dibujan aquí.
+ *
+ * Los paneles de objetivos, movimientos, puntuación y habilidades son láminas
+ * PNG dibujadas a mano. El CSS no las imita con `border` y `border-radius`:
+ * las pinta de fondo y se limita a colocar los números dentro de los huecos
+ * que la lámina ya trae. Las coordenadas de esos huecos están medidas en
+ * `game/render/interfaz.ts` y llegan como estilo en línea, así que aquí no hay
+ * —ni debe haber— un solo porcentaje de posicionamiento escrito a ojo.
+ *
+ * Consecuencia práctica: si un número aparece descuadrado dentro de su marco,
+ * el arreglo NO está en este archivo. Está en la medida del atlas.
+ *
+ * Lo que sí vive aquí: el reparto del espacio, las tipografías, los colores
+ * del texto y las animaciones. Nada de medidas fijas en píxeles para las cajas
+ * grandes: el tablero lo dimensiona PixiJS a partir del hueco que le deja este
+ * layout.
+ */
+
+.match-root {
+  --rosa: #ff5c8a;
+  --rosa-claro: #ff92b3;
+  --rosa-hondo: #d63a68;
+  --turquesa: #2aa7a7;
+  --turquesa-claro: #7fd8d8;
+  --azul: #3d8fbe;
+  --azul-hondo: #275f80;
+  --crema: #fff6e5;
+  --crema-hondo: #ffe9c7;
+  --marron: #4a2c1a;
+  --oro: #ffc93d;
+  --verde: #6fbf5b;
+
+  --sugu: var(--font-sugu), 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+
+  /*
+   * El degradado va DEBAJO de la foto y no sobra: la terraza es vertical
+   * (1024x1536) y en una pantalla apaisada `cover` la recorta por los lados.
+   * El degradado tapa ese hueco con los mismos colores del cielo y la madera,
+   * así que el borde no canta.
+   */
+  background:
+    url('/games/sugu-match/background.png') center / cover no-repeat,
+    radial-gradient(140% 60% at 50% 100%, #b4794a 0%, #8c5a34 18%, rgba(140, 90, 52, 0) 42%),
+    linear-gradient(180deg, #8fd3f4 0%, #b7e3f7 34%, #ffd9e6 68%, #ffc0d4 100%);
+  color: var(--marron);
+  font-family: var(--sugu);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.match-root * {
+  box-sizing: border-box;
+}
+
+/*
+ * Un recorte del sprite sheet. El `background` completo —qué trozo y a qué
+ * escala— lo pone `frameToCss` en línea; aquí solo va lo que no depende del
+ * frame concreto.
+ */
+.match-sprite {
+  display: inline-block;
+  text-align: center;
+}
+
+/* Sin `size`: el icono llena su hueco de la lámina. */
+.match-sprite.es-lleno {
+  width: 100%;
+  height: 100%;
+  font-size: 1.6em;
+}
+
+/* Texto que solo existe para los lectores de pantalla: el logo es un dibujo,
+   pero la página necesita un h1 de verdad. */
+.match-solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * Velo sobre la terraza.
+ *
+ * La foto tiene mucho detalle y mucho contraste —farolillos, flores, tablas de
+ * madera— y los marcos del HUD se le pierden encima. Este velo la apaga un
+ * punto y oscurece las esquinas, que es donde caen los marcos. No es
+ * decoración: sin él hay que engordar los contornos del HUD para que se lean,
+ * y entonces el dibujo bonito deja de verse.
+ */
+.match-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% 45%, rgba(12, 40, 66, 0) 40%, rgba(12, 40, 66, 0.42) 100%),
+    rgba(20, 48, 74, 0.16);
+}
+
+/* --- estructura --------------------------------------------------------- */
+
+.match-marco {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(4px, 1.4vh, 14px);
+}
+
+/*
+ * La cabina se queda estrecha en escritorio a propósito: un Match-3 se juega
+ * con el pulgar, y un tablero de dos metros de ancho obliga a mover el ratón
+ * media pantalla por cada jugada.
+ */
+.match-cabina {
+  position: relative;
+  width: min(100%, 30rem);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1vh, 10px);
+}
+
+.match-tablero {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.match-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.match-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.match-cargando {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: clamp(0.9rem, 3.4vw, 1.2rem);
+  letter-spacing: 0.14em;
+  color: var(--crema);
+  text-shadow: 0 2px 0 var(--marron);
+}
+
+/* --- paneles del HUD ---------------------------------------------------- */
+
+.match-hud {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(3px, 0.8vh, 8px);
+  padding: clamp(2px, 0.8vh, 8px) 0 0;
+}
+
+.match-hud__fila {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: clamp(4px, 1.6vw, 12px);
+}
+
+.match-hud__centro {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* el logo asoma por encima de los dos marcos laterales, como en el boceto */
+  margin-top: clamp(-14px, -2.2vh, -4px);
+}
+
+/*
+ * Base de todas las láminas del HUD.
+ *
+ * `aspect-ratio` no se pone aquí: lo trae el estilo en línea que devuelve
+ * `laminaCss`, sacado de la proporción real del recorte. Fijarlo en el CSS
+ * sería repetir un dato que ya está medido, y repetirlo es garantizar que un
+ * día no coincidan.
+ */
+.match-lamina {
+  position: relative;
+  flex: none;
+}
+
+.match-lamina--objetivos,
+.match-lamina--movimientos {
+  width: clamp(112px, 33vw, 168px);
+}
+
+/* Los dos marcos laterales se apoyan en la misma línea de arriba aunque el
+   dibujo de movimientos sea más alto que el de objetivos. */
+.match-lamina--movimientos {
+  align-self: flex-start;
+}
+
+.match-lamina--score {
+  width: clamp(150px, 46vw, 220px);
+  align-self: center;
+  margin-top: clamp(-10px, -1.6vh, -2px);
+}
+
+/* --- objetivos ----------------------------------------------------------- */
+
+.match-obj {
+  transition: opacity 0.25s ease;
+}
+
+.match-obj.es-listo {
+  opacity: 0.55;
+}
+
+/*
+ * El slot del dibujo ya es un cuadro hundido: el icono solo tiene que caber
+ * dentro dejando ver el borde.
+ *
+ * El aire se da con el TAMAÑO del icono y no con `padding` en el slot. El slot
+ * está posicionado en absoluto, y un porcentaje de padding en un elemento
+ * absoluto se calcula sobre su bloque contenedor —el panel entero—, no sobre
+ * el propio slot: `padding: 12%` acababa siendo la mitad del slot y dejaba el
+ * icono en 0 px. El porcentaje de un hijo de grid sí se mide contra la celda.
+ */
+.match-obj__slot {
+  display: grid;
+  place-items: center;
+}
+
+.match-obj__icono {
+  width: 78%;
+  height: 78%;
+}
+
+.match-obj__n {
+  display: grid;
+  place-items: center;
+  font-size: clamp(0.62rem, 2.7vw, 0.9rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--marron);
+}
+
+.match-obj.es-listo .match-obj__n {
+  color: var(--verde);
+}
+
+/* --- movimientos --------------------------------------------------------- */
+
+.match-movimientos {
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.5rem, 7.4vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--rosa-hondo);
+}
+
+.match-movimientos.es-poco {
+  color: #c81e3c;
+  animation: match-latido 0.7s ease-in-out infinite;
+}
+
+@keyframes match-latido {
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+/*
+ * Las tres estrellas se reparten la barra marrón a tercios y se salen de ella
+ * por arriba y por abajo (`height: 150%`), que es como están en el boceto:
+ * apoyadas sobre la barra, no metidas dentro.
+ */
+.match-estrellas {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+}
+
+.match-estrella {
+  height: 150%;
+  aspect-ratio: 502 / 484;
+  flex: none;
+  transition: filter 0.25s ease;
+}
+
+.match-estrella.es-ganada {
+  filter: drop-shadow(0 0 6px rgba(255, 201, 61, 0.85));
+}
+
+.match-estrella--grande {
+  height: auto;
+  width: clamp(2.4rem, 12vw, 3.4rem);
+}
+
+/* --- logo y nivel -------------------------------------------------------- */
+
+.match-logo {
+  width: clamp(104px, 30vw, 160px);
+  margin: 0;
+}
+
+.match-nivel {
+  margin: clamp(-6px, -0.8vh, -2px) 0 0;
+  font-size: clamp(0.55rem, 2.4vw, 0.72rem);
+  letter-spacing: 0.16em;
+  color: var(--crema);
+  text-shadow:
+    0 2px 0 rgba(74, 44, 26, 0.9),
+    0 0 6px rgba(74, 44, 26, 0.6);
+}
+
+/* --- puntuación ---------------------------------------------------------- */
+
+.match-score__n {
+  display: grid;
+  place-items: center;
+  font-size: clamp(0.95rem, 4.4vw, 1.5rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--crema);
+  text-shadow: 0 2px 0 rgba(12, 78, 92, 0.75);
+}
+
+.match-score__combo {
+  position: absolute;
+  top: -6px;
+  right: 2%;
+  padding: 2px 9px;
+  font-size: clamp(0.5rem, 2.2vw, 0.66rem);
+  letter-spacing: 0.1em;
+  color: var(--marron);
+  background: var(--oro);
+  border: 2px solid var(--marron);
+  border-radius: 999px;
+  transform: rotate(-6deg);
+}
+
+/* --- botón de pausa ------------------------------------------------------ */
+
+.match-pausa {
+  flex: none;
+  width: clamp(38px, 11vw, 54px);
+  padding: 0;
+  background-color: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.match-pausa:active {
+  transform: translateY(3px) scale(0.96);
+}
+
+/* --- botones ------------------------------------------------------------ */
+
+.match-boton {
+  min-width: min(80%, 16rem);
+  margin-top: 10px;
+  padding: 11px 26px;
+  font-family: inherit;
+  font-size: clamp(0.9rem, 4vw, 1.15rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--crema);
+  background: linear-gradient(180deg, var(--rosa-claro) 0%, var(--rosa) 60%, var(--rosa-hondo) 100%);
+  border: 3px solid var(--marron);
+  border-radius: 999px;
+  box-shadow: 0 5px 0 rgba(74, 44, 26, 0.5);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+.match-boton:hover {
+  filter: brightness(1.06);
+}
+
+.match-boton:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 rgba(74, 44, 26, 0.5);
+}
+
+.match-boton--suave {
+  background: linear-gradient(180deg, #ffffff 0%, var(--crema-hondo) 100%);
+  color: var(--marron);
+}
+
+.match-chip {
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: clamp(0.68rem, 3vw, 0.82rem);
+  font-weight: 700;
+  color: var(--marron);
+  background: var(--crema);
+  border: 3px solid var(--marron);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* --- barra de boosters -------------------------------------------------- */
+
+/*
+ * El pie: la pausa a la izquierda y la lámina de habilidades ocupando el
+ * resto. La pausa va fuera de la lámina porque los siete huecos pintados son
+ * de los boosters; meterle un octavo obligaría a redibujar la barra.
+ */
+.match-pie {
+  display: flex;
+  align-items: center;
+  gap: clamp(5px, 2vw, 12px);
+  padding: clamp(3px, 0.8vh, 8px) 0 clamp(6px, 1.6vh, 14px);
+}
+
+.match-boosters {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * Cada botón se coloca sobre el hueco que le toca de la lámina; su tamaño y
+ * su posición vienen del estilo en línea. Aquí no hay `width` ni `gap`: el
+ * reparto lo decide el dibujo, no el CSS.
+ */
+.match-booster {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    filter 0.12s ease;
+}
+
+.match-booster:active {
+  transform: translateY(2px) scale(0.95);
+}
+
+.match-booster.es-activo {
+  transform: translateY(-4px) scale(1.1);
+  filter: drop-shadow(0 0 9px rgba(255, 201, 61, 0.95));
+}
+
+.match-booster.es-vacio,
+.match-booster:disabled {
+  filter: grayscale(0.85);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/*
+ * Igual que en los objetivos: el aire va en el tamaño del icono, nunca en un
+ * `padding` porcentual del botón, que se mediría contra la barra entera.
+ *
+ * Y sube un pelo respecto al centro para dejarle sitio abajo al contador, que
+ * si no le tapa media pieza.
+ */
+.match-booster__icono {
+  width: 78%;
+  height: 78%;
+  transform: translateY(-8%);
+}
+
+/*
+ * El contador va centrado colgando del borde de abajo del slot, como en el
+ * boceto. Centrado y no en la esquina porque los slots de la lámina están casi
+ * pegados: una pastilla en la esquina derecha se mete en el slot vecino.
+ *
+ * Las medidas van en `em` para que encoja con el icono: en un móvil estrecho
+ * el slot baja de 40 px y una pastilla de tamaño fijo se comería el dibujo.
+ */
+.match-booster__n {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  /* clavada en el borde de abajo del slot: la mitad dentro y la mitad sobre el
+     marco azul. Con `translate` y no con un `bottom` negativo porque así no
+     hay que saber cuánto mide la pastilla, que depende del texto */
+  transform: translate(-50%, 50%);
+  min-width: 1.7em;
+  padding: 0.05em 0.35em;
+  font-size: clamp(0.55rem, 2.4vw, 0.72rem);
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--crema);
+  background: var(--rosa);
+  border: 2px solid var(--marron);
+  border-radius: 999px;
+}
+
+.match-booster-pista {
+  margin: 0;
+  padding: 5px 10px;
+  align-self: center;
+  font-size: clamp(0.62rem, 2.8vw, 0.78rem);
+  color: var(--marron);
+  background: var(--crema);
+  border: 2px dashed var(--marron);
+  border-radius: 999px;
+}
+
+/* --- carteles ----------------------------------------------------------- */
+
+.match-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(39, 95, 128, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.match-cartel {
+  width: min(100%, 22rem);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: clamp(14px, 4vh, 26px) clamp(14px, 5vw, 24px) clamp(16px, 4vh, 24px);
+  text-align: center;
+  background: linear-gradient(180deg, var(--crema) 0%, var(--crema-hondo) 100%);
+  border: 4px solid var(--marron);
+  border-radius: 26px;
+  box-shadow: 0 8px 0 rgba(74, 44, 26, 0.45);
+}
+
+/* El mismo logo dibujado del HUD, en grande y centrado. */
+.match-cartel__logo {
+  width: min(78%, 15rem);
+  margin: 0 auto 10px;
+}
+
+.match-cartel__titulo {
+  margin: 0 0 8px;
+  font-size: clamp(1.15rem, 6vw, 1.7rem);
+  font-weight: 800;
+  color: var(--marron);
+}
+
+.match-cartel__titulo--exito {
+  color: var(--verde);
+  text-shadow: 0 2px 0 var(--marron);
+}
+
+.match-cartel__titulo--fallo {
+  color: var(--rosa-hondo);
+  text-shadow: 0 2px 0 var(--marron);
+}
+
+.match-cartel__texto {
+  margin: 8px 0 0;
+  font-size: clamp(0.72rem, 3.2vw, 0.88rem);
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgba(74, 44, 26, 0.85);
+}
+
+.match-cartel__nivel {
+  margin: 10px 0 0;
+  font-size: clamp(0.8rem, 3.6vw, 1rem);
+  font-weight: 800;
+  color: var(--turquesa);
+}
+
+.match-cartel__best {
+  margin: 6px 0 0;
+  font-size: clamp(0.72rem, 3.2vw, 0.88rem);
+  color: var(--rosa-hondo);
+  font-weight: 800;
+}
+
+.match-cartel__score {
+  margin: 10px 0 0;
+  font-size: clamp(1.6rem, 8vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--azul-hondo);
+  text-shadow: 0 2px 0 var(--crema);
+}
+
+.match-cartel__estrellas {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.match-ajustes {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.match-pendientes {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  font-size: clamp(0.72rem, 3.2vw, 0.88rem);
+}
+
+.match-pendientes li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* --- aviso flotante ----------------------------------------------------- */
+
+.match-aviso {
+  position: absolute;
+  top: 16%;
+  left: 50%;
+  z-index: 4;
+  margin: 0;
+  padding: 8px 20px;
+  transform: translateX(-50%);
+  font-size: clamp(0.85rem, 4.4vw, 1.25rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--crema);
+  border: 3px solid var(--marron);
+  border-radius: 999px;
+  box-shadow: 0 5px 0 rgba(74, 44, 26, 0.45);
+  pointer-events: none;
+}
+
+.match-aviso--oro {
+  background: linear-gradient(180deg, #ffe08a 0%, var(--oro) 100%);
+  color: var(--marron);
+}
+
+.match-aviso--verde {
+  background: linear-gradient(180deg, #9fe089 0%, var(--verde) 100%);
+}
+
+.match-aviso--rosa {
+  background: linear-gradient(180deg, var(--rosa-claro) 0%, var(--rosa) 100%);
+}
+
+/* Quien pide menos movimiento, menos movimiento: las animaciones decorativas
+   se apagan, pero el juego sigue siendo jugable. */
+@media (prefers-reduced-motion: reduce) {
+  .match-movimientos.es-poco {
+    animation: none;
+  }
+}
