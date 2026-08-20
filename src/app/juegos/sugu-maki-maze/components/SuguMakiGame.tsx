@@ -16,7 +16,7 @@ import {
   NivelCompletado,
   Pausa,
 } from './GameOverlay';
-import { Cruceta, PistaTactil, useSinZoom, useSwipe } from './MobileControls';
+import { Cruceta, PistaTactil, useSinZoom, useSwipe, useTactil } from './MobileControls';
 
 /**
  * Pantalla completa de Sugu Maki Maze: monta el motor, escucha los controles y
@@ -120,6 +120,7 @@ export default function SuguMakiGame() {
   }, [mover, alternarPausa]);
 
   const enJuego = status === 'playing' || status === 'countdown';
+  const tactil = useTactil();
   useSwipe(hostRef, mover, enJuego);
   useSinZoom();
 
@@ -147,7 +148,7 @@ export default function SuguMakiGame() {
   }, [reset]);
 
   return (
-    <div className="maze-marco">
+    <div className={`maze-marco${tactil ? ' con-cruceta' : ''}`}>
       <div className="maze-cabina">
         <GameHUD onPausa={alternarPausa} />
 
@@ -175,7 +176,7 @@ export default function SuguMakiGame() {
         <BarraProgreso />
       </div>
 
-      <Cruceta onDir={mover} activo={enJuego} />
+      {tactil && <Cruceta onDir={mover} activo={enJuego} />}
     </div>
   );
 }

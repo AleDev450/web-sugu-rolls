@@ -26,8 +26,6 @@
 
   /* aire alrededor de la cabina; entra en la cuenta que reserva la cruceta */
   --aire: clamp(6px, 2vh, 22px);
-  /* lado de la cruceta. Es EL número para agrandar o encoger el mando. */
-  --dpad: clamp(132px, 40vw, 200px);
 
   position: fixed;
   inset: 0;
@@ -41,6 +39,8 @@
   align-items: center;
   justify-content: center;
   padding: var(--aire);
+  /* la barra de gestos del iPhone se come el borde de abajo */
+  padding-bottom: calc(var(--aire) + env(safe-area-inset-bottom, 0px));
   /*
    * Ni pellizco ni doble toque dentro de la recreativa. Es la mitad del arreglo
    * —la otra es `useSinZoom`, para los gestos propietarios de Safari—: el
@@ -649,12 +649,16 @@
   text-align: left;
 }
 
-/* el aviso de controles depende del dispositivo, no del ancho de ventana */
+/*
+ * El aviso de controles depende del dispositivo, no del ancho de ventana. Se
+ * pregunta solo por `pointer: coarse`: añadir `hover: none` dejaba fuera a los
+ * móviles que declaran hover, los mismos que se quedaban sin cruceta.
+ */
 .maze-solo-movil {
   display: none;
 }
 
-@media (hover: none) and (pointer: coarse) {
+@media (pointer: coarse) {
   .maze-solo-escritorio {
     display: none;
   }
@@ -847,7 +851,6 @@
  */
 
 .maze-cruceta {
-  display: none;
   position: relative;
   flex: none;
   width: var(--dpad);
@@ -902,46 +905,41 @@
   transform: scale(1);
 }
 
-@media (hover: none) and (pointer: coarse) {
-  .maze-root {
-    --aire: clamp(6px, 1.4vh, 14px);
-    /* la barra de gestos del iPhone se come el borde de abajo */
-    padding-bottom: calc(var(--aire) + env(safe-area-inset-bottom, 0px));
-  }
+/*
+ * La franja de la cruceta. La clase la pone React cuando detecta pantalla
+ * táctil (`useTactil`) y no una media query: había móviles que declaran
+ * `hover: hover` y se quedaban sin mando.
+ */
+.maze-marco.con-cruceta {
+  /* lado de la cruceta. Es EL número para agrandar o encoger el mando. */
+  --dpad: clamp(112px, min(40vw, 23vh), 200px);
+  --dpad: clamp(112px, min(40vw, 23dvh), 200px);
 
-  .maze-cruceta {
-    display: block;
-  }
+  flex-direction: column;
+  gap: var(--aire);
+}
 
-  .maze-marco {
-    flex-direction: column;
-    gap: var(--aire);
-  }
-
-  /*
-   * La cabina cede el alto que ocupa la cruceta. El tope se le pasa ya
-   * convertido a ANCHO —de ahí el 21/29— porque su alto lo deduce el
-   * `aspect-ratio` a partir del ancho: recortarle el alto sin más la
-   * deformaría. Los tres aires son el borde de arriba, el hueco hasta la
-   * cruceta y el borde de abajo.
-   */
-  .maze-cabina {
-    width: min(100%, 58vh, (100vh - var(--dpad) - 3 * var(--aire) - env(safe-area-inset-bottom, 0px)) * 21 / 29);
-    width: min(100%, 58dvh, (100dvh - var(--dpad) - 3 * var(--aire) - env(safe-area-inset-bottom, 0px)) * 21 / 29);
-  }
+/*
+ * La cabina cede el alto que ocupa la cruceta. El tope se le pasa ya convertido
+ * a ANCHO —de ahí el 21/29— porque su alto lo deduce el `aspect-ratio` a partir
+ * del ancho: recortarle el alto sin más la deformaría. Los tres aires son el
+ * borde de arriba, el hueco hasta la cruceta y el borde de abajo.
+ */
+.con-cruceta .maze-cabina {
+  width: min(100%, 58vh, (100vh - var(--dpad) - 3 * var(--aire) - env(safe-area-inset-bottom, 0px)) * 21 / 29);
+  width: min(100%, 58dvh, (100dvh - var(--dpad) - 3 * var(--aire) - env(safe-area-inset-bottom, 0px)) * 21 / 29);
 }
 
 /* tumbado sobra ancho y falta alto: la cruceta se pone al lado, no debajo */
-@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
-  .maze-root {
-    --dpad: clamp(104px, 30vh, 168px);
-  }
+@media (orientation: landscape) {
+  .maze-marco.con-cruceta {
+    --dpad: clamp(96px, 30vh, 168px);
+    --dpad: clamp(96px, 30dvh, 168px);
 
-  .maze-marco {
     flex-direction: row;
   }
 
-  .maze-cabina {
+  .con-cruceta .maze-cabina {
     width: min(58vh, calc(100% - var(--dpad) - 2 * var(--aire)));
     width: min(58dvh, calc(100% - var(--dpad) - 2 * var(--aire)));
   }

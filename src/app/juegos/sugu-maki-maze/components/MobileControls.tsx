@@ -281,16 +281,47 @@ export function useSinZoom() {
   }, []);
 }
 
+/* --- detección de pantalla táctil ---------------------------------------- */
+
+/**
+ * Si toca sacar la cruceta.
+ *
+ * Se preguntaba por `(hover: none) and (pointer: coarse)` y en algunos móviles
+ * eso no basta: hay navegadores que declaran `hover: hover` —y el modo
+ * escritorio lo hace siempre—, así que el mando no aparecía justo en el sitio
+ * donde hace falta. Ahora se pregunta solo por `pointer: coarse`, que es lo que
+ * importa (el dedo es un puntero gordo), y además se enciende en cuanto llega
+ * el primer toque real: no hay teléfono que se escape.
+ *
+ * El portátil con pantalla táctil sigue arrancando sin cruceta —tiene ratón,
+ * `pointer: fine`— y solo la ve si de verdad toca la pantalla.
+ */
+export function useTactil(): boolean {
+  const [tactil, setTactil] = useState(false);
+
+  useEffect(() => {
+    const grueso = window.matchMedia('(pointer: coarse)');
+    if (grueso.matches) setTactil(true);
+
+    const alCambiar = (e: MediaQueryListEvent) => e.matches && setTactil(true);
+    const alTocar = (e: PointerEvent) => e.pointerType === 'touch' && setTactil(true);
+
+    grueso.addEventListener('change', alCambiar);
+    window.addEventListener('pointerdown', alTocar);
+    return () => {
+      grueso.removeEventListener('change', alCambiar);
+      window.removeEventListener('pointerdown', alTocar);
+    };
+  }, []);
+
+  return tactil;
+}
+
 /* --- pista --------------------------------------------------------------- */
 
 /** Aviso breve la primera vez que se juega en una pantalla táctil. */
 export function PistaTactil({ visible }: { visible: boolean }) {
-  const [tactil, setTactil] = useState(false);
-
-  useEffect(() => {
-    setTactil(window.matchMedia('(hover: none) and (pointer: coarse)').matches);
-  }, []);
-
+  const tactil = useTactil();
   if (!tactil || !visible) return null;
   return <p className="maze-pista-tactil">Mueve el maki con la cruceta</p>;
 }
