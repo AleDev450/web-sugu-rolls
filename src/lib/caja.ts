@@ -80,7 +80,7 @@ export const maxSabores = (promo: PromoMaki) =>
   PROMOS_MAKI.find((p) => p.id === promo)?.maxSabores ?? 1;
 
 /** Los cuatro que se preparan en el puesto. Cambiar aquí cambia la pantalla. */
-export const SABORES = ['Acevichado', 'California', 'Avocado', 'Furai'];
+export const SABORES = ['Acevichado', 'California', 'Avocado', 'Hoto'];
 
 const PRECIO_FIJO: Record<Exclude<ClaveProducto, 'maki'>, number> = {
   pokebowl: 18,
