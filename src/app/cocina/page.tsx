@@ -60,7 +60,14 @@ function Cocina() {
       return;
     }
     setError(null);
-    setPedidos((data ?? []) as PedidoCocina[]);
+    /*
+     * La función devuelve del más antiguo al más nuevo —así su `limit` se
+     * queda con los que más esperan, que son los que no pueden perderse— y
+     * aquí se da la vuelta para mostrar el último pedido arriba, que es
+     * como se quiere mirar desde la cocina.
+     */
+    const llegaron = (data ?? []) as PedidoCocina[];
+    setPedidos([...llegaron].sort((a, b) => b.creado.localeCompare(a.creado)));
     setUltima(new Date());
   }, [clave]);
 
@@ -130,7 +137,7 @@ function Cocina() {
             </p>
           )
         ) : (
-          /* del más antiguo al primero: ese es el orden en que hay que cocinar */
+          /* el último pedido arriba; el de más abajo es el que más espera */
           <ol className="grid gap-3">
             {pedidos.map((p, i) => (
               <li
@@ -140,12 +147,11 @@ function Cocina() {
                 }`}
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-[12px] font-semibold text-bone-dim">
-                    #{i + 1} · {hora(p.creado)}
-                  </span>
-                  <span className="truncate text-[12px] text-bone-dim">
-                    {p.cliente}
-                    {p.vendedor && ` · ${p.vendedor}`}
+                  {/* quién lo pidió: es lo que se grita al entregar */}
+                  <span className="truncate text-base font-bold">{p.cliente}</span>
+                  <span className="shrink-0 text-[12px] font-semibold text-bone-dim">
+                    {hora(p.creado)}
+                    {i === 0 && ' · último'}
                   </span>
                 </div>
                 {p.lineas.map((l, j) => (
@@ -153,6 +159,9 @@ function Cocina() {
                     {describirLinea(l)}
                   </p>
                 ))}
+                {p.vendedor && (
+                  <p className="mt-1.5 text-[11px] text-bone-dim">Lo tomó {p.vendedor}</p>
+                )}
               </li>
             ))}
           </ol>

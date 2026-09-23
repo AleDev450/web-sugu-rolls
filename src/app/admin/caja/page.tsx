@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, RefreshCw } from 'lucide-react';
+import { Check, Download, ExternalLink, RefreshCw, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
-import { listarCaja, type PedidoCaja } from '@/lib/admin';
+import { asignarVendedorACierre, listarCaja, type PedidoCaja } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
 import {
   NOMBRE_METODO,
@@ -71,6 +71,10 @@ export default function CajaAdmin() {
   const [items, setItems] = useState<PedidoCaja[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
+  /** cierre al que se le está poniendo nombre de vendedor, y el nombre */
+  const [asignando, setAsignando] = useState<string | null>(null);
+  const [nombreVendedor, setNombreVendedor] = useState('');
+  const [guardando, setGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
     setItems(null);
@@ -86,6 +90,22 @@ export default function CajaAdmin() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  async function guardarVendedorDelCierre(cierre: string) {
+    const nombre = nombreVendedor.trim();
+    if (!nombre) return;
+    setGuardando(true);
+    try {
+      await asignarVendedorACierre(cierre, nombre);
+      setAsignando(null);
+      setNombreVendedor('');
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo asignar el vendedor.');
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   const vendedores = useMemo(() => {
     const nombres = new Set((items ?? []).map((p) => p.vendedor.trim()).filter(Boolean));
@@ -141,6 +161,10 @@ export default function CajaAdmin() {
     return Array.from(mapa.entries())
       .map(([nombre, { pedidos }]) => ({
         nombre,
+        abierto: nombre === 'Caja sin cerrar',
+        vendedores: Array.from(
+          new Set(pedidos.map((p) => p.vendedor.trim()).filter(Boolean)),
+        ).sort((a, b) => a.localeCompare(b)),
         fecha: rangoFechas(pedidos.map(aPedido)),
         cuantos: pedidos.length,
         total: pedidos.reduce((s, p) => s + p.total, 0),
@@ -358,6 +382,7 @@ export default function CajaAdmin() {
                     <tr>
                       <th className="pb-2 text-left font-medium">Cierre</th>
                       <th className="pb-2 text-left font-medium">Fecha</th>
+                      <th className="pb-2 text-left font-medium">Vendedor</th>
                       <th className="pb-2 text-right font-medium">Pedidos</th>
                       <th className="pb-2 text-right font-medium">Venta</th>
                     </tr>
@@ -367,6 +392,62 @@ export default function CajaAdmin() {
                       <tr key={c.nombre} className="border-t border-white/5">
                         <td className="py-2 font-medium">{c.nombre}</td>
                         <td className="py-2 text-bone-dim">{c.fecha}</td>
+                        <td className="py-2">
+                          {asignando === c.nombre ? (
+                            <span className="flex items-center gap-1">
+                              <input
+                                value={nombreVendedor}
+                                onChange={(e) => setNombreVendedor(e.target.value)}
+                                onKeyDown={(e) =>
+                                  e.key === 'Enter' && void guardarVendedorDelCierre(c.nombre)
+                                }
+                                placeholder="Nombre"
+                                autoFocus
+                                className="w-24 rounded-lg border border-white/20 bg-night px-2 py-1 text-[12px] outline-none focus:border-sugu"
+                              />
+                              <button
+                                type="button"
+                                disabled={guardando || !nombreVendedor.trim()}
+                                onClick={() => void guardarVendedorDelCierre(c.nombre)}
+                                className="grid h-7 w-7 place-items-center rounded-lg bg-sugu text-white disabled:opacity-40"
+                                aria-label={`Guardar vendedor de ${c.nombre}`}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setAsignando(null)}
+                                className="grid h-7 w-7 place-items-center rounded-lg border border-white/15 text-bone-dim"
+                                aria-label="Cancelar"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              <span className={c.vendedores.length ? '' : 'text-bone-dim'}>
+                                {c.vendedores.join(', ') || '— sin nombre —'}
+                              </span>
+                              {/*
+                                Solo en cierres ya hechos: sobre la caja abierta
+                                manda el celular y lo pisaría al siguiente cambio.
+                              */}
+                              {!c.abierto && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAsignando(c.nombre);
+                                    setNombreVendedor(c.vendedores[0] ?? '');
+                                  }}
+                                  className="grid h-6 w-6 place-items-center rounded-md border border-white/15 text-bone-dim"
+                                  aria-label={`Poner vendedor a ${c.nombre}`}
+                                >
+                                  <UserRound className="h-3 w-3" />
+                                </button>
+                              )}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 text-right tabular-nums text-bone-dim">{c.cuantos}</td>
                         <td className="py-2 text-right font-semibold tabular-nums">
                           {soles(c.total)}

@@ -940,6 +940,28 @@ export async function listarCaja(desde?: string, hasta?: string): Promise<Pedido
 }
 
 /**
+ * Pone el nombre de quien atendió en TODOS los cobros de un cierre.
+ *
+ * Es la única escritura del panel sobre la caja, y solo vale para cierres
+ * ya hechos. Eso es lo que la hace segura: un pedido cerrado ya no se toca
+ * desde el celular —no aparece en su pantalla y su sincronización ya quedó
+ * confirmada—, así que nada va a pisar esta corrección. Sobre la caja
+ * abierta NO se ofrece: ahí el celular sigue mandando y el siguiente cambio
+ * que hiciera allá borraría lo escrito aquí.
+ */
+export async function asignarVendedorACierre(cierre: string, vendedor: string): Promise<number> {
+  const limpio = vendedor.trim();
+  if (!cierre.trim() || !limpio) throw new Error('Falta el cierre o el nombre.');
+  const { data, error } = await sb()
+    .from('caja_pedidos')
+    .update({ vendedor: limpio })
+    .eq('cierre', cierre)
+    .select('id');
+  if (error) throw error;
+  return (data ?? []).length;
+}
+
+/**
  * Clave del enlace de cocina. Vive en una tabla cerrada al administrador, no
  * en `site_settings`, porque esa tiene lectura pública y cualquiera podría
  * leerla y espiar la cola de preparación.

@@ -290,7 +290,15 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const [lineas, setLineas] = useState<Linea[]>([]);
 
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo');
+  /*
+   * Los dos montos del pago mitad y mitad se escriben por separado, pero uno
+   * es el complemento del otro: al teclear en cualquiera de las dos cajas se
+   * rellena la contraria. Se guardan como texto para que el campo que se
+   * está tecleando conserve lo escrito —un "15." a medias no puede
+   * convertirse en 15 y borrarle el punto a quien escribe—.
+   */
   const [yapeParcial, setYapeParcial] = useState('');
+  const [efectivoParcial, setEfectivoParcial] = useState('');
   const [pagado, setPagado] = useState(true);
   const [cliente, setCliente] = useState('');
 
@@ -417,6 +425,14 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const totalActual = totalPedido(lineasFinales);
   const puedeRegistrar = lineasFinales.length > 0;
 
+  useEffect(() => {
+    if (metodo !== 'mixto') return;
+    // si cambia el total, el complemento deja de cuadrar: se vuelve a repartir
+    setEfectivoParcial(String(repartir('mixto', totalActual, Number(yapeParcial)).montoEfectivo));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a propósito: no al teclear
+  }, [totalActual, metodo]);
+
+
   /** Cobros del turno en curso: los que todavía no pertenecen a un cierre. */
   const abiertos = useMemo(() => (pedidos ?? []).filter((p) => !p.cierre), [pedidos]);
 
@@ -457,6 +473,20 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const paginaSegura = Math.min(pagina, totalPaginas);
   const enPagina = visibles.slice((paginaSegura - 1) * POR_PAGINA, paginaSegura * POR_PAGINA);
 
+  const soloNumero = (v: string) => v.replace(/[^\d.]/g, '');
+
+  function ponerYape(v: string) {
+    setYapeParcial(soloNumero(v));
+    setEfectivoParcial(String(repartir('mixto', totalActual, Number(soloNumero(v))).montoEfectivo));
+  }
+
+  function ponerEfectivo(v: string) {
+    setEfectivoParcial(soloNumero(v));
+    // el yape es lo que falta para el total; repartir ya lo acota a [0, total]
+    const efectivo = Math.min(Math.max(Number(soloNumero(v)) || 0, 0), totalActual);
+    setYapeParcial(String(repartir('mixto', totalActual, totalActual - efectivo).montoYape));
+  }
+
   function elegirProducto(id: ClaveProducto) {
     setProducto(id);
     // cada producto trae sus propias variantes y sabores; no se arrastran
@@ -490,6 +520,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     setLineas([]);
     setMetodo('efectivo');
     setYapeParcial('');
+    setEfectivoParcial('');
     setPagado(true);
     setCliente('');
   }
@@ -872,21 +903,32 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
             )}
             {metodo === 'mixto' && yapeMixto && (
               <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-night-2 p-3">
-                <label className="block">
-                  <span className="mb-1.5 block text-[12px] text-bone-dim">
-                    ¿Cuánto paga por Yape?
-                  </span>
-                  <input
-                    value={yapeParcial}
-                    onChange={(e) => setYapeParcial(e.target.value.replace(/[^\d.]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
-                  />
-                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[12px] text-bone-dim">Yape</span>
+                    <input
+                      value={yapeParcial}
+                      onChange={(e) => ponerYape(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-[12px] text-bone-dim">Efectivo</span>
+                    <input
+                      value={efectivoParcial}
+                      onChange={(e) => ponerEfectivo(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                    />
+                  </label>
+                </div>
                 <p className="text-[13px]">
-                  Yape <span className="font-bold">{soles(yapeMixto.montoYape)}</span> · Efectivo{' '}
-                  <span className="font-bold">{soles(yapeMixto.montoEfectivo)}</span>
+                  Yape <span className="font-bold">{soles(yapeMixto.montoYape)}</span> + Efectivo{' '}
+                  <span className="font-bold">{soles(yapeMixto.montoEfectivo)}</span> ={' '}
+                  <span className="font-bold">{soles(totalActual)}</span>
                 </p>
               </div>
             )}
@@ -1211,9 +1253,24 @@ function EditarVenta({
 }) {
   const [copia, setCopia] = useState<Pedido>(pedido);
   const [yape, setYape] = useState(String(pedido.montoYape || ''));
+  const [efectivo, setEfectivo] = useState(String(pedido.montoEfectivo || ''));
 
   const total = totalPedido(copia.lineas);
   const reparto = repartir(copia.metodo, total, Number(yape));
+
+  const soloNumero = (v: string) => v.replace(/[^\d.]/g, '');
+
+  /* Lo mismo que en el registro: al escribir en una caja se llena la otra. */
+  function ponerYape(v: string) {
+    setYape(soloNumero(v));
+    setEfectivo(String(repartir('mixto', total, Number(soloNumero(v))).montoEfectivo));
+  }
+
+  function ponerEfectivo(v: string) {
+    setEfectivo(soloNumero(v));
+    const enEfectivo = Math.min(Math.max(Number(soloNumero(v)) || 0, 0), total);
+    setYape(String(repartir('mixto', total, total - enEfectivo).montoYape));
+  }
 
   const cambiarCantidad = (i: number, delta: number) =>
     setCopia((p) => ({
@@ -1292,19 +1349,32 @@ function EditarVenta({
           </div>
           {copia.metodo === 'mixto' && (
             <div className="mt-2 grid gap-2 rounded-xl border border-white/10 bg-night-2 p-3">
-              <label className="block">
-                <span className="mb-1.5 block text-[12px] text-bone-dim">¿Cuánto por Yape?</span>
-                <input
-                  value={yape}
-                  onChange={(e) => setYape(e.target.value.replace(/[^\d.]/g, ''))}
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-[12px] text-bone-dim">Yape</span>
+                  <input
+                    value={yape}
+                    onChange={(e) => ponerYape(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[12px] text-bone-dim">Efectivo</span>
+                  <input
+                    value={efectivo}
+                    onChange={(e) => ponerEfectivo(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                  />
+                </label>
+              </div>
               <p className="text-[13px]">
-                Yape <span className="font-bold">{soles(reparto.montoYape)}</span> · Efectivo{' '}
-                <span className="font-bold">{soles(reparto.montoEfectivo)}</span>
+                Yape <span className="font-bold">{soles(reparto.montoYape)}</span> + Efectivo{' '}
+                <span className="font-bold">{soles(reparto.montoEfectivo)}</span> ={' '}
+                <span className="font-bold">{soles(total)}</span>
               </p>
             </div>
           )}
