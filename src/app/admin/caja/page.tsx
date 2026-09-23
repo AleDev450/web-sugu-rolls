@@ -16,6 +16,7 @@ import {
   diaLocal,
   fechaCorta,
   hora,
+  paraArchivo,
   soles,
   unidades,
 } from '@/lib/caja';
@@ -32,6 +33,7 @@ function aPedido(p: PedidoCaja): Pedido {
     creado: p.creado,
     cliente: p.cliente,
     vendedor: p.vendedor,
+    cierre: p.cierre ?? '',
     lineas: p.lineas.map((l) => ({
       producto: l.producto as ClaveProducto,
       promo: (l.promo ?? null) as PromoMaki | null,
@@ -60,6 +62,7 @@ export default function CajaAdmin() {
   const [desde, setDesde] = useState(hoy);
   const [hasta, setHasta] = useState(hoy);
   const [vendedor, setVendedor] = useState('todos');
+  const [cierre, setCierre] = useState('todos');
   const [items, setItems] = useState<PedidoCaja[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
@@ -84,10 +87,22 @@ export default function CajaAdmin() {
     return Array.from(nombres).sort((a, b) => a.localeCompare(b));
   }, [items]);
 
+  /**
+   * Los cierres que hay en el rango. "abierta" son los cobros que la tablet
+   * todavía no cerró: sirve para ver el turno en curso desde el panel.
+   */
+  const cierres = useMemo(() => {
+    const nombres = new Set((items ?? []).map((p) => (p.cierre ?? '').trim()).filter(Boolean));
+    return Array.from(nombres).sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
   const visibles = useMemo(() => {
-    const base = items ?? [];
-    return vendedor === 'todos' ? base : base.filter((p) => p.vendedor.trim() === vendedor);
-  }, [items, vendedor]);
+    let base = items ?? [];
+    if (vendedor !== 'todos') base = base.filter((p) => p.vendedor.trim() === vendedor);
+    if (cierre === 'abierta') base = base.filter((p) => !(p.cierre ?? '').trim());
+    else if (cierre !== 'todos') base = base.filter((p) => (p.cierre ?? '').trim() === cierre);
+    return base;
+  }, [items, vendedor, cierre]);
 
   const resumen = useMemo(() => {
     const total = visibles.reduce((s, p) => s + p.total, 0);
@@ -131,7 +146,12 @@ export default function CajaAdmin() {
   const paginaSegura = Math.min(pagina, totalPaginas);
   const enPagina = visibles.slice((paginaSegura - 1) * POR_PAGINA, paginaSegura * POR_PAGINA);
 
-  const etiquetaArchivo = desde === hasta ? desde || 'todo' : `${desde || 'inicio'}_${hasta || 'hoy'}`;
+  const etiquetaArchivo =
+    cierre !== 'todos' && cierre !== 'abierta'
+      ? paraArchivo(cierre)
+      : desde === hasta
+        ? desde || 'todo'
+        : `${desde || 'inicio'}_${hasta || 'hoy'}`;
 
   return (
     <>
@@ -194,6 +214,23 @@ export default function CajaAdmin() {
           {vendedores.map((v) => (
             <option key={v} value={v}>
               {v}
+            </option>
+          ))}
+        </select>
+        <select
+          value={cierre}
+          onChange={(e) => {
+            setCierre(e.target.value);
+            setPagina(1);
+          }}
+          aria-label="Cierre de caja"
+          className={claseFecha}
+        >
+          <option value="todos">Todos los cierres</option>
+          <option value="abierta">Caja sin cerrar</option>
+          {cierres.map((c) => (
+            <option key={c} value={c}>
+              {c}
             </option>
           ))}
         </select>
@@ -323,6 +360,9 @@ export default function CajaAdmin() {
                                 Entregado
                               </span>
                             )}
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 font-semibold text-bone-dim">
+                              {(p.cierre ?? '').trim() || 'Caja sin cerrar'}
+                            </span>
                           </p>
                         </div>
                         <span className="shrink-0 text-lg font-bold tabular-nums">

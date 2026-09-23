@@ -103,6 +103,7 @@ function aFila(p: Pedido) {
     creado: p.creado,
     cliente: p.cliente,
     vendedor: p.vendedor ?? '',
+    cierre: p.cierre ?? '',
     lineas: p.lineas,
     total: p.total,
     metodo: p.metodo,

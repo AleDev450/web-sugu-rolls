@@ -67,6 +67,8 @@ export interface PedidoCaja {
   cliente: string;
   /** quién atendió, elegido en la caja */
   vendedor: string;
+  /** nombre del cierre de caja; vacío = todavía abierta en la tablet */
+  cierre: string;
   lineas: {
     producto: string;
     promo: string | null;

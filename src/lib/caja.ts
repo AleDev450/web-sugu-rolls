@@ -39,6 +39,12 @@ export type Pedido = {
   cliente: string;
   /** Quién atendió. Se elige una vez por turno y acompaña a cada cobro. */
   vendedor: string;
+  /**
+   * Nombre del cierre al que pertenece el cobro. Vacío = caja abierta, que
+   * es lo que se ve mientras se atiende. Al cerrar se sella con el nombre
+   * del turno y deja la caja en cero para la siguiente jornada.
+   */
+  cierre: string;
   lineas: Linea[];
   total: number;
   metodo: MetodoPago;
@@ -126,7 +132,7 @@ function normalizar(guardado: PedidoGuardado): Pedido {
   // los pedidos anteriores a que existiera el vendedor se quedan sin nombre
   if (Array.isArray(resto.lineas)) {
     const previo = resto as Pedido;
-    return { ...previo, vendedor: previo.vendedor ?? '' };
+    return { ...previo, vendedor: previo.vendedor ?? '', cierre: previo.cierre ?? '' };
   }
 
   const unidad = unitario ?? 0;
@@ -145,6 +151,7 @@ function normalizar(guardado: PedidoGuardado): Pedido {
   return {
     ...previo,
     vendedor: previo.vendedor ?? '',
+    cierre: previo.cierre ?? '',
     lineas: [linea],
     total: resto.total ?? linea.total,
   };
@@ -197,6 +204,18 @@ export function guardarVendedor(nombre: string): void {
   } catch {
     /* sin almacenamiento el nombre dura lo que dure la pestaña */
   }
+}
+
+/** Nombre de cierre convertido en algo que el sistema de archivos acepte. */
+export function paraArchivo(texto: string): string {
+  return (
+    texto
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || 'cierre'
+  );
 }
 
 export function nuevoId(): string {
@@ -268,6 +287,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
     { header: 'Pago', key: 'metodo', width: 10 },
     { header: 'Cobrado', key: 'pagado', width: 10 },
     { header: 'Entregado', key: 'entregado', width: 11 },
+    { header: 'Cierre', key: 'cierre', width: 20 },
   ];
 
   const encabezado = hoja.getRow(1);
@@ -295,6 +315,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
         metodo: p.metodo === 'yape' ? 'Yape' : 'Efectivo',
         pagado: p.pagado ? 'Sí' : 'No',
         entregado: p.entregado ? 'Sí' : 'No',
+        cierre: p.cierre,
       });
     }
   }

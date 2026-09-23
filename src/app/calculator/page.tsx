@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  Archive,
   Banknote,
   Check,
   CloudCheck,
@@ -41,6 +42,7 @@ import {
   leerVendedor,
   maxSabores,
   nuevoId,
+  paraArchivo,
   precioUnitario,
   soles,
   totalPedido,
@@ -266,7 +268,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
   const [pagado, setPagado] = useState(true);
   const [cliente, setCliente] = useState('');
 
-  const [vista, setVista] = useState<'hoy' | 'todo'>('hoy');
+  const [vista, setVista] = useState<'abierta' | 'hoy' | 'todo'>('abierta');
   const [pagina, setPagina] = useState(1);
   const [porBorrar, setPorBorrar] = useState<string | null>(null);
   const [aviso, setAviso] = useState('');
@@ -275,6 +277,8 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
   const [vendedor, setVendedor] = useState('');
   const [editandoVendedor, setEditandoVendedor] = useState(false);
   const [borradorVendedor, setBorradorVendedor] = useState('');
+  const [cerrando, setCerrando] = useState(false);
+  const [nombreCierre, setNombreCierre] = useState('');
   const [pendientes, setPendientes] = useState(0);
   const [subiendo, setSubiendo] = useState(false);
   const [falloSync, setFalloSync] = useState<string | null>(null);
@@ -382,7 +386,12 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
 
   const visibles = useMemo(() => {
     const base = pedidos ?? [];
-    const filtrados = vista === 'hoy' ? base.filter((p) => esDeHoy(p.creado)) : base;
+    const filtrados =
+      vista === 'abierta'
+        ? base.filter((p) => !p.cierre)
+        : vista === 'hoy'
+          ? base.filter((p) => esDeHoy(p.creado))
+          : base;
     // descendente: el último cobro siempre arriba, que es el que se corrige
     return [...filtrados].sort((a, b) => b.creado.localeCompare(a.creado));
   }, [pedidos, vista]);
@@ -455,6 +464,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
       creado: new Date().toISOString(),
       cliente: cliente.trim() || 'Cliente',
       vendedor,
+      cierre: '',
       lineas: lineasFinales,
       total: totalActual,
       metodo,
@@ -463,10 +473,36 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
     };
     marcarSucio(nuevo.id);
     setPedidos((previos) => [...(previos ?? []), nuevo]);
-    setVista('hoy');
+    setVista('abierta');
     setPagina(1);
-    setAviso(soles(totalActual));
+    setAviso(`Registrado · ${soles(totalActual)}`);
     limpiarTodo();
+  }
+
+  /** Cobros del turno en curso: los que todavía no pertenecen a un cierre. */
+  const abiertos = useMemo(() => (pedidos ?? []).filter((p) => !p.cierre), [pedidos]);
+
+  /**
+   * Cierra el turno: sella con un nombre todos los cobros abiertos, baja el
+   * Excel de esa jornada y deja la caja en cero para la siguiente. No borra
+   * nada —lo cerrado sigue en "Todo" y en el panel—, solo lo saca de la
+   * vista de trabajo.
+   */
+  function cerrarCaja() {
+    const nombre = nombreCierre.trim();
+    if (!nombre || abiertos.length === 0) return;
+
+    const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre }));
+    // hay que volver a subirlos: el nombre del cierre viaja con cada cobro
+    for (const p of abiertos) marcarSucio(p.id);
+    setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre })));
+
+    void descargarExcel(cerrados, paraArchivo(nombre));
+    setCerrando(false);
+    setNombreCierre('');
+    setVista('abierta');
+    setPagina(1);
+    setAviso(`Caja cerrada · ${nombre}`);
   }
 
   function parchear(id: string, cambios: Partial<Pedido>) {
@@ -497,7 +533,11 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
         <div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3 px-4 py-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.2em] text-bone-dim">
-              {vista === 'hoy' ? 'Venta de hoy' : 'Venta acumulada'}
+              {vista === 'abierta'
+                ? 'Caja abierta'
+                : vista === 'hoy'
+                  ? 'Venta de hoy'
+                  : 'Venta acumulada'}
             </p>
             <p className="text-3xl font-bold leading-none text-sugu-glow sm:text-4xl">
               {soles(resumen.total)}
@@ -586,7 +626,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
             )}
 
             <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
-              {(['hoy', 'todo'] as const).map((v) => (
+              {(['abierta', 'hoy', 'todo'] as const).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -598,7 +638,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
                   vista === v ? 'bg-sugu text-white' : 'text-bone-dim'
                 }`}
               >
-                  {v === 'hoy' ? 'Hoy' : 'Todo'}
+                  {v === 'abierta' ? 'Abierta' : v === 'hoy' ? 'Hoy' : 'Todo'}
                 </button>
               ))}
             </div>
@@ -806,7 +846,9 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
             </p>
           ) : visibles.length === 0 ? (
             <p className="rounded-3xl border border-dashed border-white/15 p-8 text-center text-sm text-bone-dim">
-              Todavía no hay pedidos {vista === 'hoy' ? 'hoy' : 'registrados'}.
+              {vista === 'abierta'
+                ? 'La caja está en cero. El primer cobro aparece aquí.'
+                : `Todavía no hay pedidos ${vista === 'hoy' ? 'hoy' : 'registrados'}.`}
             </p>
           ) : (
             <>
@@ -839,6 +881,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
                             {p.metodo === 'yape' ? 'Yape' : 'Efectivo'}
                           </Etiqueta>
                           {p.entregado && <Etiqueta tono="azul">Entregado</Etiqueta>}
+                          {p.cierre && <Etiqueta tono="gris">{p.cierre}</Etiqueta>}
                         </p>
                       </div>
                       <span className="shrink-0 text-lg font-bold tabular-nums">
@@ -902,17 +945,99 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
               <button
                 type="button"
                 onClick={() =>
-                  descargarExcel(visibles, vista === 'hoy' ? diaLocal(new Date()) : 'historial')
+                  descargarExcel(
+                    visibles,
+                    vista === 'todo' ? 'historial' : diaLocal(new Date()),
+                  )
                 }
                 className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600/15 font-semibold text-emerald-300 active:scale-[0.99]"
               >
                 <Download size={18} />
-                Descargar Excel {vista === 'hoy' ? 'del día' : 'de todo'} ({visibles.length})
+                Descargar Excel {vista === 'todo' ? 'de todo' : 'del día'} ({visibles.length})
               </button>
+
+              {/* Cerrar solo tiene sentido si hay turno abierto que cerrar */}
+              {abiertos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNombreCierre(`Caja ${new Date().toLocaleDateString('es-PE')}`);
+                    setCerrando(true);
+                  }}
+                  className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-white/20 bg-night-2 font-semibold text-bone active:scale-[0.99]"
+                >
+                  <Archive size={18} />
+                  Cerrar caja ({abiertos.length})
+                </button>
+              )}
             </>
           )}
         </section>
       </div>
+
+      {cerrando && (
+        <div className="fixed inset-0 z-40 grid place-items-end bg-black/70 p-4 sm:place-items-center">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-night-soft p-5">
+            <h2 className="text-lg font-bold">Cerrar caja</h2>
+            <p className="mt-1 text-sm text-bone-dim">
+              Se cierran {abiertos.length} pedidos por{' '}
+              <span className="font-semibold text-bone">
+                {soles(abiertos.reduce((s, p) => s + p.total, 0))}
+              </span>
+              . Se descarga el Excel de este cierre y la caja vuelve a cero.
+            </p>
+
+            {abiertos.some((p) => !p.pagado) && (
+              <p className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300">
+                Ojo: quedan{' '}
+                {soles(abiertos.filter((p) => !p.pagado).reduce((s, p) => s + p.total, 0))} sin
+                cobrar. Se cierran igual, marcados como pendientes.
+              </p>
+            )}
+
+            {sincroniza && pendientes > 0 && (
+              <p className="mt-3 rounded-xl border border-white/15 px-3 py-2 text-[12px] text-bone-dim">
+                Hay {pendientes} sin subir al panel. Se cierran igual y suben solos cuando vuelva
+                la señal.
+              </p>
+            )}
+
+            <label className="mt-4 block">
+              <span className="mb-2 block text-[13px] font-medium">Nombre de este cierre</span>
+              <input
+                value={nombreCierre}
+                onChange={(e) => setNombreCierre(e.target.value)}
+                placeholder="Feria Pueblo Libre"
+                enterKeyHint="done"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && cerrarCaja()}
+                className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
+              />
+            </label>
+            <p className="mt-1.5 text-[11px] text-bone-dim">
+              Con este nombre lo vas a encontrar después en el panel y en el Excel.
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCerrando(false)}
+                className="min-h-[52px] rounded-2xl border border-white/15 font-semibold text-bone-dim"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={cerrarCaja}
+                disabled={!nombreCierre.trim()}
+                className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white disabled:bg-night-3 disabled:text-bone-dim"
+              >
+                Cerrar caja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* confirmación breve del último cobro, sin tapar la lista */}
       {aviso && (
@@ -920,7 +1045,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
           role="status"
           className="pointer-events-none fixed inset-x-0 bottom-5 z-30 mx-auto w-fit rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-bold text-night shadow-lg"
         >
-          Registrado · {aviso}
+          {aviso}
         </div>
       )}
     </main>
