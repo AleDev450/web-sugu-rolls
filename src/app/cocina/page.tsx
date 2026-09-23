@@ -58,13 +58,13 @@ function Cocina() {
     setCargando(true);
     const { data, error: fallo } = await sb.rpc('cocina_pendientes', {
       p_clave: clave,
-      p_vendedor: vendedor || null,
+      p_vendedor: vendedor,
     });
     setCargando(false);
 
     if (fallo) {
       setError(
-        fallo.message.includes('CLAVE_INVALIDA')
+        fallo.message.includes('CLAVE_INVALIDA') || fallo.message.includes('VENDEDOR_REQUERIDO')
           ? 'Este enlace ya no sirve. Pídele uno nuevo a quien está en la caja.'
           : 'No se pudo consultar. Se vuelve a intentar solo.',
       );
@@ -83,11 +83,12 @@ function Cocina() {
   }, [clave, vendedor]);
 
   useEffect(() => {
-    if (!clave) return;
+    // las dos, igual que abajo: un enlace incompleto no debe ni preguntar
+    if (!clave || !vendedor) return;
     void traer();
     const t = setInterval(() => void traer(), CADA);
     return () => clearInterval(t);
-  }, [clave, traer]);
+  }, [clave, vendedor, traer]);
 
   // reloj de un segundo: la espera de cada pedido corre a la vista
   const [ahora, setAhora] = useState(() => Date.now());
@@ -96,12 +97,22 @@ function Cocina() {
     return () => clearInterval(t);
   }, []);
 
-  if (!clave) {
+  /*
+   * Hacen falta las dos cosas. Un enlace con clave pero sin cajero es uno
+   * de los antiguos, de cuando la cocina mostraba la cola de todos: si se
+   * dejara pasar, se vería una pantalla normal con pedidos de más y nadie
+   * lo notaría. Mejor decirlo.
+   */
+  if (!clave || !vendedor) {
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-night p-6 text-center text-bone">
-        <p className="text-sm text-bone-dim">
-          Este enlace está incompleto. Pídele a quien está en la caja el enlace de cocina.
-        </p>
+        <div className="max-w-xs">
+          <p className="font-semibold">Este enlace ya no sirve.</p>
+          <p className="mt-1.5 text-sm text-bone-dim">
+            Cada caja tiene su propia cocina. Pídele a quien te va a pasar los pedidos que copie
+            el enlace desde su caja, con el botón «Cocina».
+          </p>
+        </div>
       </main>
     );
   }
