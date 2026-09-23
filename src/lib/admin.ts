@@ -758,6 +758,30 @@ export interface PedidoAdmin {
  * `desde`/`hasta` son fechas `YYYY-MM-DD` (del input de tipo date). `hasta`
  * se corre al final de ese día para que incluya los pedidos de esa fecha.
  */
+/*
+ * Los filtros de fecha del panel hablan en DÍAS LOCALES ("22/09"), pero la
+ * base guarda instantes. Mandar el texto pelado —"2026-09-22T00:00:00"—
+ * hace que Postgres lo interprete en su propia zona, que es UTC, y en Lima
+ * (UTC-5) eso corre la ventana cinco horas: el día mostrado iba en realidad
+ * de las 7 p. m. del día anterior a las 6:59 p. m. del elegido, y todo lo
+ * cobrado de noche desaparecía del panel.
+ *
+ * Estas dos funciones convierten el día local al instante exacto en que
+ * empieza y en que empieza el siguiente, ya en UTC. El rango se consulta
+ * siempre como [inicio, inicioSiguiente), medio abierto, que además evita
+ * el clásico de perderse el último milisegundo.
+ */
+function inicioDelDia(dia: string): string {
+  return new Date(`${dia}T00:00:00`).toISOString();
+}
+
+function inicioDelDiaSiguiente(dia: string): string {
+  const d = new Date(`${dia}T00:00:00`);
+  // setDate razona en hora local, así que un cambio de mes o de horario cuadra
+  d.setDate(d.getDate() + 1);
+  return d.toISOString();
+}
+
 export async function listarPedidos(
   estado?: EstadoPedido,
   desde?: string,
@@ -766,8 +790,9 @@ export async function listarPedidos(
   const { data, error } = await sb().rpc('admin_pedidos', {
     p_estado: estado ?? null,
     p_limit: 200,
-    p_desde: desde ? `${desde}T00:00:00` : null,
-    p_hasta: hasta ? `${hasta}T23:59:59.999` : null,
+    p_desde: desde ? inicioDelDia(desde) : null,
+    // la función compara con `<`, así que el tope es el arranque del día siguiente
+    p_hasta: hasta ? inicioDelDiaSiguiente(hasta) : null,
   });
   if (error) throw error;
   return ((data ?? []) as PedidoAdmin[]).map((p) => ({
@@ -898,8 +923,8 @@ export async function listarCaja(desde?: string, hasta?: string): Promise<Pedido
     .limit(2000);
 
   // se filtra por `creado` —la hora del cobro en el puesto—, no por la de subida
-  if (desde) q = q.gte('creado', `${desde}T00:00:00`);
-  if (hasta) q = q.lte('creado', `${hasta}T23:59:59.999`);
+  if (desde) q = q.gte('creado', inicioDelDia(desde));
+  if (hasta) q = q.lt('creado', inicioDelDiaSiguiente(hasta));
 
   const { data, error } = await q;
   if (error) throw error;
