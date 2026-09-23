@@ -146,6 +146,19 @@ export default function CajaAdmin() {
   /** Arqueo: cuánto entró por cada vía. Es lo que se cuenta al cerrar. */
   const porMetodo = useMemo(() => arqueoPorMetodo(visibles.map(aPedido)), [visibles]);
 
+  /*
+   * El arqueo sin contar el canje tiene que dar exactamente lo cobrado. Si
+   * no cuadra es que hay pedidos con el monto sin rellenar —pasó con cobros
+   * subidos desde un celular con la página cacheada— y conviene verlo, no
+   * que la caja parezca vacía en una vía y llena en el total.
+   */
+  const descuadre = useMemo(() => {
+    const suma = porMetodo
+      .filter((m) => m.metodo !== 'canje')
+      .reduce((s, m) => s + m.monto, 0);
+    return Math.round((resumen.cobrado - suma) * 100) / 100;
+  }, [porMetodo, resumen.cobrado]);
+
   /**
    * Cada cierre con su fecha. Responde a "¿cuánto hice en la feria del
    * sábado?" sin tener que acordarse de qué día fue.
@@ -373,6 +386,12 @@ export default function CajaAdmin() {
                     )}
                   </tbody>
                 </table>
+                {descuadre !== 0 && (
+                  <p className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300">
+                    Faltan {soles(Math.abs(descuadre))} por repartir entre las formas de pago: hay
+                    pedidos cobrados sin monto. Se arregla corriendo la migración 035.
+                  </p>
+                )}
               </section>
 
               <section className="rounded-2xl border border-white/10 bg-night-2 p-4">
