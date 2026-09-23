@@ -107,6 +107,8 @@ function aFila(p: Pedido) {
     lineas: p.lineas,
     total: p.total,
     metodo: p.metodo,
+    monto_yape: p.montoYape ?? 0,
+    monto_efectivo: p.montoEfectivo ?? 0,
     pagado: p.pagado,
     entregado: p.entregado,
   };

@@ -78,7 +78,10 @@ export interface PedidoCaja {
     total: number;
   }[];
   total: number;
-  metodo: 'efectivo' | 'yape';
+  metodo: 'efectivo' | 'yape' | 'mixto' | 'tarjeta' | 'canje';
+  /** reparto del cobro; en un solo medio uno lleva el total y el otro 0 */
+  monto_yape: number;
+  monto_efectivo: number;
   pagado: boolean;
   entregado: boolean;
   /** con qué cuenta estaba abierta la caja; lo sella el servidor */
@@ -928,5 +931,23 @@ export async function listarCaja(desde?: string, hasta?: string): Promise<Pedido
 
   const { data, error } = await q;
   if (error) throw error;
-  return ((data ?? []) as PedidoCaja[]).map((p) => ({ ...p, total: Number(p.total) }));
+  return ((data ?? []) as PedidoCaja[]).map((p) => ({
+    ...p,
+    total: Number(p.total),
+    monto_yape: Number(p.monto_yape ?? 0),
+    monto_efectivo: Number(p.monto_efectivo ?? 0),
+  }));
+}
+
+/**
+ * Clave del enlace de cocina. Vive en una tabla cerrada al administrador, no
+ * en `site_settings`, porque esa tiene lectura pública y cualquiera podría
+ * leerla y espiar la cola de preparación.
+ */
+export async function traerClaveCocina(): Promise<string | null> {
+  const cliente = getSupabase();
+  if (!cliente) return null;
+  const { data, error } = await cliente.from('caja_cocina').select('clave').eq('id', 1).single();
+  if (error) return null;
+  return (data?.clave as string) ?? null;
 }

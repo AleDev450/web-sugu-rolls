@@ -11,21 +11,25 @@
  * sola: cada dúo elige sus propios sabores.
  *
  * Todo vive en el `localStorage` del equipo que atiende, a propósito: en una
- * feria no hay señal garantizada y un pedido perdido por un timeout es peor
- * que uno que no salió de la tablet. Por eso tampoco comparte tabla con
- * `orders` —esos son los pedidos de la web, con delivery y puntos— ni
- * necesita migración de Supabase para empezar a usarse.
+ * feria no hay señal garantizada y un cobro perdido por un timeout es peor
+ * que uno que no salió del celular. De ahí sale hacia `caja_pedidos` en
+ * cuanto hay conexión, que es lo que leen el panel y la cocina.
  */
 
 export type ClaveProducto = 'maki' | 'pokebowl' | 'onigiri';
-export type PromoMaki = 'personal' | 'duo';
-export type MetodoPago = 'efectivo' | 'yape';
+export type MetodoPago = 'efectivo' | 'yape' | 'mixto' | 'tarjeta' | 'canje';
 
 /** Un renglón del ticket: un producto configurado, con su cantidad. */
 export type Linea = {
   producto: ClaveProducto;
-  /** Solo makis; en el resto va null. */
-  promo: PromoMaki | null;
+  /**
+   * La variante elegida: la promo del maki ('personal' | 'duo') o la base
+   * del poke bowl ('pollo' | 'tartar' | 'tofu'). La clave se llama `promo`
+   * porque así se guardó desde el primer día y hay celulares con cobros sin
+   * migrar que la traen con ese nombre; renombrarla dejaría esos pedidos
+   * sin poder leerse.
+   */
+  promo: string | null;
   sabores: string[];
   cantidad: number;
   unitario: number;
@@ -37,7 +41,7 @@ export type Pedido = {
   /** Fecha y hora exactas en que se tocó "Registrar". Es el sello del ticket. */
   creado: string;
   cliente: string;
-  /** Quién atendió. Se elige una vez por turno y acompaña a cada cobro. */
+  /** Quién abrió la caja. Varias personas comparten cuenta, no nombre. */
   vendedor: string;
   /**
    * Nombre del cierre al que pertenece el cobro. Vacío = caja abierta, que
@@ -48,6 +52,9 @@ export type Pedido = {
   lineas: Linea[];
   total: number;
   metodo: MetodoPago;
+  /** Reparto del cobro. En un solo medio, uno lleva el total y el otro 0. */
+  montoYape: number;
+  montoEfectivo: number;
   pagado: boolean;
   entregado: boolean;
 };
@@ -66,46 +73,156 @@ export const NOMBRE_PRODUCTO: Record<ClaveProducto, string> = {
 };
 
 /**
- * Las dos promociones de maki. El precio lo pone la promo, NO cuántos
- * sabores se eligieron: un dúo de un solo sabor sigue costando 35.
- * `maxSabores` es el tope, no una obligación —el dúo vale con uno o con dos—,
- * pero al menos un sabor siempre hace falta.
+ * Cómo se vende cada producto.
+ *
+ * El precio lo pone la VARIANTE, no cuántos sabores se eligieron: un dúo de
+ * un solo sabor sigue costando 35. `maxSabores` es el tope, no una
+ * obligación; en 0 significa que ese producto no elige sabores.
  */
-export const PROMOS_MAKI: {
-  id: PromoMaki;
+export type Variante = {
+  id: string;
   nombre: string;
   precio: number;
   maxSabores: number;
   pista: string;
-}[] = [
-  { id: 'personal', nombre: 'Personal', precio: 20, maxSabores: 1, pista: 'S/ 20 · 1 sabor' },
-  { id: 'duo', nombre: 'Dúo', precio: 35, maxSabores: 2, pista: 'S/ 35 · 1 o 2 sabores' },
-];
-
-export const NOMBRE_PROMO: Record<PromoMaki, string> = { personal: 'Personal', duo: 'Dúo' };
-
-export const maxSabores = (promo: PromoMaki) =>
-  PROMOS_MAKI.find((p) => p.id === promo)?.maxSabores ?? 1;
-
-/** Los cuatro que se preparan en el puesto. Cambiar aquí cambia la pantalla. */
-export const SABORES = ['Acevichado', 'California', 'Avocado', 'Hoto'];
-
-const PRECIO_FIJO: Record<Exclude<ClaveProducto, 'maki'>, number> = {
-  pokebowl: 18,
-  onigiri: 6,
 };
 
-export function precioUnitario(producto: ClaveProducto, promo: PromoMaki | null): number {
-  if (producto === 'maki') {
-    if (!promo) return 0;
-    return PROMOS_MAKI.find((p) => p.id === promo)?.precio ?? 0;
-  }
-  return PRECIO_FIJO[producto];
+export const VARIANTES: Record<ClaveProducto, Variante[]> = {
+  maki: [
+    { id: 'personal', nombre: 'Personal', precio: 20, maxSabores: 1, pista: 'S/ 20 · 1 sabor' },
+    { id: 'duo', nombre: 'Dúo', precio: 35, maxSabores: 2, pista: 'S/ 35 · 1 o 2 sabores' },
+  ],
+  pokebowl: [
+    { id: 'pollo', nombre: 'Pollo', precio: 18, maxSabores: 0, pista: 'S/ 18' },
+    { id: 'tartar', nombre: 'Tartar de pescado', precio: 18, maxSabores: 0, pista: 'S/ 18' },
+    { id: 'tofu', nombre: 'Tofu', precio: 18, maxSabores: 0, pista: 'S/ 18' },
+  ],
+  // el onigiri se vende tal cual: no hay variante que elegir
+  onigiri: [],
+};
+
+/** Precio de los productos que no tienen variante. */
+const PRECIO_SIMPLE: Record<ClaveProducto, number> = { maki: 0, pokebowl: 0, onigiri: 6 };
+
+export function variantesDe(producto: ClaveProducto): Variante[] {
+  return VARIANTES[producto] ?? [];
 }
+
+/** Busca una variante por id en cualquier producto; así se lee lo guardado. */
+export function buscarVariante(id: string | null): Variante | undefined {
+  if (!id) return undefined;
+  for (const lista of Object.values(VARIANTES)) {
+    const encontrada = lista.find((v) => v.id === id);
+    if (encontrada) return encontrada;
+  }
+  return undefined;
+}
+
+export function precioUnitario(producto: ClaveProducto, variante: string | null): number {
+  const opciones = variantesDe(producto);
+  if (!opciones.length) return PRECIO_SIMPLE[producto];
+  if (!variante) return 0;
+  return opciones.find((v) => v.id === variante)?.precio ?? 0;
+}
+
+export function maxSabores(producto: ClaveProducto, variante: string | null): number {
+  if (!variante) return 0;
+  return variantesDe(producto).find((v) => v.id === variante)?.maxSabores ?? 0;
+}
+
+/** Los sabores de maki que se preparan en el puesto. */
+export const SABORES = ['Acevichado', 'Avocado', 'California', 'Sugumi', 'Pizza', 'Vegano'];
 
 export const totalPedido = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.total, 0);
 
 export const unidades = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.cantidad, 0);
+
+/** Unidades de un producto concreto: los contadores de la cabecera. */
+export function unidadesDe(lineas: Linea[], producto: ClaveProducto): number {
+  return lineas.filter((l) => l.producto === producto).reduce((s, l) => s + l.cantidad, 0);
+}
+
+/** Céntimos exactos: evita que un reparto mitad y mitad arrastre decimales. */
+const aCentimos = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Reparto del cobro entre Yape y efectivo. En un solo medio no se pregunta
+ * nada; en mixto manda lo que el cajero escribió como Yape y el resto es
+ * efectivo, acotado para que nunca sume más que el total.
+ */
+export function repartir(
+  metodo: MetodoPago,
+  total: number,
+  yapeIngresado: number,
+): { montoYape: number; montoEfectivo: number } {
+  if (metodo === 'yape') return { montoYape: aCentimos(total), montoEfectivo: 0 };
+  if (metodo === 'efectivo') return { montoYape: 0, montoEfectivo: aCentimos(total) };
+  // tarjeta y canje no pasan ni por el cajón ni por el Yape
+  if (metodo === 'tarjeta' || metodo === 'canje') return { montoYape: 0, montoEfectivo: 0 };
+  const yape = aCentimos(Math.min(Math.max(yapeIngresado || 0, 0), total));
+  return { montoYape: yape, montoEfectivo: aCentimos(total - yape) };
+}
+
+/**
+ * Plata que de verdad entró por este pedido. Un canje se sirve igual pero
+ * no se cobra: su valor cuenta como regalado, nunca como cobrado, o el
+ * arqueo del cierre pediría un dinero que no está.
+ */
+export const dineroDe = (p: Pick<Pedido, 'metodo' | 'total'>) =>
+  p.metodo === 'canje' ? 0 : p.total;
+
+export type ArqueoMetodo = { metodo: MetodoPago; monto: number; pedidos: number };
+
+/**
+ * Reparto de lo COBRADO por forma de pago, que es lo que se cuenta al
+ * cerrar. Los pedidos sin pagar quedan fuera: todavía no son plata.
+ *
+ * Efectivo y Yape salen de los montos guardados —así un pago mitad y mitad
+ * cae en las dos columnas—; tarjeta y canje, del total, porque no usan esos
+ * campos.
+ */
+export function arqueoPorMetodo(pedidos: Pedido[]): ArqueoMetodo[] {
+  const cobrados = pedidos.filter((p) => p.pagado);
+  const fila = (metodo: MetodoPago, monto: number, pedidosDelMetodo: number) => ({
+    metodo,
+    monto: aCentimos(monto),
+    pedidos: pedidosDelMetodo,
+  });
+
+  const cuantos = (m: MetodoPago) => cobrados.filter((p) => p.metodo === m).length;
+
+  return [
+    fila(
+      'efectivo',
+      cobrados.reduce((s, p) => s + p.montoEfectivo, 0),
+      cuantos('efectivo') + cuantos('mixto'),
+    ),
+    fila(
+      'yape',
+      cobrados.reduce((s, p) => s + p.montoYape, 0),
+      cuantos('yape') + cuantos('mixto'),
+    ),
+    fila(
+      'tarjeta',
+      cobrados.filter((p) => p.metodo === 'tarjeta').reduce((s, p) => s + p.total, 0),
+      cuantos('tarjeta'),
+    ),
+    fila(
+      'canje',
+      cobrados.filter((p) => p.metodo === 'canje').reduce((s, p) => s + p.total, 0),
+      cuantos('canje'),
+    ),
+  ].filter((f) => f.monto > 0 || f.pedidos > 0);
+}
+
+/** Rango de fechas que cubre un grupo de pedidos, para encabezar un resumen. */
+export function rangoFechas(pedidos: Pedido[]): string {
+  if (!pedidos.length) return '';
+  const fechas = pedidos.map((p) => p.creado).sort();
+  const desde = fechaCorta(fechas[0]);
+  const hasta = fechaCorta(fechas[fechas.length - 1]);
+  return desde === hasta ? desde : `${desde} al ${hasta}`;
+}
 
 /* ------------------------------------------------------------------ */
 /* Guardado local                                                      */
@@ -113,7 +230,7 @@ export const unidades = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.canti
 
 const CLAVE = 'sugu-caja-v1';
 
-/** Forma anterior: un producto suelto por pedido, sin líneas ni promo. */
+/** Forma anterior: un producto suelto por pedido, sin líneas ni variante. */
 type PedidoGuardado = Partial<Pedido> & {
   producto?: ClaveProducto;
   sabores?: string[];
@@ -122,38 +239,45 @@ type PedidoGuardado = Partial<Pedido> & {
 };
 
 /**
- * Lleva a la forma con líneas lo que se guardó antes de que existieran. Un
- * pedido viejo de maki se reconstruye por su precio —lo que valía 35 era un
- * dúo—, así que la caja de una feria en curso no se pierde al actualizar.
+ * Lleva a la forma actual lo que se guardó con versiones anteriores. Hay
+ * celulares con jornadas sin migrar, así que esto tiene que seguir
+ * entendiendo el formato viejo: un pedido de maki se reconstruye por su
+ * precio —lo que valía 35 era un dúo— y el reparto del cobro se deduce del
+ * método, que entonces era uno solo.
  */
 function normalizar(guardado: PedidoGuardado): Pedido {
   const { producto, sabores, cantidad, unitario, ...resto } = guardado;
-
-  // los pedidos anteriores a que existiera el vendedor se quedan sin nombre
-  if (Array.isArray(resto.lineas)) {
-    const previo = resto as Pedido;
-    return { ...previo, vendedor: previo.vendedor ?? '', cierre: previo.cierre ?? '' };
-  }
-
-  const unidad = unitario ?? 0;
-  const cuantos = cantidad ?? 1;
-  const prod = producto ?? 'maki';
-  const linea: Linea = {
-    producto: prod,
-    promo: prod === 'maki' ? (unidad >= 35 ? 'duo' : 'personal') : null,
-    sabores: sabores ?? [],
-    cantidad: cuantos,
-    unitario: unidad,
-    total: unidad * cuantos,
-  };
-
   const previo = resto as Pedido;
+
+  const lineas: Linea[] = Array.isArray(previo.lineas)
+    ? previo.lineas
+    : [
+        {
+          producto: producto ?? 'maki',
+          promo:
+            (producto ?? 'maki') === 'maki' ? ((unitario ?? 0) >= 35 ? 'duo' : 'personal') : null,
+          sabores: sabores ?? [],
+          cantidad: cantidad ?? 1,
+          unitario: unitario ?? 0,
+          total: (unitario ?? 0) * (cantidad ?? 1),
+        },
+      ];
+
+  const total = previo.total ?? totalPedido(lineas);
+  const metodo = previo.metodo ?? 'efectivo';
+  const traeReparto =
+    typeof previo.montoYape === 'number' && typeof previo.montoEfectivo === 'number';
+
   return {
     ...previo,
     vendedor: previo.vendedor ?? '',
     cierre: previo.cierre ?? '',
-    lineas: [linea],
-    total: resto.total ?? linea.total,
+    lineas,
+    total,
+    metodo,
+    ...(traeReparto
+      ? { montoYape: previo.montoYape, montoEfectivo: previo.montoEfectivo }
+      : repartir(metodo, total, 0)),
   };
 }
 
@@ -183,9 +307,9 @@ export function guardarPedidos(pedidos: Pedido[]): void {
 }
 
 /*
- * El vendedor del turno se guarda aparte de los pedidos: es del EQUIPO, no
- * de la venta. Así la tablet lo recuerda entre recargas y quien atiende no
- * tiene que volver a escribir su nombre en media feria.
+ * Quién abrió la caja. Se guarda aparte de los pedidos porque es del
+ * EQUIPO, no de la venta: el celular lo recuerda entre recargas y quien
+ * atiende no tiene que volver a escribir su nombre en media feria.
  */
 const CLAVE_VENDEDOR = 'sugu-caja-vendedor';
 
@@ -244,10 +368,22 @@ export function diaLocal(fecha: Date | string): string {
 
 export const esDeHoy = (iso: string) => diaLocal(iso) === diaLocal(new Date());
 
-/** Nombre del producto con su promo: "Maki Dúo", "Onigiri". */
+export const NOMBRE_METODO: Record<MetodoPago, string> = {
+  efectivo: 'Efectivo',
+  yape: 'Yape',
+  mixto: 'Mitad y mitad',
+  tarjeta: 'Tarjeta',
+  canje: 'Canje',
+};
+
+/** Orden en que se ofrecen en la caja, del más usado al menos. */
+export const METODOS_PAGO: MetodoPago[] = ['efectivo', 'yape', 'mixto', 'tarjeta', 'canje'];
+
+/** Nombre del producto con su variante: "Maki Dúo", "Poke Bowl Pollo". */
 export function nombreLinea(l: Linea): string {
-  const base = NOMBRE_PRODUCTO[l.producto];
-  return l.promo ? `${base} ${NOMBRE_PROMO[l.promo]}` : base;
+  const base = NOMBRE_PRODUCTO[l.producto] ?? l.producto;
+  const variante = buscarVariante(l.promo);
+  return variante ? `${base} ${variante.nombre}` : base;
 }
 
 /** Cómo se lee una línea: "2x Maki Dúo (Acevichado, California)". */
@@ -261,9 +397,9 @@ export function describirLinea(l: Linea): string {
 /* ------------------------------------------------------------------ */
 
 /**
- * Exporta lo que se esté viendo en pantalla, una fila por línea: así se puede
- * filtrar por producto o por promo para ver qué salió más, y la columna de
- * total sigue sumando la venta exacta sin contar nada dos veces.
+ * Exporta lo que se esté viendo, una fila por línea: así se puede filtrar
+ * por producto o por variante para ver qué salió más, y la columna de total
+ * sigue sumando la venta exacta sin contar nada dos veces.
  *
  * `exceljs` se importa aquí dentro —no arriba— para que la librería no pese
  * en la carga de la caja: solo baja cuando de verdad se cierra el día.
@@ -279,12 +415,14 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
     { header: 'Vendedor', key: 'vendedor', width: 16 },
     { header: 'Cliente', key: 'cliente', width: 22 },
     { header: 'Producto', key: 'producto', width: 12 },
-    { header: 'Promoción', key: 'promo', width: 12 },
+    { header: 'Variante', key: 'variante', width: 18 },
     { header: 'Sabores', key: 'sabores', width: 28 },
     { header: 'Cantidad', key: 'cantidad', width: 10 },
     { header: 'Precio unit.', key: 'unitario', width: 12 },
     { header: 'Total', key: 'total', width: 12 },
-    { header: 'Pago', key: 'metodo', width: 10 },
+    { header: 'Pago', key: 'metodo', width: 14 },
+    { header: 'Yape', key: 'yape', width: 12 },
+    { header: 'Efectivo', key: 'efectivo', width: 12 },
     { header: 'Cobrado', key: 'pagado', width: 10 },
     { header: 'Entregado', key: 'entregado', width: 11 },
     { header: 'Cierre', key: 'cierre', width: 20 },
@@ -300,43 +438,58 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
   const ordenados = [...pedidos].sort((a, b) => a.creado.localeCompare(b.creado));
 
   for (const p of ordenados) {
-    for (const l of p.lineas) {
+    p.lineas.forEach((l, i) => {
       hoja.addRow({
         fecha: fechaCorta(p.creado),
         hora: hora(p.creado),
         vendedor: p.vendedor,
         cliente: p.cliente,
-        producto: NOMBRE_PRODUCTO[l.producto],
-        promo: l.promo ? NOMBRE_PROMO[l.promo] : '',
+        producto: NOMBRE_PRODUCTO[l.producto] ?? l.producto,
+        variante: buscarVariante(l.promo)?.nombre ?? '',
         sabores: l.sabores.join(', '),
         cantidad: l.cantidad,
         unitario: l.unitario,
         total: l.total,
-        metodo: p.metodo === 'yape' ? 'Yape' : 'Efectivo',
+        metodo: NOMBRE_METODO[p.metodo] ?? p.metodo,
+        /*
+         * El reparto del cobro es del PEDIDO, no de la línea. Va solo en la
+         * primera de cada pedido y en blanco en las demás: si se repitiera,
+         * sumar la columna de efectivo daría más plata de la que hay.
+         */
+        yape: i === 0 ? p.montoYape : null,
+        efectivo: i === 0 ? p.montoEfectivo : null,
         pagado: p.pagado ? 'Sí' : 'No',
         entregado: p.entregado ? 'Sí' : 'No',
         cierre: p.cierre,
       });
-    }
+    });
   }
 
-  for (const clave of ['unitario', 'total']) {
+  for (const clave of ['unitario', 'total', 'yape', 'efectivo']) {
     hoja.getColumn(clave).numFmt = '"S/" #,##0.00';
   }
 
   const total = ordenados.reduce((s, p) => s + p.total, 0);
-  const cobrado = ordenados.filter((p) => p.pagado).reduce((s, p) => s + p.total, 0);
+  const cobrados = ordenados.filter((p) => p.pagado);
+  // el canje no es plata: su valor se informa aparte, nunca dentro de lo cobrado
+  const cobrado = cobrados.reduce((s, p) => s + dineroDe(p), 0);
+  const porCobrar = ordenados.filter((p) => !p.pagado).reduce((s, p) => s + p.total, 0);
 
   /*
    * Resumen al pie. Las etiquetas van en la columna del precio unitario, que
-   * ya quedó con formato de moneda, así que a esas tres celdas se les fuerza
+   * ya quedó con formato de moneda, así que a esas celdas se les fuerza
    * formato de texto para que Excel no las muestre como "S/ Cobrado".
    */
   hoja.addRow({});
   const filas = [
+    // la fecha primero: un cierre suelto tiene que decir de cuándo es
+    hoja.addRow({ cliente: 'Fecha', unitario: rangoFechas(ordenados) }),
     hoja.addRow({ cliente: `${ordenados.length} pedidos`, unitario: 'Cobrado', total: cobrado }),
-    hoja.addRow({ unitario: 'Por cobrar', total: total - cobrado }),
+    hoja.addRow({ unitario: 'Por cobrar', total: porCobrar }),
     hoja.addRow({ unitario: 'Venta total', total }),
+    ...arqueoPorMetodo(ordenados).map((a) =>
+      hoja.addRow({ unitario: `Cobrado en ${NOMBRE_METODO[a.metodo]}`, total: a.monto }),
+    ),
   ];
   for (const fila of filas) {
     fila.font = { bold: true };

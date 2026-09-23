@@ -6,12 +6,15 @@ import Link from 'next/link';
 import { listarCaja, type PedidoCaja } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
 import {
+  NOMBRE_METODO,
   NOMBRE_PRODUCTO,
-  NOMBRE_PROMO,
   type ClaveProducto,
   type Pedido,
-  type PromoMaki,
+  arqueoPorMetodo,
+  buscarVariante,
   descargarExcel,
+  dineroDe,
+  rangoFechas,
   describirLinea,
   diaLocal,
   fechaCorta,
@@ -36,7 +39,7 @@ function aPedido(p: PedidoCaja): Pedido {
     cierre: p.cierre ?? '',
     lineas: p.lineas.map((l) => ({
       producto: l.producto as ClaveProducto,
-      promo: (l.promo ?? null) as PromoMaki | null,
+      promo: l.promo ?? null,
       sabores: l.sabores ?? [],
       cantidad: l.cantidad,
       unitario: Number(l.unitario),
@@ -44,6 +47,8 @@ function aPedido(p: PedidoCaja): Pedido {
     })),
     total: Number(p.total),
     metodo: p.metodo,
+    montoYape: Number(p.monto_yape ?? 0),
+    montoEfectivo: Number(p.monto_efectivo ?? 0),
     pagado: p.pagado,
     entregado: p.entregado,
   };
@@ -106,9 +111,42 @@ export default function CajaAdmin() {
 
   const resumen = useMemo(() => {
     const total = visibles.reduce((s, p) => s + p.total, 0);
-    const cobrado = visibles.filter((p) => p.pagado).reduce((s, p) => s + p.total, 0);
+    const cobrados = visibles.filter((p) => p.pagado);
+    // el canje se entrega pero no deja plata: no cuenta como cobrado
+    const cobrado = cobrados.reduce((s, p) => s + dineroDe(p), 0);
     const piezas = visibles.reduce((s, p) => s + unidades(aPedido(p).lineas), 0);
-    return { total, cobrado, pendiente: total - cobrado, piezas };
+    return {
+      total,
+      cobrado,
+      pendiente: visibles.filter((p) => !p.pagado).reduce((s, p) => s + p.total, 0),
+      piezas,
+    };
+  }, [visibles]);
+
+  /** Arqueo: cuánto entró por cada vía. Es lo que se cuenta al cerrar. */
+  const porMetodo = useMemo(() => arqueoPorMetodo(visibles.map(aPedido)), [visibles]);
+
+  /**
+   * Cada cierre con su fecha. Responde a "¿cuánto hice en la feria del
+   * sábado?" sin tener que acordarse de qué día fue.
+   */
+  const porCierre = useMemo(() => {
+    const mapa = new Map<string, { pedidos: PedidoCaja[] }>();
+    for (const p of visibles) {
+      const clave = (p.cierre ?? '').trim() || 'Caja sin cerrar';
+      const fila = mapa.get(clave) ?? { pedidos: [] };
+      fila.pedidos.push(p);
+      mapa.set(clave, fila);
+    }
+    return Array.from(mapa.entries())
+      .map(([nombre, { pedidos }]) => ({
+        nombre,
+        fecha: rangoFechas(pedidos.map(aPedido)),
+        cuantos: pedidos.length,
+        total: pedidos.reduce((s, p) => s + p.total, 0),
+        cobrado: pedidos.filter((p) => p.pagado).reduce((s, p) => s + dineroDe(aPedido(p)), 0),
+      }))
+      .sort((a, b) => b.total - a.total);
   }, [visibles]);
 
   /** Cuánto vendió cada quien: es la pregunta de después de la feria. */
@@ -132,7 +170,8 @@ export default function CajaAdmin() {
     for (const p of visibles) {
       for (const l of aPedido(p).lineas) {
         const nombre = NOMBRE_PRODUCTO[l.producto] ?? l.producto;
-        const clave = l.promo ? `${nombre} ${NOMBRE_PROMO[l.promo]}` : nombre;
+        const variante = buscarVariante(l.promo);
+        const clave = variante ? `${nombre} ${variante.nombre}` : nombre;
         const fila = mapa.get(clave) ?? { unidades: 0, total: 0 };
         fila.unidades += l.cantidad;
         fila.total += l.total;
@@ -277,6 +316,68 @@ export default function CajaAdmin() {
           ) : (
             <div className="grid gap-6 lg:grid-cols-2">
               <section className="rounded-2xl border border-white/10 bg-night-2 p-4">
+                <h2 className="mb-3 text-sm font-semibold">Por forma de pago</h2>
+                <table className="w-full text-[13px]">
+                  <thead className="text-[11px] uppercase tracking-wider text-bone-dim">
+                    <tr>
+                      <th className="pb-2 text-left font-medium">Forma</th>
+                      <th className="pb-2 text-right font-medium">Pedidos</th>
+                      <th className="pb-2 text-right font-medium">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {porMetodo.map((a) => (
+                      <tr key={a.metodo} className="border-t border-white/5">
+                        <td className="py-2 font-medium">
+                          {NOMBRE_METODO[a.metodo]}
+                          {a.metodo === 'canje' && (
+                            <span className="ml-1.5 text-[11px] text-bone-dim">(no es plata)</span>
+                          )}
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-bone-dim">{a.pedidos}</td>
+                        <td className="py-2 text-right font-semibold tabular-nums">
+                          {soles(a.monto)}
+                        </td>
+                      </tr>
+                    ))}
+                    {porMetodo.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="py-3 text-center text-bone-dim">
+                          Nada cobrado todavía.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="rounded-2xl border border-white/10 bg-night-2 p-4">
+                <h2 className="mb-3 text-sm font-semibold">Por cierre</h2>
+                <table className="w-full text-[13px]">
+                  <thead className="text-[11px] uppercase tracking-wider text-bone-dim">
+                    <tr>
+                      <th className="pb-2 text-left font-medium">Cierre</th>
+                      <th className="pb-2 text-left font-medium">Fecha</th>
+                      <th className="pb-2 text-right font-medium">Pedidos</th>
+                      <th className="pb-2 text-right font-medium">Venta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {porCierre.map((c) => (
+                      <tr key={c.nombre} className="border-t border-white/5">
+                        <td className="py-2 font-medium">{c.nombre}</td>
+                        <td className="py-2 text-bone-dim">{c.fecha}</td>
+                        <td className="py-2 text-right tabular-nums text-bone-dim">{c.cuantos}</td>
+                        <td className="py-2 text-right font-semibold tabular-nums">
+                          {soles(c.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+
+              <section className="rounded-2xl border border-white/10 bg-night-2 p-4">
                 <h2 className="mb-3 text-sm font-semibold">Por vendedor</h2>
                 <table className="w-full text-[13px]">
                   <thead className="text-[11px] uppercase tracking-wider text-bone-dim">
@@ -353,7 +454,9 @@ export default function CajaAdmin() {
                               {p.pagado ? 'Pagado' : 'Por cobrar'}
                             </span>
                             <span className="rounded-full bg-white/10 px-2 py-0.5 font-semibold text-bone-dim">
-                              {p.metodo === 'yape' ? 'Yape' : 'Efectivo'}
+                              {p.metodo === 'mixto'
+                                ? `Yape ${soles(p.monto_yape)} · Efec. ${soles(p.monto_efectivo)}`
+                                : (NOMBRE_METODO[p.metodo] ?? p.metodo)}
                             </span>
                             {p.entregado && (
                               <span className="rounded-full bg-sky-600/20 px-2 py-0.5 font-semibold text-sky-400">

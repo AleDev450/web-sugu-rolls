@@ -4,37 +4,38 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import {
   Archive,
   Banknote,
+  ChefHat,
   Check,
-  CloudCheck,
-  CloudOff,
   ChevronLeft,
   ChevronRight,
+  CloudOff,
+  Copy,
   Download,
+  LogOut,
   Minus,
   PackageCheck,
   Pencil,
-  LogOut,
   Plus,
   RefreshCw,
+  CreditCard,
+  Gift,
   Smartphone,
+  SquareSplitHorizontal,
   Trash2,
-  UserRound,
   X,
 } from 'lucide-react';
 import {
+  METODOS_PAGO,
+  NOMBRE_METODO,
   PRODUCTOS,
-  PROMOS_MAKI,
   SABORES,
   type ClaveProducto,
   type Linea,
   type MetodoPago,
   type Pedido,
-  type PromoMaki,
   describirLinea,
   descargarExcel,
-  diaLocal,
-  esDeHoy,
-  fechaCorta,
+  dineroDe,
   guardarPedidos,
   guardarVendedor,
   hora,
@@ -44,20 +45,32 @@ import {
   nuevoId,
   paraArchivo,
   precioUnitario,
+  repartir,
   soles,
   totalPedido,
-  unidades,
+  unidadesDe,
+  variantesDe,
 } from '@/lib/caja';
-import { cuantosPendientes, encolarNoSubidos, marcarBorrado, marcarSucio, sincronizar } from '@/lib/cajaSync';
-import { cerrarSesion, esAdmin, usuarioActual } from '@/lib/admin';
+import {
+  cuantosPendientes,
+  encolarNoSubidos,
+  marcarBorrado,
+  marcarSucio,
+  sincronizar,
+} from '@/lib/cajaSync';
+import { cerrarSesion, esAdmin, traerClaveCocina, usuarioActual } from '@/lib/admin';
 import { hayBackend } from '@/lib/contenido';
 import { Login } from '@/components/admin/Login';
 
 const POR_PAGINA = 20;
 
-/* Numeración de los pasos: el maki mete promo y sabores en el medio. */
-const PASOS_MAKI = { producto: 1, promo: 2, sabores: 3, cantidad: 4, pago: 5, estado: 6, cliente: 7 };
-const PASOS_SIMPLE = { producto: 1, promo: 0, sabores: 0, cantidad: 2, pago: 3, estado: 4, cliente: 5 };
+const ICONO_METODO: Record<MetodoPago, ReactNode> = {
+  efectivo: <Banknote size={18} />,
+  yape: <Smartphone size={18} />,
+  mixto: <SquareSplitHorizontal size={18} />,
+  tarjeta: <CreditCard size={18} />,
+  canje: <Gift size={18} />,
+};
 
 /* ------------------------------------------------------------------ */
 /* Piezas de la caja                                                   */
@@ -172,8 +185,19 @@ function AccionFila({
   );
 }
 
+function Ventana({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-end overflow-y-auto bg-black/70 p-4 sm:place-items-center">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-night-soft p-5">
+        <h2 className="mb-3 text-lg font-bold">{titulo}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
-/* Pantalla                                                            */
+/* Puerta                                                              */
 /* ------------------------------------------------------------------ */
 
 type Acceso = 'cargando' | 'local' | 'anonimo' | 'sin-permiso' | 'listo';
@@ -242,68 +266,81 @@ export default function CajaPagina() {
     );
   }
 
-  return <Caja sincroniza={acceso === 'listo'} correo={correo} />;
+  return <Caja sincroniza={acceso === 'listo'} />;
 }
+
+/* ------------------------------------------------------------------ */
+/* Caja                                                                */
+/* ------------------------------------------------------------------ */
 
 /**
  * Caja de la feria. El ticket se arma por líneas —dos dúos con sabores
  * distintos son dos líneas de un mismo pedido— y la lista de abajo es el
- * control de lo vendido: quién falta pagar, qué falta entregar y cuánto va
- * en el día.
+ * control de la jornada: qué falta entregar y qué ya salió.
  */
-function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
+function Caja({ sincroniza }: { sincroniza: boolean }) {
   // null mientras no se lee el navegador: evita pintar "0 pedidos" y corregir
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
 
   // selección en curso
   const [producto, setProducto] = useState<ClaveProducto | null>(null);
-  const [promo, setPromo] = useState<PromoMaki | null>(null);
+  const [variante, setVariante] = useState<string | null>(null);
   const [sabores, setSabores] = useState<string[]>([]);
   const [cantidad, setCantidad] = useState(1);
-
-  // líneas ya apuntadas en el ticket abierto
   const [lineas, setLineas] = useState<Linea[]>([]);
 
   const [metodo, setMetodo] = useState<MetodoPago>('efectivo');
+  const [yapeParcial, setYapeParcial] = useState('');
   const [pagado, setPagado] = useState(true);
   const [cliente, setCliente] = useState('');
 
-  const [vista, setVista] = useState<'abierta' | 'hoy' | 'todo'>('abierta');
+  // quién abrió la caja
+  const [vendedor, setVendedor] = useState<string | null>(null);
+  const [nombreNuevo, setNombreNuevo] = useState('');
+
+  const [tab, setTab] = useState<'pendientes' | 'entregados'>('pendientes');
   const [pagina, setPagina] = useState(1);
   const [porBorrar, setPorBorrar] = useState<string | null>(null);
-  const [aviso, setAviso] = useState('');
-
-  // quién atiende este turno, y el estado de la subida al panel
-  const [vendedor, setVendedor] = useState('');
-  const [editandoVendedor, setEditandoVendedor] = useState(false);
-  const [borradorVendedor, setBorradorVendedor] = useState('');
+  const [editando, setEditando] = useState<Pedido | null>(null);
   const [cerrando, setCerrando] = useState(false);
   const [nombreCierre, setNombreCierre] = useState('');
-  const [pendientes, setPendientes] = useState(0);
+  const [aviso, setAviso] = useState('');
+
+  // cocina
+  const [enlaceCocina, setEnlaceCocina] = useState('');
+  const [mostrandoCocina, setMostrandoCocina] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+
+  // subida al panel
+  const [pendientesSync, setPendientesSync] = useState(0);
   const [subiendo, setSubiendo] = useState(false);
   const [falloSync, setFalloSync] = useState<string | null>(null);
 
-  useEffect(() => {
-    setPedidos(leerPedidos());
-    // recupera lo cobrado sin señal y, la primera vez, la jornada ya guardada
-    encolarNoSubidos();
-    setPendientes(cuantosPendientes());
-  }, []);
-
   /*
-   * El nombre del turno arranca en el de la sesión: con una sola cuenta en la
-   * tablet ya queda algo razonable escrito, y quien se turne lo cambia.
+   * La carga y la subida NO dependen de que ya haya nombre: en un celular
+   * sin migrar, abrir la caja tiene que empujar lo que quedó pendiente
+   * aunque quien lo abra todavía no se haya identificado.
    */
   useEffect(() => {
-    setVendedor(leerVendedor() || correo.split('@')[0] || '');
-  }, [correo]);
+    setPedidos(leerPedidos());
+    setVendedor(leerVendedor());
+    encolarNoSubidos();
+    setPendientesSync(cuantosPendientes());
+  }, []);
+
+  useEffect(() => {
+    if (!sincroniza) return;
+    void traerClaveCocina().then((clave) => {
+      if (clave) setEnlaceCocina(`${window.location.origin}/cocina?k=${clave}`);
+    });
+  }, [sincroniza]);
 
   const empujar = useCallback(async () => {
     if (!sincroniza) return;
     setSubiendo(true);
     const r = await sincronizar();
     setSubiendo(false);
-    setPendientes(r.pendientes);
+    setPendientesSync(r.pendientes);
     setFalloSync(r.error && r.error !== 'SIN_BACKEND' ? r.error : null);
   }, [sincroniza]);
 
@@ -321,7 +358,6 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
     if (pedidos) void empujar();
   }, [pedidos, empujar]);
 
-  // al volver la señal, lo pendiente sube solo
   useEffect(() => {
     const alVolver = () => void empujar();
     window.addEventListener('online', alVolver);
@@ -330,12 +366,11 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
 
   // mientras quede cola, se reintenta sin que nadie tenga que tocar nada
   useEffect(() => {
-    if (!pendientes || !sincroniza) return;
-    const t = setInterval(() => void empujar(), 30000);
+    if (!pendientesSync || !sincroniza) return;
+    const t = setInterval(() => void empujar(), 20000);
     return () => clearInterval(t);
-  }, [pendientes, sincroniza, empujar]);
+  }, [pendientesSync, sincroniza, empujar]);
 
-  // el "¿Seguro?" no se queda armado: si no se confirma, vuelve solo
   useEffect(() => {
     if (!porBorrar) return;
     const t = setTimeout(() => setPorBorrar(null), 4000);
@@ -348,29 +383,27 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
     return () => clearTimeout(t);
   }, [aviso]);
 
-  const esMaki = producto === 'maki';
-  const paso = esMaki ? PASOS_MAKI : PASOS_SIMPLE;
-  const tope = promo ? maxSabores(promo) : 0;
+  const opciones = producto ? variantesDe(producto) : [];
+  const tope = producto ? maxSabores(producto, variante) : 0;
 
-  /**
-   * La selección en curso convertida en línea, o null si todavía le falta
-   * algo. Un maki necesita promo y al menos un sabor; el dúo vale igual con
-   * uno que con dos.
-   */
+  /** La selección en curso convertida en línea, o null si le falta algo. */
   const lineaActual = useMemo<Linea | null>(() => {
     if (!producto) return null;
-    if (producto === 'maki' && (!promo || sabores.length === 0)) return null;
-    const unitario = precioUnitario(producto, promo);
+    const exigeVariante = variantesDe(producto).length > 0;
+    if (exigeVariante && !variante) return null;
+    const cuantosSabores = maxSabores(producto, variante);
+    if (cuantosSabores > 0 && sabores.length === 0) return null;
+    const unitario = precioUnitario(producto, variante);
     if (unitario <= 0) return null;
     return {
       producto,
-      promo: producto === 'maki' ? promo : null,
-      sabores: producto === 'maki' ? sabores : [],
+      promo: exigeVariante ? variante : null,
+      sabores: cuantosSabores > 0 ? sabores : [],
       cantidad,
       unitario,
       total: unitario * cantidad,
     };
-  }, [producto, promo, sabores, cantidad]);
+  }, [producto, variante, sabores, cantidad]);
 
   /*
    * Lo que se registraría ahora mismo. La línea en curso entra sola, sin
@@ -382,49 +415,59 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
     [lineas, lineaActual],
   );
   const totalActual = totalPedido(lineasFinales);
-  const puedeRegistrar = lineasFinales.length > 0 && vendedor.trim().length > 0;
+  const puedeRegistrar = lineasFinales.length > 0;
 
-  const visibles = useMemo(() => {
-    const base = pedidos ?? [];
-    const filtrados =
-      vista === 'abierta'
-        ? base.filter((p) => !p.cierre)
-        : vista === 'hoy'
-          ? base.filter((p) => esDeHoy(p.creado))
-          : base;
-    // descendente: el último cobro siempre arriba, que es el que se corrige
-    return [...filtrados].sort((a, b) => b.creado.localeCompare(a.creado));
-  }, [pedidos, vista]);
+  /** Cobros del turno en curso: los que todavía no pertenecen a un cierre. */
+  const abiertos = useMemo(() => (pedidos ?? []).filter((p) => !p.cierre), [pedidos]);
 
   const resumen = useMemo(() => {
-    const total = visibles.reduce((s, p) => s + p.total, 0);
-    const cobrado = visibles.filter((p) => p.pagado).reduce((s, p) => s + p.total, 0);
-    const piezas = visibles.reduce((s, p) => s + unidades(p.lineas), 0);
-    return { total, cobrado, pendiente: total - cobrado, piezas };
-  }, [visibles]);
+    const total = abiertos.reduce((s, p) => s + p.total, 0);
+    /*
+     * Un canje se entrega pero no deja plata. Se saca de "cobrado" y se
+     * informa aparte: si contara como cobrado, el arqueo del cierre pediría
+     * un dinero que no está en el cajón.
+     */
+    const cobrado = abiertos.filter((p) => p.pagado).reduce((s, p) => s + dineroDe(p), 0);
+    const canjeado = abiertos
+      .filter((p) => p.pagado && p.metodo === 'canje')
+      .reduce((s, p) => s + p.total, 0);
+    const pendiente = abiertos.filter((p) => !p.pagado).reduce((s, p) => s + p.total, 0);
+    const todasLasLineas = abiertos.flatMap((p) => p.lineas);
+    return {
+      total,
+      cobrado,
+      canjeado,
+      pendiente,
+      onigiris: unidadesDe(todasLasLineas, 'onigiri'),
+      pokebowls: unidadesDe(todasLasLineas, 'pokebowl'),
+      makis: unidadesDe(todasLasLineas, 'maki'),
+    };
+  }, [abiertos]);
 
-  /*
-   * La página se acota al vuelo en vez de corregirse con un efecto: si se
-   * borra el único pedido de la última página, el render de abajo ya usa una
-   * página válida y no se ve un parpadeo en blanco.
-   */
+  // descendente: el último cobro siempre arriba, que es el que se corrige
+  const visibles = useMemo(
+    () =>
+      abiertos
+        .filter((p) => (tab === 'pendientes' ? !p.entregado : p.entregado))
+        .sort((a, b) => b.creado.localeCompare(a.creado)),
+    [abiertos, tab],
+  );
+
   const totalPaginas = Math.max(1, Math.ceil(visibles.length / POR_PAGINA));
   const paginaSegura = Math.min(pagina, totalPaginas);
   const enPagina = visibles.slice((paginaSegura - 1) * POR_PAGINA, paginaSegura * POR_PAGINA);
 
   function elegirProducto(id: ClaveProducto) {
     setProducto(id);
-    // promo y sabores son solo del maki; cambiar de producto no los arrastra
-    if (id !== 'maki') {
-      setPromo(null);
-      setSabores([]);
-    }
+    // cada producto trae sus propias variantes y sabores; no se arrastran
+    setVariante(null);
+    setSabores([]);
   }
 
-  function elegirPromo(id: PromoMaki) {
-    setPromo(id);
-    // del dúo al personal sobra un sabor: se recorta al tope de la promo
-    setSabores((previos) => previos.slice(0, maxSabores(id)));
+  function elegirVariante(id: string) {
+    setVariante(id);
+    // del dúo al personal sobra un sabor: se recorta al tope de la variante
+    if (producto) setSabores((previos) => previos.slice(0, maxSabores(producto, id)));
   }
 
   function alternarSabor(sabor: string) {
@@ -435,10 +478,9 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
     });
   }
 
-  /** Deja la selección en blanco; el ticket abierto no se toca. */
   function limpiarSeleccion() {
     setProducto(null);
-    setPromo(null);
+    setVariante(null);
     setSabores([]);
     setCantidad(1);
   }
@@ -447,6 +489,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
     limpiarSeleccion();
     setLineas([]);
     setMetodo('efectivo');
+    setYapeParcial('');
     setPagado(true);
     setCliente('');
   }
@@ -463,46 +506,21 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
       id: nuevoId(),
       creado: new Date().toISOString(),
       cliente: cliente.trim() || 'Cliente',
-      vendedor,
+      vendedor: vendedor ?? '',
       cierre: '',
       lineas: lineasFinales,
       total: totalActual,
       metodo,
+      ...repartir(metodo, totalActual, Number(yapeParcial)),
       pagado,
       entregado: false,
     };
     marcarSucio(nuevo.id);
     setPedidos((previos) => [...(previos ?? []), nuevo]);
-    setVista('abierta');
+    setTab('pendientes');
     setPagina(1);
     setAviso(`Registrado · ${soles(totalActual)}`);
     limpiarTodo();
-  }
-
-  /** Cobros del turno en curso: los que todavía no pertenecen a un cierre. */
-  const abiertos = useMemo(() => (pedidos ?? []).filter((p) => !p.cierre), [pedidos]);
-
-  /**
-   * Cierra el turno: sella con un nombre todos los cobros abiertos, baja el
-   * Excel de esa jornada y deja la caja en cero para la siguiente. No borra
-   * nada —lo cerrado sigue en "Todo" y en el panel—, solo lo saca de la
-   * vista de trabajo.
-   */
-  function cerrarCaja() {
-    const nombre = nombreCierre.trim();
-    if (!nombre || abiertos.length === 0) return;
-
-    const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre }));
-    // hay que volver a subirlos: el nombre del cierre viaja con cada cobro
-    for (const p of abiertos) marcarSucio(p.id);
-    setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre })));
-
-    void descargarExcel(cerrados, paraArchivo(nombre));
-    setCerrando(false);
-    setNombreCierre('');
-    setVista('abierta');
-    setPagina(1);
-    setAviso(`Caja cerrada · ${nombre}`);
   }
 
   function parchear(id: string, cambios: Partial<Pedido>) {
@@ -516,131 +534,195 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
     setPorBorrar(null);
   }
 
-  /** Qué le falta a la selección, para que el botón grande lo diga. */
-  function queFalta(): string {
-    if (!vendedor.trim()) return 'Falta decir quién atiende';
-    if (!producto) return 'Elige un producto';
-    if (esMaki && !promo) return 'Elige Personal o Dúo';
-    if (esMaki && sabores.length === 0) return 'Elige el sabor';
-    return '';
+  /** Guarda el pedido editado entero, con su total y su reparto recalculados. */
+  function guardarEdicion(editado: Pedido) {
+    const total = totalPedido(editado.lineas);
+    const completo: Pedido = {
+      ...editado,
+      cliente: editado.cliente.trim() || 'Cliente',
+      total,
+      ...repartir(editado.metodo, total, editado.montoYape),
+    };
+    marcarSucio(completo.id);
+    setPedidos((previos) => (previos ?? []).map((p) => (p.id === completo.id ? completo : p)));
+    setEditando(null);
+    setAviso('Venta corregida');
   }
-  const faltante = queFalta();
+
+  /**
+   * Cierra el turno: sella con un nombre todos los cobros abiertos, baja el
+   * Excel de esa jornada y deja la caja en cero para la siguiente. No borra
+   * nada: lo cerrado sigue en el panel y en el historial del celular.
+   */
+  function cerrarCaja() {
+    const nombre = nombreCierre.trim();
+    if (!nombre || abiertos.length === 0) return;
+    const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre }));
+    for (const p of abiertos) marcarSucio(p.id);
+    setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre })));
+    void descargarExcel(cerrados, paraArchivo(nombre));
+    setCerrando(false);
+    setNombreCierre('');
+    setTab('pendientes');
+    setPagina(1);
+    setAviso(`Caja cerrada · ${nombre}`);
+  }
+
+  /* ---------------- Apertura: quién abre la caja ---------------- */
+
+  if (pedidos === null) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-night">
+        <p className="text-sm text-bone-dim">Abriendo la caja…</p>
+      </div>
+    );
+  }
+
+  if (!vendedor) {
+    const abrir = () => {
+      const nombre = nombreNuevo.trim();
+      if (!nombre) return;
+      guardarVendedor(nombre);
+      setVendedor(nombre);
+    };
+    return (
+      <main className="grid min-h-[100dvh] place-items-center bg-night p-6 text-bone">
+        <div className="w-full max-w-sm">
+          <p className="text-center text-xl font-extrabold tracking-tight">
+            Sugu<span className="text-sugu">Rolls</span>
+          </p>
+          <h1 className="mt-1 text-center text-[11px] uppercase tracking-widest text-bone-dim">
+            Abrir caja
+          </h1>
+          <p className="mt-7 text-center text-sm text-bone-dim">
+            ¿Quién va a atender en este equipo? Tu nombre queda en cada venta que registres.
+          </p>
+          <input
+            value={nombreNuevo}
+            onChange={(e) => setNombreNuevo(e.target.value)}
+            placeholder="Tu nombre"
+            autoFocus
+            enterKeyHint="go"
+            onKeyDown={(e) => e.key === 'Enter' && abrir()}
+            className="mt-5 w-full rounded-2xl border border-white/15 bg-night-2 px-4 py-4 text-center text-lg outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
+          />
+          <button
+            type="button"
+            disabled={!nombreNuevo.trim()}
+            onClick={abrir}
+            className="mt-3 min-h-[58px] w-full rounded-2xl bg-sugu text-base font-bold text-white disabled:bg-night-3 disabled:text-bone-dim"
+          >
+            Ingresar
+          </button>
+          {abiertos.length > 0 && (
+            <p className="mt-4 text-center text-[12px] text-bone-dim">
+              Este equipo tiene {abiertos.length} pedidos sin cerrar por{' '}
+              {soles(abiertos.reduce((s, p) => s + p.total, 0))}.
+            </p>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  /* ---------------- Caja ---------------- */
+
+  /*
+   * Los pasos se numeran al pintar, no con números fijos: el onigiri no
+   * elige variante ni sabores, y saltar del 1 al 4 se lee como si faltara
+   * algo. Las claves se evalúan en orden, así que el contador va contando
+   * solo los que de verdad se ven.
+   */
+  let n = 0;
+  const paso = {
+    producto: ++n,
+    variante: opciones.length > 0 ? ++n : 0,
+    sabores: tope > 0 ? ++n : 0,
+    cantidad: ++n,
+    pago: ++n,
+    estado: ++n,
+    cliente: ++n,
+  };
+  const faltaVariante = Boolean(producto) && opciones.length > 0 && !variante;
+  const faltaSabor = tope > 0 && sabores.length === 0;
+  const faltante = !producto
+    ? 'Elige un producto'
+    : faltaVariante
+      ? `Elige ${producto === 'maki' ? 'Personal o Dúo' : 'la base'}`
+      : faltaSabor
+        ? 'Elige el sabor'
+        : '';
+
+  const yapeMixto = metodo === 'mixto' ? repartir('mixto', totalActual, Number(yapeParcial)) : null;
 
   return (
     <main className="min-h-[100dvh] bg-night pb-10 text-bone">
-      {/* Acumulado siempre a la vista: es lo que se mira entre cliente y cliente */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-night/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-end justify-between gap-3 px-4 py-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-bone-dim">
-              {vista === 'abierta'
-                ? 'Caja abierta'
-                : vista === 'hoy'
-                  ? 'Venta de hoy'
-                  : 'Venta acumulada'}
-            </p>
-            <p className="text-3xl font-bold leading-none text-sugu-glow sm:text-4xl">
-              {soles(resumen.total)}
-            </p>
-            <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-              <Etiqueta tono="verde">Cobrado {soles(resumen.cobrado)}</Etiqueta>
-              <Etiqueta tono="ambar">Por cobrar {soles(resumen.pendiente)}</Etiqueta>
-              <Etiqueta tono="gris">
-                {visibles.length} pedidos · {resumen.piezas} und
-              </Etiqueta>
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Quién atiende: se toca una vez por turno y viaja en cada cobro */}
-            {editandoVendedor ? (
-              <span className="flex items-center gap-1">
-                <input
-                  value={borradorVendedor}
-                  onChange={(e) => setBorradorVendedor(e.target.value)}
-                  placeholder="Tu nombre"
-                  autoFocus
-                  enterKeyHint="done"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const limpio = borradorVendedor.trim();
-                      if (!limpio) return;
-                      setVendedor(limpio);
-                      guardarVendedor(limpio);
-                      setEditandoVendedor(false);
-                    }
-                  }}
-                  className="w-32 rounded-lg border border-white/20 bg-night px-2.5 py-1.5 text-[13px] outline-none focus:border-sugu"
-                />
+        <div className="mx-auto max-w-5xl px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em] text-bone-dim">
+                <span className="truncate">Caja abierta · {vendedor}</span>
                 <button
                   type="button"
                   onClick={() => {
-                    const limpio = borradorVendedor.trim();
-                    if (!limpio) return;
-                    setVendedor(limpio);
-                    guardarVendedor(limpio);
-                    setEditandoVendedor(false);
+                    setNombreNuevo(vendedor);
+                    setVendedor(null);
                   }}
-                  className="grid h-8 w-8 place-items-center rounded-lg bg-sugu text-white"
-                  aria-label="Guardar quién atiende"
+                  className="text-bone-dim/70"
+                  aria-label="Cambiar quién atiende"
                 >
-                  <Check size={15} />
+                  <Pencil size={11} />
                 </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setBorradorVendedor(vendedor);
-                  setEditandoVendedor(true);
-                }}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold ${
-                  vendedor ? 'border-white/15 text-bone' : 'border-sugu text-sugu-glow'
-                }`}
-              >
-                <UserRound size={13} />
-                {vendedor || 'Quién atiende'}
-              </button>
-            )}
-
-            {/* Estado de la subida al panel; sin backend ni se menciona */}
-            {sincroniza && (
-              <button
-                type="button"
-                onClick={() => void empujar()}
-                title={falloSync ?? undefined}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold ${
-                  falloSync || pendientes
-                    ? 'border-amber-500/50 text-amber-400'
-                    : 'border-emerald-500/40 text-emerald-400'
-                }`}
-              >
-                {subiendo ? (
-                  <RefreshCw size={13} className="animate-spin" />
-                ) : falloSync || pendientes ? (
-                  <CloudOff size={13} />
-                ) : (
-                  <CloudCheck size={13} />
+              </p>
+              <p className="text-3xl font-bold leading-none text-sugu-glow sm:text-4xl">
+                {soles(resumen.total)}
+              </p>
+              <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <Etiqueta tono="verde">Cobrado {soles(resumen.cobrado)}</Etiqueta>
+                <Etiqueta tono="ambar">Por cobrar {soles(resumen.pendiente)}</Etiqueta>
+                {resumen.canjeado > 0 && (
+                  <Etiqueta tono="azul">Canje {soles(resumen.canjeado)}</Etiqueta>
                 )}
-                {subiendo ? 'Subiendo' : pendientes ? `${pendientes} sin subir` : 'En el panel'}
-              </button>
-            )}
+              </p>
+              <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <Etiqueta tono="gris">Onigiris pedidos: {resumen.onigiris}</Etiqueta>
+                <Etiqueta tono="gris">Poke bowls pedidos: {resumen.pokebowls}</Etiqueta>
+                <Etiqueta tono="gris">Makis pedidos: {resumen.makis}</Etiqueta>
+              </p>
+            </div>
 
-            <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
-              {(['abierta', 'hoy', 'todo'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => {
-                  setVista(v);
-                  setPagina(1);
-                }}
-                className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                  vista === v ? 'bg-sugu text-white' : 'text-bone-dim'
-                }`}
-              >
-                  {v === 'abierta' ? 'Abierta' : v === 'hoy' ? 'Hoy' : 'Todo'}
+            <div className="flex flex-col items-end gap-1.5">
+              {enlaceCocina && (
+                <button
+                  type="button"
+                  onClick={() => setMostrandoCocina(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-sky-500/50 bg-sky-500/15 px-3 py-2 text-[12px] font-semibold text-sky-300"
+                >
+                  <ChefHat size={14} />
+                  Cocina
                 </button>
-              ))}
+              )}
+              {/*
+                El estado de la subida solo aparece cuando hay algo que
+                mirar. Con todo al día no ocupa sitio en una pantalla que se
+                usa con una mano y de pie.
+              */}
+              {sincroniza && (pendientesSync > 0 || falloSync) && (
+                <button
+                  type="button"
+                  onClick={() => void empujar()}
+                  title={falloSync ?? undefined}
+                  className="flex items-center gap-1.5 rounded-xl border border-amber-500/50 px-3 py-2 text-[12px] font-semibold text-amber-400"
+                >
+                  {subiendo ? (
+                    <RefreshCw size={13} className="animate-spin" />
+                  ) : (
+                    <CloudOff size={13} />
+                  )}
+                  {subiendo ? 'Subiendo' : `${pendientesSync} sin subir`}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -648,7 +730,7 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
 
       <div className="mx-auto grid max-w-5xl gap-5 px-4 py-5 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">
         {/* ---------------- Registro ---------------- */}
-        <section className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4 lg:sticky lg:top-[7.5rem]">
+        <section className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4">
           <Paso n={paso.producto} titulo="Producto">
             <div className="grid grid-cols-3 gap-2">
               {PRODUCTOS.map((p) => (
@@ -660,53 +742,51 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
             </div>
           </Paso>
 
-          {esMaki && (
-            <>
-              <Paso n={paso.promo} titulo="Promoción">
-                <div className="grid grid-cols-2 gap-2">
-                  {PROMOS_MAKI.map((pr) => (
-                    <Opcion key={pr.id} activo={promo === pr.id} onClick={() => elegirPromo(pr.id)}>
-                      <span>{pr.nombre}</span>
-                      <span className="text-[10px] font-normal opacity-70">{pr.pista}</span>
-                    </Opcion>
-                  ))}
-                </div>
-              </Paso>
+          {opciones.length > 0 && (
+            <Paso n={paso.variante} titulo={producto === 'maki' ? 'Promoción' : 'Base'}>
+              <div className={`grid gap-2 ${opciones.length > 2 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {opciones.map((v) => (
+                  <Opcion key={v.id} activo={variante === v.id} onClick={() => elegirVariante(v.id)}>
+                    <span>{v.nombre}</span>
+                    <span className="text-[10px] font-normal opacity-70">{v.pista}</span>
+                  </Opcion>
+                ))}
+              </div>
+            </Paso>
+          )}
 
-              {promo && (
-                <Paso
-                  n={paso.sabores}
-                  titulo="Sabores"
-                  extra={
-                    <span className="text-[12px] font-semibold text-bone-dim">
-                      {sabores.length} de {tope}
-                    </span>
-                  }
-                >
-                  <div className="grid grid-cols-2 gap-2">
-                    {SABORES.map((sabor) => {
-                      const elegido = sabores.includes(sabor);
-                      return (
-                        <Opcion
-                          key={sabor}
-                          activo={elegido}
-                          // al llegar al tope el resto se apaga: el límite se ve, no se explica
-                          disabled={!elegido && sabores.length >= tope}
-                          onClick={() => alternarSabor(sabor)}
-                        >
-                          {sabor}
-                        </Opcion>
-                      );
-                    })}
-                  </div>
-                  {promo === 'duo' && sabores.length === 1 && (
-                    <p className="mt-1.5 text-[11px] text-bone-dim">
-                      El dúo vale S/ 35 con uno o con dos sabores.
-                    </p>
-                  )}
-                </Paso>
+          {tope > 0 && (
+            <Paso
+              n={paso.sabores}
+              titulo="Sabores"
+              extra={
+                <span className="text-[12px] font-semibold text-bone-dim">
+                  {sabores.length} de {tope}
+                </span>
+              }
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {SABORES.map((sabor) => {
+                  const elegido = sabores.includes(sabor);
+                  return (
+                    <Opcion
+                      key={sabor}
+                      activo={elegido}
+                      // al llegar al tope el resto se apaga: el límite se ve, no se explica
+                      disabled={!elegido && sabores.length >= tope}
+                      onClick={() => alternarSabor(sabor)}
+                    >
+                      {sabor}
+                    </Opcion>
+                  );
+                })}
+              </div>
+              {variante === 'duo' && sabores.length === 1 && (
+                <p className="mt-1.5 text-[11px] text-bone-dim">
+                  El dúo vale S/ 35 con uno o con dos sabores.
+                </p>
               )}
-            </>
+            </Paso>
           )}
 
           <Paso n={paso.cantidad} titulo="Cantidad">
@@ -736,11 +816,6 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
             </p>
           </Paso>
 
-          {/*
-            El ticket abierto. Aparece recién cuando hay algo que sumar, para
-            que el caso de siempre —un producto y a cobrar— no cargue con una
-            caja vacía en pantalla.
-          */}
           {lineasFinales.length > 0 && (
             <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-night-2 p-3">
               <p className="text-[11px] uppercase tracking-[0.18em] text-bone-dim">Este pedido</p>
@@ -782,16 +857,39 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
           </button>
 
           <Paso n={paso.pago} titulo="Forma de pago">
-            <div className="grid grid-cols-2 gap-2">
-              <Opcion activo={metodo === 'efectivo'} onClick={() => setMetodo('efectivo')}>
-                <Banknote size={18} className="mb-0.5" />
-                Efectivo
-              </Opcion>
-              <Opcion activo={metodo === 'yape'} onClick={() => setMetodo('yape')}>
-                <Smartphone size={18} className="mb-0.5" />
-                Yape
-              </Opcion>
+            <div className="grid grid-cols-3 gap-2">
+              {METODOS_PAGO.map((m) => (
+                <Opcion key={m} activo={metodo === m} onClick={() => setMetodo(m)}>
+                  {ICONO_METODO[m]}
+                  <span className="text-[12px]">{NOMBRE_METODO[m]}</span>
+                </Opcion>
+              ))}
             </div>
+            {metodo === 'canje' && (
+              <p className="mt-2 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[12px] text-sky-300">
+                El canje se entrega pero no entra plata: no suma a lo cobrado del día.
+              </p>
+            )}
+            {metodo === 'mixto' && yapeMixto && (
+              <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-night-2 p-3">
+                <label className="block">
+                  <span className="mb-1.5 block text-[12px] text-bone-dim">
+                    ¿Cuánto paga por Yape?
+                  </span>
+                  <input
+                    value={yapeParcial}
+                    onChange={(e) => setYapeParcial(e.target.value.replace(/[^\d.]/g, ''))}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                  />
+                </label>
+                <p className="text-[13px]">
+                  Yape <span className="font-bold">{soles(yapeMixto.montoYape)}</span> · Efectivo{' '}
+                  <span className="font-bold">{soles(yapeMixto.montoEfectivo)}</span>
+                </p>
+              </div>
+            )}
           </Paso>
 
           <Paso n={paso.estado} titulo="¿Ya pagó?">
@@ -840,15 +938,34 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
 
         {/* ---------------- Lista ---------------- */}
         <section className="grid gap-3">
-          {pedidos === null ? (
-            <p className="rounded-3xl border border-white/10 bg-night-soft p-8 text-center text-sm text-bone-dim">
-              Cargando caja…
-            </p>
-          ) : visibles.length === 0 ? (
+          <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
+            {(['pendientes', 'entregados'] as const).map((t) => {
+              const cuantos = abiertos.filter((p) =>
+                t === 'pendientes' ? !p.entregado : p.entregado,
+              ).length;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setTab(t);
+                    setPagina(1);
+                  }}
+                  className={`flex-1 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors ${
+                    tab === t ? 'bg-sugu text-white' : 'text-bone-dim'
+                  }`}
+                >
+                  {t === 'pendientes' ? 'Por entregar' : 'Entregados'} ({cuantos})
+                </button>
+              );
+            })}
+          </div>
+
+          {visibles.length === 0 ? (
             <p className="rounded-3xl border border-dashed border-white/15 p-8 text-center text-sm text-bone-dim">
-              {vista === 'abierta'
-                ? 'La caja está en cero. El primer cobro aparece aquí.'
-                : `Todavía no hay pedidos ${vista === 'hoy' ? 'hoy' : 'registrados'}.`}
+              {tab === 'pendientes'
+                ? 'No queda nada por entregar.'
+                : 'Todavía no has entregado ningún pedido.'}
             </p>
           ) : (
             <>
@@ -857,14 +974,13 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
                   <li
                     key={p.id}
                     className={`rounded-2xl border bg-night-soft p-3 ${
-                      p.entregado ? 'border-white/5 opacity-60' : 'border-white/10'
+                      p.entregado ? 'border-white/5 opacity-70' : 'border-white/10'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[11px] text-bone-dim">
-                          {hora(p.creado)}
-                          {vista === 'todo' && ` · ${fechaCorta(p.creado)}`} · {p.cliente}
+                          {hora(p.creado)} · {p.cliente}
                         </p>
                         {p.lineas.map((l, i) => (
                           <p key={i} className="mt-0.5 font-semibold">
@@ -878,10 +994,10 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
                             <Etiqueta tono="ambar">Por cobrar</Etiqueta>
                           )}
                           <Etiqueta tono="gris">
-                            {p.metodo === 'yape' ? 'Yape' : 'Efectivo'}
+                            {p.metodo === 'mixto'
+                              ? `Yape ${soles(p.montoYape)} · Efec. ${soles(p.montoEfectivo)}`
+                              : NOMBRE_METODO[p.metodo]}
                           </Etiqueta>
-                          {p.entregado && <Etiqueta tono="azul">Entregado</Etiqueta>}
-                          {p.cierre && <Etiqueta tono="gris">{p.cierre}</Etiqueta>}
                         </p>
                       </div>
                       <span className="shrink-0 text-lg font-bold tabular-nums">
@@ -895,14 +1011,10 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
                         icono={<PackageCheck size={15} />}
                         onClick={() => parchear(p.id, { entregado: !p.entregado })}
                       >
-                        {p.entregado ? 'Entregado' : 'Entregar'}
+                        {p.entregado ? 'Devolver' : 'Entregar'}
                       </AccionFila>
-                      {/* "Editar" es exactamente esto: dar vuelta el cobro */}
-                      <AccionFila
-                        icono={p.pagado ? <Pencil size={15} /> : <Check size={15} />}
-                        onClick={() => parchear(p.id, { pagado: !p.pagado })}
-                      >
-                        {p.pagado ? 'Anular pago' : 'Cobrar'}
+                      <AccionFila icono={<Pencil size={15} />} onClick={() => setEditando(p)}>
+                        Editar
                       </AccionFila>
                       <AccionFila
                         tono="peligro"
@@ -941,105 +1053,131 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
                   </button>
                 </div>
               )}
+            </>
+          )}
 
+          {abiertos.length > 0 && (
+            <>
               <button
                 type="button"
-                onClick={() =>
-                  descargarExcel(
-                    visibles,
-                    vista === 'todo' ? 'historial' : diaLocal(new Date()),
-                  )
-                }
+                onClick={() => descargarExcel(abiertos, 'caja-abierta')}
                 className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600/15 font-semibold text-emerald-300 active:scale-[0.99]"
               >
                 <Download size={18} />
-                Descargar Excel {vista === 'todo' ? 'de todo' : 'del día'} ({visibles.length})
+                Descargar Excel ({abiertos.length})
               </button>
-
-              {/* Cerrar solo tiene sentido si hay turno abierto que cerrar */}
-              {abiertos.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNombreCierre(`Caja ${new Date().toLocaleDateString('es-PE')}`);
-                    setCerrando(true);
-                  }}
-                  className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-white/20 bg-night-2 font-semibold text-bone active:scale-[0.99]"
-                >
-                  <Archive size={18} />
-                  Cerrar caja ({abiertos.length})
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setNombreCierre(`Caja ${new Date().toLocaleDateString('es-PE')}`);
+                  setCerrando(true);
+                }}
+                className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-white/20 bg-night-2 font-semibold text-bone active:scale-[0.99]"
+              >
+                <Archive size={18} />
+                Cerrar caja ({abiertos.length})
+              </button>
             </>
           )}
         </section>
       </div>
 
-      {cerrando && (
-        <div className="fixed inset-0 z-40 grid place-items-end bg-black/70 p-4 sm:place-items-center">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-night-soft p-5">
-            <h2 className="text-lg font-bold">Cerrar caja</h2>
-            <p className="mt-1 text-sm text-bone-dim">
-              Se cierran {abiertos.length} pedidos por{' '}
-              <span className="font-semibold text-bone">
-                {soles(abiertos.reduce((s, p) => s + p.total, 0))}
-              </span>
-              . Se descarga el Excel de este cierre y la caja vuelve a cero.
-            </p>
-
-            {abiertos.some((p) => !p.pagado) && (
-              <p className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300">
-                Ojo: quedan{' '}
-                {soles(abiertos.filter((p) => !p.pagado).reduce((s, p) => s + p.total, 0))} sin
-                cobrar. Se cierran igual, marcados como pendientes.
-              </p>
-            )}
-
-            {sincroniza && pendientes > 0 && (
-              <p className="mt-3 rounded-xl border border-white/15 px-3 py-2 text-[12px] text-bone-dim">
-                Hay {pendientes} sin subir al panel. Se cierran igual y suben solos cuando vuelva
-                la señal.
-              </p>
-            )}
-
-            <label className="mt-4 block">
-              <span className="mb-2 block text-[13px] font-medium">Nombre de este cierre</span>
-              <input
-                value={nombreCierre}
-                onChange={(e) => setNombreCierre(e.target.value)}
-                placeholder="Feria Pueblo Libre"
-                enterKeyHint="done"
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && cerrarCaja()}
-                className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
-              />
-            </label>
-            <p className="mt-1.5 text-[11px] text-bone-dim">
-              Con este nombre lo vas a encontrar después en el panel y en el Excel.
-            </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setCerrando(false)}
-                className="min-h-[52px] rounded-2xl border border-white/15 font-semibold text-bone-dim"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={cerrarCaja}
-                disabled={!nombreCierre.trim()}
-                className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white disabled:bg-night-3 disabled:text-bone-dim"
-              >
-                Cerrar caja
-              </button>
-            </div>
-          </div>
-        </div>
+      {editando && (
+        <EditarVenta
+          pedido={editando}
+          alGuardar={guardarEdicion}
+          alCancelar={() => setEditando(null)}
+        />
       )}
 
-      {/* confirmación breve del último cobro, sin tapar la lista */}
+      {mostrandoCocina && (
+        <Ventana titulo="Pantalla de cocina">
+          <p className="text-sm text-bone-dim">
+            Pásale este enlace a quien cocina. Verá los pedidos sin entregar, del más antiguo al
+            más nuevo, y no necesita cuenta. No muestra precios ni cobros.
+          </p>
+          <p className="mt-3 break-all rounded-xl border border-white/10 bg-night px-3 py-2.5 text-[12px] text-bone-dim">
+            {enlaceCocina}
+          </p>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMostrandoCocina(false)}
+              className="min-h-[52px] rounded-2xl border border-white/15 font-semibold text-bone-dim"
+            >
+              Cerrar
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(enlaceCocina);
+                  setCopiado(true);
+                  setTimeout(() => setCopiado(false), 1800);
+                } catch {
+                  setCopiado(false);
+                }
+              }}
+              className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-sugu font-bold text-white"
+            >
+              {copiado ? <Check size={16} /> : <Copy size={16} />}
+              {copiado ? 'Copiado' : 'Copiar enlace'}
+            </button>
+          </div>
+        </Ventana>
+      )}
+
+      {cerrando && (
+        <Ventana titulo="Cerrar caja">
+          <p className="text-sm text-bone-dim">
+            Se cierran {abiertos.length} pedidos por{' '}
+            <span className="font-semibold text-bone">{soles(resumen.total)}</span>. Se descarga el
+            Excel de este cierre y la caja vuelve a cero.
+          </p>
+          {resumen.pendiente > 0 && (
+            <p className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300">
+              Ojo: quedan {soles(resumen.pendiente)} sin cobrar. Se cierran igual, marcados como
+              pendientes.
+            </p>
+          )}
+          {sincroniza && pendientesSync > 0 && (
+            <p className="mt-3 rounded-xl border border-white/15 px-3 py-2 text-[12px] text-bone-dim">
+              Hay {pendientesSync} sin subir al panel. Se cierran igual y suben solos cuando vuelva
+              la señal.
+            </p>
+          )}
+          <label className="mt-4 block">
+            <span className="mb-2 block text-[13px] font-medium">Nombre de este cierre</span>
+            <input
+              value={nombreCierre}
+              onChange={(e) => setNombreCierre(e.target.value)}
+              placeholder="Feria Pueblo Libre"
+              enterKeyHint="done"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && cerrarCaja()}
+              className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
+            />
+          </label>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setCerrando(false)}
+              className="min-h-[52px] rounded-2xl border border-white/15 font-semibold text-bone-dim"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={cerrarCaja}
+              disabled={!nombreCierre.trim()}
+              className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white disabled:bg-night-3 disabled:text-bone-dim"
+            >
+              Cerrar caja
+            </button>
+          </div>
+        </Ventana>
+      )}
+
       {aviso && (
         <div
           role="status"
@@ -1049,5 +1187,161 @@ function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
         </div>
       )}
     </main>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Editar una venta ya registrada                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Corrige un cobro entero: el nombre mal escrito, el medio de pago, el
+ * reparto, si ya pagó, si ya salió, y las cantidades de cada línea. Trabaja
+ * sobre una copia y solo devuelve el pedido al guardar, para que cancelar a
+ * mitad no deje la venta a medias.
+ */
+function EditarVenta({
+  pedido,
+  alGuardar,
+  alCancelar,
+}: {
+  pedido: Pedido;
+  alGuardar: (p: Pedido) => void;
+  alCancelar: () => void;
+}) {
+  const [copia, setCopia] = useState<Pedido>(pedido);
+  const [yape, setYape] = useState(String(pedido.montoYape || ''));
+
+  const total = totalPedido(copia.lineas);
+  const reparto = repartir(copia.metodo, total, Number(yape));
+
+  const cambiarCantidad = (i: number, delta: number) =>
+    setCopia((p) => ({
+      ...p,
+      lineas: p.lineas.map((l, j) => {
+        if (j !== i) return l;
+        const cantidad = Math.max(1, l.cantidad + delta);
+        return { ...l, cantidad, total: l.unitario * cantidad };
+      }),
+    }));
+
+  return (
+    <Ventana titulo="Editar venta">
+      <div className="grid gap-4">
+        <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-night-2 p-3">
+          {copia.lineas.map((l, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 flex-1">{describirLinea(l)}</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => cambiarCantidad(i, -1)}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/15"
+                  aria-label={`Quitar uno de ${describirLinea(l)}`}
+                >
+                  <Minus size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cambiarCantidad(i, 1)}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/15"
+                  aria-label={`Agregar uno de ${describirLinea(l)}`}
+                >
+                  <Plus size={13} />
+                </button>
+                {copia.lineas.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCopia((p) => ({ ...p, lineas: p.lineas.filter((_, j) => j !== i) }))
+                    }
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-sugu/50 text-sugu-glow"
+                    aria-label={`Quitar ${describirLinea(l)}`}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </span>
+            </div>
+          ))}
+          <p className="mt-1 text-right text-lg font-bold tabular-nums">{soles(total)}</p>
+        </div>
+
+        <label className="block">
+          <span className="mb-1.5 block text-[13px] font-medium">Cliente</span>
+          <input
+            value={copia.cliente}
+            onChange={(e) => setCopia((p) => ({ ...p, cliente: e.target.value }))}
+            placeholder="Cliente"
+            className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+          />
+        </label>
+
+        <div>
+          <span className="mb-1.5 block text-[13px] font-medium">Forma de pago</span>
+          <div className="grid grid-cols-3 gap-2">
+            {METODOS_PAGO.map((m) => (
+              <Opcion
+                key={m}
+                activo={copia.metodo === m}
+                onClick={() => setCopia((p) => ({ ...p, metodo: m }))}
+              >
+                <span className="text-[12px]">{NOMBRE_METODO[m]}</span>
+              </Opcion>
+            ))}
+          </div>
+          {copia.metodo === 'mixto' && (
+            <div className="mt-2 grid gap-2 rounded-xl border border-white/10 bg-night-2 p-3">
+              <label className="block">
+                <span className="mb-1.5 block text-[12px] text-bone-dim">¿Cuánto por Yape?</span>
+                <input
+                  value={yape}
+                  onChange={(e) => setYape(e.target.value.replace(/[^\d.]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                />
+              </label>
+              <p className="text-[13px]">
+                Yape <span className="font-bold">{soles(reparto.montoYape)}</span> · Efectivo{' '}
+                <span className="font-bold">{soles(reparto.montoEfectivo)}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Opcion
+            activo={copia.pagado}
+            onClick={() => setCopia((p) => ({ ...p, pagado: !p.pagado }))}
+          >
+            {copia.pagado ? 'Pagado' : 'Por cobrar'}
+          </Opcion>
+          <Opcion
+            activo={copia.entregado}
+            onClick={() => setCopia((p) => ({ ...p, entregado: !p.entregado }))}
+          >
+            {copia.entregado ? 'Entregado' : 'Sin entregar'}
+          </Opcion>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-4">
+          <button
+            type="button"
+            onClick={alCancelar}
+            className="min-h-[52px] rounded-2xl border border-white/15 font-semibold text-bone-dim"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => alGuardar({ ...copia, montoYape: Number(yape) || 0 })}
+            className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    </Ventana>
   );
 }
