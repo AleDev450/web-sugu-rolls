@@ -7,6 +7,7 @@ import {
   BookOpen,
   Boxes,
   Briefcase,
+  Calculator,
   ExternalLink,
   FileText,
   Globe,
@@ -32,6 +33,7 @@ import { Login } from './Login';
 const MENU = [
   { href: '/admin', label: 'Resumen', icono: LayoutDashboard },
   { href: '/admin/pedidos', label: 'Pedidos', icono: ShoppingBag },
+  { href: '/admin/caja', label: 'Caja de feria', icono: Calculator },
   { href: '/admin/usuarios', label: 'Usuarios', icono: Users },
   { href: '/admin/reclamos', label: 'Reclamaciones', icono: BookOpen },
   { href: '/admin/postulaciones', label: 'Trabaja con nosotros', icono: Briefcase },

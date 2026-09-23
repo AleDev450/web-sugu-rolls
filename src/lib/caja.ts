@@ -37,6 +37,8 @@ export type Pedido = {
   /** Fecha y hora exactas en que se tocó "Registrar". Es el sello del ticket. */
   creado: string;
   cliente: string;
+  /** Quién atendió. Se elige una vez por turno y acompaña a cada cobro. */
+  vendedor: string;
   lineas: Linea[];
   total: number;
   metodo: MetodoPago;
@@ -121,7 +123,11 @@ type PedidoGuardado = Partial<Pedido> & {
 function normalizar(guardado: PedidoGuardado): Pedido {
   const { producto, sabores, cantidad, unitario, ...resto } = guardado;
 
-  if (Array.isArray(resto.lineas)) return resto as Pedido;
+  // los pedidos anteriores a que existiera el vendedor se quedan sin nombre
+  if (Array.isArray(resto.lineas)) {
+    const previo = resto as Pedido;
+    return { ...previo, vendedor: previo.vendedor ?? '' };
+  }
 
   const unidad = unitario ?? 0;
   const cuantos = cantidad ?? 1;
@@ -135,7 +141,13 @@ function normalizar(guardado: PedidoGuardado): Pedido {
     total: unidad * cuantos,
   };
 
-  return { ...(resto as Pedido), lineas: [linea], total: resto.total ?? linea.total };
+  const previo = resto as Pedido;
+  return {
+    ...previo,
+    vendedor: previo.vendedor ?? '',
+    lineas: [linea],
+    total: resto.total ?? linea.total,
+  };
 }
 
 /**
@@ -160,6 +172,30 @@ export function guardarPedidos(pedidos: Pedido[]): void {
     window.localStorage.setItem(CLAVE, JSON.stringify(pedidos));
   } catch {
     /* sin almacenamiento la jornada sigue en memoria hasta recargar */
+  }
+}
+
+/*
+ * El vendedor del turno se guarda aparte de los pedidos: es del EQUIPO, no
+ * de la venta. Así la tablet lo recuerda entre recargas y quien atiende no
+ * tiene que volver a escribir su nombre en media feria.
+ */
+const CLAVE_VENDEDOR = 'sugu-caja-vendedor';
+
+export function leerVendedor(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(CLAVE_VENDEDOR) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function guardarVendedor(nombre: string): void {
+  try {
+    window.localStorage.setItem(CLAVE_VENDEDOR, nombre);
+  } catch {
+    /* sin almacenamiento el nombre dura lo que dure la pestaña */
   }
 }
 
@@ -221,6 +257,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
   hoja.columns = [
     { header: 'Fecha', key: 'fecha', width: 12 },
     { header: 'Hora', key: 'hora', width: 8 },
+    { header: 'Vendedor', key: 'vendedor', width: 16 },
     { header: 'Cliente', key: 'cliente', width: 22 },
     { header: 'Producto', key: 'producto', width: 12 },
     { header: 'Promoción', key: 'promo', width: 12 },
@@ -247,6 +284,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
       hoja.addRow({
         fecha: fechaCorta(p.creado),
         hora: hora(p.creado),
+        vendedor: p.vendedor,
         cliente: p.cliente,
         producto: NOMBRE_PRODUCTO[l.producto],
         promo: l.promo ? NOMBRE_PROMO[l.promo] : '',

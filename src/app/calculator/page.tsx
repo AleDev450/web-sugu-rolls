@@ -1,18 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Banknote,
   Check,
+  CloudCheck,
+  CloudOff,
   ChevronLeft,
   ChevronRight,
   Download,
   Minus,
   PackageCheck,
   Pencil,
+  LogOut,
   Plus,
+  RefreshCw,
   Smartphone,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react';
 import {
@@ -30,8 +35,10 @@ import {
   esDeHoy,
   fechaCorta,
   guardarPedidos,
+  guardarVendedor,
   hora,
   leerPedidos,
+  leerVendedor,
   maxSabores,
   nuevoId,
   precioUnitario,
@@ -39,6 +46,10 @@ import {
   totalPedido,
   unidades,
 } from '@/lib/caja';
+import { cuantosPendientes, encolarNoSubidos, marcarBorrado, marcarSucio, sincronizar } from '@/lib/cajaSync';
+import { cerrarSesion, esAdmin, usuarioActual } from '@/lib/admin';
+import { hayBackend } from '@/lib/contenido';
+import { Login } from '@/components/admin/Login';
 
 const POR_PAGINA = 20;
 
@@ -163,13 +174,82 @@ function AccionFila({
 /* Pantalla                                                            */
 /* ------------------------------------------------------------------ */
 
+type Acceso = 'cargando' | 'local' | 'anonimo' | 'sin-permiso' | 'listo';
+
+/**
+ * Puerta de la caja. Los cobros van a `caja_pedidos`, que es data de dinero:
+ * exige la misma sesión que /admin, y RLS lo vuelve a comprobar del lado del
+ * servidor. Sin Supabase configurado no hay a quién pedirle sesión, así que
+ * la caja sigue funcionando en modo local —es preferible cobrar y que el
+ * panel se entere luego, que no poder cobrar.
+ */
+export default function CajaPagina() {
+  const [acceso, setAcceso] = useState<Acceso>('cargando');
+  const [correo, setCorreo] = useState('');
+
+  const revisar = useCallback(async () => {
+    if (!hayBackend()) {
+      setAcceso('local');
+      return;
+    }
+    const usuario = await usuarioActual();
+    if (!usuario) {
+      setAcceso('anonimo');
+      return;
+    }
+    setCorreo(usuario.email ?? '');
+    const { admin } = await esAdmin();
+    setAcceso(admin ? 'listo' : 'sin-permiso');
+  }, []);
+
+  useEffect(() => {
+    void revisar();
+  }, [revisar]);
+
+  if (acceso === 'cargando') {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-night">
+        <p className="text-sm text-bone-dim">Abriendo la caja…</p>
+      </div>
+    );
+  }
+
+  if (acceso === 'anonimo') return <Login alEntrar={() => void revisar()} />;
+
+  if (acceso === 'sin-permiso') {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-night p-6 text-center">
+        <div>
+          <p className="font-semibold text-bone">Esta cuenta no tiene acceso a la caja.</p>
+          <p className="mt-1 text-sm text-bone-dim">
+            Entra con la cuenta de administrador de {correo ? `${correo}` : 'Sugu Rolls'}.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              await cerrarSesion();
+              void revisar();
+            }}
+            className="mt-5 inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-white/15 px-4 text-sm font-semibold text-bone"
+          >
+            <LogOut size={16} />
+            Cambiar de cuenta
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <Caja sincroniza={acceso === 'listo'} correo={correo} />;
+}
+
 /**
  * Caja de la feria. El ticket se arma por líneas —dos dúos con sabores
  * distintos son dos líneas de un mismo pedido— y la lista de abajo es el
  * control de lo vendido: quién falta pagar, qué falta entregar y cuánto va
  * en el día.
  */
-export default function Caja() {
+function Caja({ sincroniza, correo }: { sincroniza: boolean; correo: string }) {
   // null mientras no se lee el navegador: evita pintar "0 pedidos" y corregir
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
 
@@ -191,11 +271,65 @@ export default function Caja() {
   const [porBorrar, setPorBorrar] = useState<string | null>(null);
   const [aviso, setAviso] = useState('');
 
-  useEffect(() => setPedidos(leerPedidos()), []);
+  // quién atiende este turno, y el estado de la subida al panel
+  const [vendedor, setVendedor] = useState('');
+  const [editandoVendedor, setEditandoVendedor] = useState(false);
+  const [borradorVendedor, setBorradorVendedor] = useState('');
+  const [pendientes, setPendientes] = useState(0);
+  const [subiendo, setSubiendo] = useState(false);
+  const [falloSync, setFalloSync] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPedidos(leerPedidos());
+    // recupera lo cobrado sin señal y, la primera vez, la jornada ya guardada
+    encolarNoSubidos();
+    setPendientes(cuantosPendientes());
+  }, []);
+
+  /*
+   * El nombre del turno arranca en el de la sesión: con una sola cuenta en la
+   * tablet ya queda algo razonable escrito, y quien se turne lo cambia.
+   */
+  useEffect(() => {
+    setVendedor(leerVendedor() || correo.split('@')[0] || '');
+  }, [correo]);
+
+  const empujar = useCallback(async () => {
+    if (!sincroniza) return;
+    setSubiendo(true);
+    const r = await sincronizar();
+    setSubiendo(false);
+    setPendientes(r.pendientes);
+    setFalloSync(r.error && r.error !== 'SIN_BACKEND' ? r.error : null);
+  }, [sincroniza]);
 
   useEffect(() => {
     if (pedidos) guardarPedidos(pedidos);
   }, [pedidos]);
+
+  /*
+   * La subida cuelga de `pedidos` y NO de cada manejador: el efecto de
+   * guardar está declarado justo arriba, así que cuando este corre el
+   * localStorage ya tiene el cobro. Llamarlo desde el botón lo subiría antes
+   * de haberlo escrito.
+   */
+  useEffect(() => {
+    if (pedidos) void empujar();
+  }, [pedidos, empujar]);
+
+  // al volver la señal, lo pendiente sube solo
+  useEffect(() => {
+    const alVolver = () => void empujar();
+    window.addEventListener('online', alVolver);
+    return () => window.removeEventListener('online', alVolver);
+  }, [empujar]);
+
+  // mientras quede cola, se reintenta sin que nadie tenga que tocar nada
+  useEffect(() => {
+    if (!pendientes || !sincroniza) return;
+    const t = setInterval(() => void empujar(), 30000);
+    return () => clearInterval(t);
+  }, [pendientes, sincroniza, empujar]);
 
   // el "¿Seguro?" no se queda armado: si no se confirma, vuelve solo
   useEffect(() => {
@@ -244,7 +378,7 @@ export default function Caja() {
     [lineas, lineaActual],
   );
   const totalActual = totalPedido(lineasFinales);
-  const puedeRegistrar = lineasFinales.length > 0;
+  const puedeRegistrar = lineasFinales.length > 0 && vendedor.trim().length > 0;
 
   const visibles = useMemo(() => {
     const base = pedidos ?? [];
@@ -320,12 +454,14 @@ export default function Caja() {
       id: nuevoId(),
       creado: new Date().toISOString(),
       cliente: cliente.trim() || 'Cliente',
+      vendedor,
       lineas: lineasFinales,
       total: totalActual,
       metodo,
       pagado,
       entregado: false,
     };
+    marcarSucio(nuevo.id);
     setPedidos((previos) => [...(previos ?? []), nuevo]);
     setVista('hoy');
     setPagina(1);
@@ -334,22 +470,25 @@ export default function Caja() {
   }
 
   function parchear(id: string, cambios: Partial<Pedido>) {
+    marcarSucio(id);
     setPedidos((previos) => (previos ?? []).map((p) => (p.id === id ? { ...p, ...cambios } : p)));
   }
 
   function eliminar(id: string) {
+    marcarBorrado(id);
     setPedidos((previos) => (previos ?? []).filter((p) => p.id !== id));
     setPorBorrar(null);
   }
 
   /** Qué le falta a la selección, para que el botón grande lo diga. */
-  const faltante = !producto
-    ? 'Elige un producto'
-    : esMaki && !promo
-      ? 'Elige Personal o Dúo'
-      : esMaki && sabores.length === 0
-        ? 'Elige el sabor'
-        : '';
+  function queFalta(): string {
+    if (!vendedor.trim()) return 'Falta decir quién atiende';
+    if (!producto) return 'Elige un producto';
+    if (esMaki && !promo) return 'Elige Personal o Dúo';
+    if (esMaki && sabores.length === 0) return 'Elige el sabor';
+    return '';
+  }
+  const faltante = queFalta();
 
   return (
     <main className="min-h-[100dvh] bg-night pb-10 text-bone">
@@ -371,8 +510,83 @@ export default function Caja() {
               </Etiqueta>
             </p>
           </div>
-          <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
-            {(['hoy', 'todo'] as const).map((v) => (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Quién atiende: se toca una vez por turno y viaja en cada cobro */}
+            {editandoVendedor ? (
+              <span className="flex items-center gap-1">
+                <input
+                  value={borradorVendedor}
+                  onChange={(e) => setBorradorVendedor(e.target.value)}
+                  placeholder="Tu nombre"
+                  autoFocus
+                  enterKeyHint="done"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const limpio = borradorVendedor.trim();
+                      if (!limpio) return;
+                      setVendedor(limpio);
+                      guardarVendedor(limpio);
+                      setEditandoVendedor(false);
+                    }
+                  }}
+                  className="w-32 rounded-lg border border-white/20 bg-night px-2.5 py-1.5 text-[13px] outline-none focus:border-sugu"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const limpio = borradorVendedor.trim();
+                    if (!limpio) return;
+                    setVendedor(limpio);
+                    guardarVendedor(limpio);
+                    setEditandoVendedor(false);
+                  }}
+                  className="grid h-8 w-8 place-items-center rounded-lg bg-sugu text-white"
+                  aria-label="Guardar quién atiende"
+                >
+                  <Check size={15} />
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setBorradorVendedor(vendedor);
+                  setEditandoVendedor(true);
+                }}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold ${
+                  vendedor ? 'border-white/15 text-bone' : 'border-sugu text-sugu-glow'
+                }`}
+              >
+                <UserRound size={13} />
+                {vendedor || 'Quién atiende'}
+              </button>
+            )}
+
+            {/* Estado de la subida al panel; sin backend ni se menciona */}
+            {sincroniza && (
+              <button
+                type="button"
+                onClick={() => void empujar()}
+                title={falloSync ?? undefined}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold ${
+                  falloSync || pendientes
+                    ? 'border-amber-500/50 text-amber-400'
+                    : 'border-emerald-500/40 text-emerald-400'
+                }`}
+              >
+                {subiendo ? (
+                  <RefreshCw size={13} className="animate-spin" />
+                ) : falloSync || pendientes ? (
+                  <CloudOff size={13} />
+                ) : (
+                  <CloudCheck size={13} />
+                )}
+                {subiendo ? 'Subiendo' : pendientes ? `${pendientes} sin subir` : 'En el panel'}
+              </button>
+            )}
+
+            <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
+              {(['hoy', 'todo'] as const).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -384,9 +598,10 @@ export default function Caja() {
                   vista === v ? 'bg-sugu text-white' : 'text-bone-dim'
                 }`}
               >
-                {v === 'hoy' ? 'Hoy' : 'Todo'}
-              </button>
-            ))}
+                  {v === 'hoy' ? 'Hoy' : 'Todo'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </header>

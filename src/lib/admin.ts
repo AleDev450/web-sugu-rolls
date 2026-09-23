@@ -59,6 +59,31 @@ export interface TestimonioAdmin {
   orden: number;
 }
 
+/** Una venta de la caja de feria, tal como la sincroniza la tablet. */
+export interface PedidoCaja {
+  id: string;
+  /** hora del cobro en el puesto, no la de llegada al servidor */
+  creado: string;
+  cliente: string;
+  /** quién atendió, elegido en la caja */
+  vendedor: string;
+  lineas: {
+    producto: string;
+    promo: string | null;
+    sabores: string[];
+    cantidad: number;
+    unitario: number;
+    total: number;
+  }[];
+  total: number;
+  metodo: 'efectivo' | 'yape';
+  pagado: boolean;
+  entregado: boolean;
+  /** con qué cuenta estaba abierta la caja; lo sella el servidor */
+  usuario_email: string;
+  created_at: string;
+}
+
 export class SinBackend extends Error {
   constructor() {
     super('Supabase no está configurado');
@@ -853,4 +878,28 @@ export async function estadisticas() {
   const { data, error } = await sb().rpc('admin_stats');
   if (error) throw error;
   return data?.[0] ?? null;
+}
+
+// ---------- caja de feria (/calculator) ----------
+
+/**
+ * Ventas de la caja del puesto. La tablet es la fuente y sincroniza hacia
+ * `caja_pedidos`; el panel solo lee. Si desde aquí se pudiera editar, el
+ * siguiente cambio hecho en la tablet pisaría la corrección sin avisar,
+ * porque la sincronización va en un solo sentido.
+ */
+export async function listarCaja(desde?: string, hasta?: string): Promise<PedidoCaja[]> {
+  let q = sb()
+    .from('caja_pedidos')
+    .select('*')
+    .order('creado', { ascending: false })
+    .limit(2000);
+
+  // se filtra por `creado` —la hora del cobro en el puesto—, no por la de subida
+  if (desde) q = q.gte('creado', `${desde}T00:00:00`);
+  if (hasta) q = q.lte('creado', `${hasta}T23:59:59.999`);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return ((data ?? []) as PedidoCaja[]).map((p) => ({ ...p, total: Number(p.total) }));
 }
