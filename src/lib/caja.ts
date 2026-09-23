@@ -38,6 +38,13 @@ export type Linea = {
 
 export type Pedido = {
   id: string;
+  /**
+   * Correlativo visible del pedido dentro de la caja abierta: 1, 2, 3… Se
+   * reinicia en cada caja, así que dos cajeros del mismo día pueden tener
+   * ambos un pedido 1 y no se pisan: lo que los distingue es el vendedor.
+   * Es el número que se canta al entregar.
+   */
+  numero: number;
   /** Fecha y hora exactas en que se tocó "Registrar". Es el sello del ticket. */
   creado: string;
   cliente: string;
@@ -140,6 +147,60 @@ export const unidades = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.canti
 /** Unidades de un producto concreto: los contadores de la cabecera. */
 export function unidadesDe(lineas: Linea[], producto: ClaveProducto): number {
   return lineas.filter((l) => l.producto === producto).reduce((s, l) => s + l.cantidad, 0);
+}
+
+/*
+ * Último correlativo entregado en la caja abierta. Se guarda aparte de los
+ * pedidos porque tiene que sobrevivir a que se borre uno: si el contador
+ * saliera de la lista, eliminar el 003 haría que el siguiente volviera a
+ * ser 003, y en el mostrador dos personas responderían al mismo número.
+ * Saltarse un número no le hace daño a nadie; repetirlo sí.
+ */
+const CLAVE_NUMERO = 'sugu-caja-numero';
+
+export function leerUltimoNumero(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    return Number(window.localStorage.getItem(CLAVE_NUMERO)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function guardarUltimoNumero(n: number): void {
+  try {
+    window.localStorage.setItem(CLAVE_NUMERO, String(n));
+  } catch {
+    /* sin almacenamiento el contador dura lo que dure la pestaña */
+  }
+}
+
+/**
+ * El siguiente correlativo de la caja abierta.
+ *
+ * Se mira el contador guardado Y el mayor de la lista, y se toma el más
+ * alto: si el contador se perdiera —almacenamiento limpiado, caja traída
+ * de otro equipo—, el número seguiría sin chocar con los que ya existen.
+ */
+export function siguienteNumero(abiertos: Pedido[], ultimo: number): number {
+  const mayorEnLista = abiertos.reduce((mayor, p) => Math.max(mayor, p.numero ?? 0), 0);
+  return Math.max(mayorEnLista, ultimo) + 1;
+}
+
+/** 1 -> "001". A partir de 1000 crece solo, sin recortar. */
+export const formatearNumero = (n: number) => (n > 0 ? String(n).padStart(3, '0') : '—');
+
+/**
+ * Cuánto lleva esperando un pedido. Cuenta en segundos hasta el minuto y
+ * de ahí pasa a minutos: en el primer minuto los segundos son la
+ * información útil, y después estorban.
+ */
+export function espera(creado: string, ahora: number = Date.now()): string {
+  const segundos = Math.max(0, Math.floor((ahora - Date.parse(creado)) / 1000));
+  if (segundos < 60) return `${segundos} s`;
+  const minutos = Math.floor(segundos / 60);
+  if (minutos < 60) return `${minutos} min`;
+  return `${Math.floor(minutos / 60)} h ${minutos % 60} min`;
 }
 
 /** Céntimos exactos: evita que un reparto mitad y mitad arrastre decimales. */
@@ -270,6 +331,7 @@ function normalizar(guardado: PedidoGuardado): Pedido {
 
   return {
     ...previo,
+    numero: previo.numero ?? 0,
     vendedor: previo.vendedor ?? '',
     cierre: previo.cierre ?? '',
     lineas,
@@ -410,6 +472,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
   const hoja = libro.addWorksheet('Caja');
 
   hoja.columns = [
+    { header: 'N°', key: 'numero', width: 7 },
     { header: 'Fecha', key: 'fecha', width: 12 },
     { header: 'Hora', key: 'hora', width: 8 },
     { header: 'Vendedor', key: 'vendedor', width: 16 },
@@ -440,6 +503,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
   for (const p of ordenados) {
     p.lineas.forEach((l, i) => {
       hoja.addRow({
+        numero: formatearNumero(p.numero),
         fecha: fechaCorta(p.creado),
         hora: hora(p.creado),
         vendedor: p.vendedor,

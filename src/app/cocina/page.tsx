@@ -4,13 +4,14 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ChefHat, RefreshCw, WifiOff } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
-import { describirLinea, hora, type Linea } from '@/lib/caja';
+import { describirLinea, espera, formatearNumero, hora, type Linea } from '@/lib/caja';
 
 /** Cada cuántos milisegundos se vuelve a preguntar qué hay que cocinar. */
 const CADA = 5000;
 
 type PedidoCocina = {
   id: string;
+  numero: number;
   creado: string;
   cliente: string;
   vendedor: string;
@@ -21,9 +22,14 @@ type PedidoCocina = {
  * Pantalla de cocina.
  *
  * Quien cocina no tiene cuenta del panel: entra con el enlace que genera la
- * caja, que lleva una clave larga. La función del servidor la valida y
- * devuelve SOLO lo que hace falta para preparar —hora, cliente y líneas—;
- * ni totales ni cobros, así que el enlace no sirve para espiar la caja.
+ * caja, que lleva una clave larga y el nombre del cajero. La función del
+ * servidor valida la clave y devuelve SOLO lo que hace falta para preparar
+ * —número, hora, cliente y líneas—; ni totales ni cobros, así que el enlace
+ * no sirve para espiar la caja.
+ *
+ * Cada cajero tiene la SUYA: la pantalla lista únicamente los pedidos de
+ * quien viene en el enlace. Una cocina compartida mezclaría las colas de
+ * dos puestos y quien cocina no sabría a cuál entregar.
  *
  * Se refresca preguntando cada pocos segundos en vez de por realtime: el
  * realtime de Supabase respeta RLS y aquí quien mira es anónimo, así que
@@ -34,7 +40,9 @@ type PedidoCocina = {
  * aparecer aquí en el siguiente refresco.
  */
 function Cocina() {
-  const clave = useSearchParams().get('k') ?? '';
+  const parametros = useSearchParams();
+  const clave = parametros.get('k') ?? '';
+  const vendedor = parametros.get('v') ?? '';
   const [pedidos, setPedidos] = useState<PedidoCocina[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ultima, setUltima] = useState<Date | null>(null);
@@ -48,7 +56,10 @@ function Cocina() {
       return;
     }
     setCargando(true);
-    const { data, error: fallo } = await sb.rpc('cocina_pendientes', { p_clave: clave });
+    const { data, error: fallo } = await sb.rpc('cocina_pendientes', {
+      p_clave: clave,
+      p_vendedor: vendedor || null,
+    });
     setCargando(false);
 
     if (fallo) {
@@ -69,7 +80,7 @@ function Cocina() {
     const llegaron = (data ?? []) as PedidoCocina[];
     setPedidos([...llegaron].sort((a, b) => b.creado.localeCompare(a.creado)));
     setUltima(new Date());
-  }, [clave]);
+  }, [clave, vendedor]);
 
   useEffect(() => {
     if (!clave) return;
@@ -77,6 +88,13 @@ function Cocina() {
     const t = setInterval(() => void traer(), CADA);
     return () => clearInterval(t);
   }, [clave, traer]);
+
+  // reloj de un segundo: la espera de cada pedido corre a la vista
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   if (!clave) {
     return (
@@ -95,7 +113,7 @@ function Cocina() {
           <div>
             <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-bone-dim">
               <ChefHat size={13} />
-              Cocina
+              Cocina{vendedor && ` · ${vendedor}`}
             </p>
             <p className="text-2xl font-bold leading-tight">
               {pedidos === null ? '—' : `${pedidos.length} por preparar`}
@@ -147,11 +165,14 @@ function Cocina() {
                 }`}
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  {/* quién lo pidió: es lo que se grita al entregar */}
-                  <span className="truncate text-base font-bold">{p.cliente}</span>
-                  <span className="shrink-0 text-[12px] font-semibold text-bone-dim">
-                    {hora(p.creado)}
-                    {i === 0 && ' · último'}
+                  {/* número y quién lo pidió: es lo que se canta al entregar */}
+                  <span className="min-w-0 truncate text-base font-bold">
+                    <span className="text-sugu-glow">#{formatearNumero(p.numero)}</span>{' '}
+                    {p.cliente}
+                  </span>
+                  <span className="shrink-0 text-right text-[12px] font-semibold text-bone-dim">
+                    <span className="tabular-nums">{espera(p.creado, ahora)}</span>
+                    <span className="ml-1.5 opacity-70">{hora(p.creado)}</span>
                   </span>
                 </div>
                 {p.lineas.map((l, j) => (

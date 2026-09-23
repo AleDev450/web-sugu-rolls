@@ -36,16 +36,21 @@ import {
   describirLinea,
   descargarExcel,
   dineroDe,
+  espera,
+  formatearNumero,
+  guardarUltimoNumero,
   guardarPedidos,
   guardarVendedor,
   hora,
   leerPedidos,
+  leerUltimoNumero,
   leerVendedor,
   maxSabores,
   nuevoId,
   paraArchivo,
   precioUnitario,
   repartir,
+  siguienteNumero,
   soles,
   totalPedido,
   unidadesDe,
@@ -315,7 +320,8 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const [aviso, setAviso] = useState('');
 
   // cocina
-  const [enlaceCocina, setEnlaceCocina] = useState('');
+  const [claveCocina, setClaveCocina] = useState('');
+  const [origen, setOrigen] = useState('');
   const [mostrandoCocina, setMostrandoCocina] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
@@ -330,6 +336,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
    * aunque quien lo abra todavía no se haya identificado.
    */
   useEffect(() => {
+    setOrigen(window.location.origin);
     setPedidos(leerPedidos());
     setVendedor(leerVendedor());
     encolarNoSubidos();
@@ -339,9 +346,19 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   useEffect(() => {
     if (!sincroniza) return;
     void traerClaveCocina().then((clave) => {
-      if (clave) setEnlaceCocina(`${window.location.origin}/cocina?k=${clave}`);
+      if (clave) setClaveCocina(clave);
     });
   }, [sincroniza]);
+
+  /*
+   * Cada cajero tiene su propia cocina: el enlace lleva su nombre y la
+   * pantalla solo lista SUS pedidos. Si fuera uno solo para todos, dos
+   * puestos mezclarían sus colas y quien cocina no sabría a cuál entregar.
+   */
+  const enlaceCocina =
+    claveCocina && vendedor
+      ? `${origen}/cocina?k=${claveCocina}&v=${encodeURIComponent(vendedor)}`
+      : '';
 
   const empujar = useCallback(async () => {
     if (!sincroniza) return;
@@ -390,6 +407,19 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     const t = setTimeout(() => setAviso(''), 2200);
     return () => clearTimeout(t);
   }, [aviso]);
+
+  /*
+   * Reloj de un segundo para el tiempo de espera. Solo corre si hay algo
+   * sin entregar: con la caja al día no tiene sentido repintar la pantalla
+   * cada segundo y gastar batería en una feria.
+   */
+  const hayPendientes = (pedidos ?? []).some((p) => !p.cierre && !p.entregado);
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hayPendientes) return;
+    const t = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [hayPendientes]);
 
   const opciones = producto ? variantesDe(producto) : [];
   const tope = producto ? maxSabores(producto, variante) : 0;
@@ -533,8 +563,11 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
 
   function registrar() {
     if (lineasFinales.length === 0) return;
+    const numero = siguienteNumero(abiertos, leerUltimoNumero());
+    guardarUltimoNumero(numero);
     const nuevo: Pedido = {
       id: nuevoId(),
+      numero,
       creado: new Date().toISOString(),
       cliente: cliente.trim() || 'Cliente',
       vendedor: vendedor ?? '',
@@ -591,6 +624,8 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre }));
     for (const p of abiertos) marcarSucio(p.id);
     setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre })));
+    // la caja siguiente arranca de nuevo en 001
+    guardarUltimoNumero(0);
     void descargarExcel(cerrados, paraArchivo(nombre));
     setCerrando(false);
     setNombreCierre('');
@@ -1021,8 +1056,17 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[11px] text-bone-dim">
-                          {hora(p.creado)} · {p.cliente}
+                        <p className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-bone-dim">
+                          <span className="font-bold text-bone">#{formatearNumero(p.numero)}</span>
+                          <span>
+                            {hora(p.creado)} · {p.cliente}
+                          </span>
+                          {/* lo que lleva esperando; una vez entregado ya da igual */}
+                          {!p.entregado && (
+                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 font-semibold tabular-nums">
+                              {espera(p.creado, ahora)}
+                            </span>
+                          )}
                         </p>
                         {p.lineas.map((l, i) => (
                           <p key={i} className="mt-0.5 font-semibold">

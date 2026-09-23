@@ -33,6 +33,7 @@ const claseFecha =
 function aPedido(p: PedidoCaja): Pedido {
   return {
     id: p.id,
+    numero: p.numero ?? 0,
     creado: p.creado,
     cliente: p.cliente,
     vendedor: p.vendedor,

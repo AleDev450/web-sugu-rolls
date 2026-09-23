@@ -62,6 +62,8 @@ export interface TestimonioAdmin {
 /** Una venta de la caja de feria, tal como la sincroniza la tablet. */
 export interface PedidoCaja {
   id: string;
+  /** correlativo dentro de la caja abierta en que se registró */
+  numero: number;
   /** hora del cobro en el puesto, no la de llegada al servidor */
   creado: string;
   cliente: string;
