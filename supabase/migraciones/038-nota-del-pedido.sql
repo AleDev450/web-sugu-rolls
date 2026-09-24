@@ -14,6 +14,13 @@
 -- La función de cocina la devuelve junto al resto: sigue sin haber ahí
 -- nada de dinero.
 --
+-- OJO con el DROP de abajo: `create or replace` NO puede cambiar el tipo
+-- que devuelve una función, y añadirle `nota` a la tabla de salida es
+-- justo eso. Sin borrarla antes, Postgres corta con "cannot change return
+-- type of existing function" y la función se queda en su versión vieja
+-- —sin `nota`—, así que la cocina nunca llega a recibir el mensaje aunque
+-- la columna sí exista. Hay que tirarla y volver a crearla.
+--
 -- Idempotente.
 -- =====================================================================
 
@@ -23,7 +30,10 @@ alter table public.caja_pedidos
 comment on column public.caja_pedidos.nota is
   'Pedido especial del cliente: "sin palta", "para llevar"… Lo escribe el cajero y lo lee la cocina.';
 
-create or replace function public.cocina_pendientes(
+-- se borra para poder cambiarle el tipo de retorno; el grant se repone abajo
+drop function if exists public.cocina_pendientes(text, text);
+
+create function public.cocina_pendientes(
   p_clave    text,
   p_vendedor text default null
 )
@@ -65,3 +75,16 @@ end;
 $$;
 
 grant execute on function public.cocina_pendientes(text, text) to anon, authenticated;
+
+/*
+ * PostgREST guarda en memoria la forma de las funciones. Tras borrar y
+ * recrear una, puede seguir sirviendo la firma vieja un rato; esto le dice
+ * que vuelva a leer el esquema y la cocina recibe `nota` de inmediato.
+ */
+notify pgrst, 'reload schema';
+
+-- Para comprobar que quedó con la columna nueva:
+--   select pg_get_function_result(oid)
+--   from pg_proc
+--   where proname = 'cocina_pendientes';
+--   -- debe incluir "nota text"
