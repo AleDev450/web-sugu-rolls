@@ -9,6 +9,8 @@ import { describirLinea, espera, formatearNumero, hora, type Linea } from '@/lib
 /** Cada cuántos milisegundos se vuelve a preguntar qué hay que cocinar. */
 const CADA = 5000;
 
+type Resumen = { rolls: number; onigiris: number; pokebowls: number; pedidos: number };
+
 type PedidoCocina = {
   id: string;
   numero: number;
@@ -46,6 +48,7 @@ function Cocina() {
   const vendedor = parametros.get('v') ?? '';
   const [pedidos, setPedidos] = useState<PedidoCocina[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resumen, setResumen] = useState<Resumen | null>(null);
   const [ultima, setUltima] = useState<Date | null>(null);
   const [cargando, setCargando] = useState(false);
 
@@ -81,6 +84,19 @@ function Cocina() {
     const llegaron = (data ?? []) as PedidoCocina[];
     setPedidos([...llegaron].sort((a, b) => b.creado.localeCompare(a.creado)));
     setUltima(new Date());
+
+    /*
+     * El acumulado del turno va aparte: la cola solo trae lo pendiente, así
+     * que sola no puede decir cuánto lleva preparado. Si esta segunda
+     * consulta falla no se toca nada más —la cola manda—, simplemente no se
+     * actualiza el contador.
+     */
+    const { data: totales } = await sb.rpc('cocina_resumen', {
+      p_clave: clave,
+      p_vendedor: vendedor,
+    });
+    const fila = (totales as Resumen[] | null)?.[0];
+    if (fila) setResumen(fila);
   }, [clave, vendedor]);
 
   useEffect(() => {
@@ -130,6 +146,24 @@ function Cocina() {
             <p className="text-2xl font-bold leading-tight">
               {pedidos === null ? '—' : `${pedidos.length} por preparar`}
             </p>
+            {resumen && (
+              <>
+                <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] text-bone-dim">
+                  Llevas preparando
+                </p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                  <span className="rounded-full bg-white/10 px-2 py-0.5">
+                    Rolls: {resumen.rolls}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2 py-0.5">
+                    Onigiris: {resumen.onigiris}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-2 py-0.5">
+                    Poke bowls: {resumen.pokebowls}
+                  </span>
+                </p>
+              </>
+            )}
           </div>
           <div className="text-right text-[11px] text-bone-dim">
             {cargando ? (

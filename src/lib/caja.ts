@@ -153,47 +153,35 @@ export const totalPedido = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.to
 
 export const unidades = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.cantidad, 0);
 
+/**
+ * Rolls de verdad que hay que preparar. Un maki Personal es uno y un Dúo
+ * son dos, así que contar pedidos no sirve para saber cuánto se corta: lo
+ * que importa en la tabla es el roll, no el ticket.
+ */
+export function rollsDe(lineas: Linea[]): number {
+  return lineas
+    .filter((l) => l.producto === 'maki')
+    .reduce((s, l) => s + l.cantidad * (l.promo === 'duo' ? 2 : 1), 0);
+}
+
 /** Unidades de un producto concreto: los contadores de la cabecera. */
 export function unidadesDe(lineas: Linea[], producto: ClaveProducto): number {
   return lineas.filter((l) => l.producto === producto).reduce((s, l) => s + l.cantidad, 0);
 }
 
-/*
- * Último correlativo entregado en la caja abierta. Se guarda aparte de los
- * pedidos porque tiene que sobrevivir a que se borre uno: si el contador
- * saliera de la lista, eliminar el 003 haría que el siguiente volviera a
- * ser 003, y en el mostrador dos personas responderían al mismo número.
- * Saltarse un número no le hace daño a nadie; repetirlo sí.
- */
-const CLAVE_NUMERO = 'sugu-caja-numero';
-
-export function leerUltimoNumero(): number {
-  if (typeof window === 'undefined') return 0;
-  try {
-    return Number(window.localStorage.getItem(CLAVE_NUMERO)) || 0;
-  } catch {
-    return 0;
-  }
-}
-
-export function guardarUltimoNumero(n: number): void {
-  try {
-    window.localStorage.setItem(CLAVE_NUMERO, String(n));
-  } catch {
-    /* sin almacenamiento el contador dura lo que dure la pestaña */
-  }
-}
-
 /**
  * El siguiente correlativo de la caja abierta.
  *
- * Se mira el contador guardado Y el mayor de la lista, y se toma el más
- * alto: si el contador se perdiera —almacenamiento limpiado, caja traída
- * de otro equipo—, el número seguiría sin chocar con los que ya existen.
+ * Sale del mayor que haya en la lista, así que borrar el último devuelve su
+ * número: si se anula el 003, el próximo vuelve a ser 003. Es lo que se
+ * pidió para el mostrador —la numeración no deja huecos— a cambio de que un
+ * número ya cantado pueda repetirse si se borra a destiempo.
+ *
+ * Es por CAJA: cada equipo cuenta sobre sus propios pedidos abiertos, de
+ * modo que dos cajeros del mismo día tienen los dos su 001.
  */
-export function siguienteNumero(abiertos: Pedido[], ultimo: number): number {
-  const mayorEnLista = abiertos.reduce((mayor, p) => Math.max(mayor, p.numero ?? 0), 0);
-  return Math.max(mayorEnLista, ultimo) + 1;
+export function siguienteNumero(abiertos: Pedido[]): number {
+  return abiertos.reduce((mayor, p) => Math.max(mayor, p.numero ?? 0), 0) + 1;
 }
 
 /** 1 -> "001". A partir de 1000 crece solo, sin recortar. */

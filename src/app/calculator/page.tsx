@@ -39,18 +39,17 @@ import {
   dineroDe,
   espera,
   formatearNumero,
-  guardarUltimoNumero,
   guardarPedidos,
   guardarVendedor,
   hora,
   leerPedidos,
-  leerUltimoNumero,
   leerVendedor,
   maxSabores,
   nuevoId,
   paraArchivo,
   precioUnitario,
   repartir,
+  rollsDe,
   siguienteNumero,
   soles,
   totalPedido,
@@ -486,9 +485,10 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       cobrado,
       canjeado,
       pendiente,
+      // en rolls, no en pedidos: un dúo son dos rolls que hay que cortar
+      rolls: rollsDe(todasLasLineas),
       onigiris: unidadesDe(todasLasLineas, 'onigiri'),
       pokebowls: unidadesDe(todasLasLineas, 'pokebowl'),
-      makis: unidadesDe(todasLasLineas, 'maki'),
     };
   }, [abiertos]);
 
@@ -566,11 +566,9 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
 
   function registrar() {
     if (lineasFinales.length === 0) return;
-    const numero = siguienteNumero(abiertos, leerUltimoNumero());
-    guardarUltimoNumero(numero);
     const nuevo: Pedido = {
       id: nuevoId(),
-      numero,
+      numero: siguienteNumero(abiertos),
       creado: new Date().toISOString(),
       cliente: cliente.trim() || 'Cliente',
       vendedor: vendedor ?? '',
@@ -628,8 +626,6 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre }));
     for (const p of abiertos) marcarSucio(p.id);
     setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre })));
-    // la caja siguiente arranca de nuevo en 001
-    guardarUltimoNumero(0);
     void descargarExcel(cerrados, paraArchivo(nombre));
     setCerrando(false);
     setNombreCierre('');
@@ -756,10 +752,13 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                   <Etiqueta tono="azul">Canje {soles(resumen.canjeado)}</Etiqueta>
                 )}
               </p>
-              <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <Etiqueta tono="gris">Onigiris pedidos: {resumen.onigiris}</Etiqueta>
-                <Etiqueta tono="gris">Poke bowls pedidos: {resumen.pokebowls}</Etiqueta>
-                <Etiqueta tono="gris">Makis pedidos: {resumen.makis}</Etiqueta>
+              <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-bone-dim">
+                Llevas atendiendo
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Etiqueta tono="gris">Rolls: {resumen.rolls}</Etiqueta>
+                <Etiqueta tono="gris">Onigiris: {resumen.onigiris}</Etiqueta>
+                <Etiqueta tono="gris">Poke bowls: {resumen.pokebowls}</Etiqueta>
               </p>
             </div>
 
