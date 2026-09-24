@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { Copy, Download, Plus, Trash2 } from 'lucide-react';
+import { ClipboardCheck, Copy, Download, Plus, Trash2 } from 'lucide-react';
 import { borrarCodigos, generarCodigos, listarCodigos, type CodigoAdmin } from '@/lib/admin';
 import {
   Aviso,
@@ -68,9 +68,50 @@ export default function CodigosAdmin() {
     }
   };
 
-  const copiar = (texto: string) => {
-    void navigator.clipboard.writeText(texto);
-    setAviso({ tipo: 'ok', texto: 'Copiado al portapapeles.' });
+  /*
+   * Se espera al portapapeles y se avisa según el resultado. Antes se daba
+   * por copiado siempre: si el navegador lo negaba —sin HTTPS, permiso
+   * denegado— el mensaje decía que sí y se pegaba lo que hubiera de antes.
+   */
+  const copiar = async (texto: string, exito = 'Copiado al portapapeles.') => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setAviso({ tipo: 'ok', texto: exito });
+    } catch {
+      setAviso({
+        tipo: 'error',
+        texto: 'El navegador no dejó copiar. Usa «Exportar CSV» o cópialo a mano.',
+      });
+    }
+  };
+
+  /**
+   * Los que todavía se pueden repartir, del más nuevo al más viejo. Es el
+   * orden en que se quieren sacar: lo último generado es lo que aún no se
+   * ha entregado a nadie.
+   */
+  const libres = (items ?? [])
+    .filter((c) => !c.redeemed_at)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((c) => c.code);
+
+  const copiarLibres = () =>
+    copiar(
+      libres.join('\n'),
+      `${libres.length} códigos libres copiados. Pégalos donde los necesites.`,
+    );
+
+  /** Los libres en un .txt, uno por línea: listo para pegar o imprimir. */
+  const descargarLibres = () => {
+    if (!libres.length) return;
+    const url = URL.createObjectURL(
+      new Blob([libres.join('\n')], { type: 'text/plain;charset=utf-8' }),
+    );
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `codigos-libres-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const descargar = () => {
@@ -89,13 +130,11 @@ export default function CodigosAdmin() {
 
   if (!items) return <Cargando />;
 
-  const disponibles = items.filter((c) => !c.redeemed_at).length;
-
   return (
     <>
       <Encabezado
         titulo="Códigos del juego"
-        bajada={`${disponibles} sin usar de ${items.length} generados. Cada código sirve para una sola partida y no caduca.`}
+        bajada={`${libres.length} sin usar de ${items.length} generados. Cada código sirve para una sola partida y no caduca.`}
         accion={
           <div className="flex flex-wrap gap-3">
             <button
@@ -105,6 +144,22 @@ export default function CodigosAdmin() {
             >
               <Trash2 className="h-4 w-4" />
               Borrar códigos
+            </button>
+            <button
+              onClick={() => void copiarLibres()}
+              className="btn-ghost disabled:pointer-events-none disabled:opacity-40"
+              disabled={libres.length === 0}
+            >
+              <ClipboardCheck className="h-4 w-4" />
+              Copiar libres ({libres.length})
+            </button>
+            <button
+              onClick={descargarLibres}
+              className="btn-ghost disabled:pointer-events-none disabled:opacity-40"
+              disabled={libres.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              Bajar libres
             </button>
             <button onClick={descargar} className="btn-ghost">
               <Download className="h-4 w-4" />
@@ -129,7 +184,7 @@ export default function CodigosAdmin() {
           <div className="flex items-center justify-between gap-4">
             <h2 className="font-bold">Códigos recién generados</h2>
             <button
-              onClick={() => copiar(recien.join('\n'))}
+              onClick={() => void copiar(recien.join('\n'))}
               className="inline-flex items-center gap-2 text-[13px] text-sugu"
             >
               <Copy className="h-3.5 w-3.5" />
@@ -140,7 +195,7 @@ export default function CodigosAdmin() {
             {recien.map((c) => (
               <button
                 key={c}
-                onClick={() => copiar(c)}
+                onClick={() => void copiar(c)}
                 className="rounded-lg border border-sugu/40 bg-sugu/10 px-3.5 py-2 font-mono text-sm tracking-widest transition-colors hover:bg-sugu/20"
                 title="Copiar"
               >
@@ -166,7 +221,7 @@ export default function CodigosAdmin() {
               <tr key={c.id} className="transition-colors hover:bg-white/[0.03]">
                 <td className="p-4">
                   <button
-                    onClick={() => copiar(c.code)}
+                    onClick={() => void copiar(c.code)}
                     className="font-mono tracking-widest transition-colors hover:text-sugu"
                     title="Copiar"
                   >
@@ -251,8 +306,9 @@ export default function CodigosAdmin() {
               </p>
             ) : (
               <p>
-                Se borrarán los <b>{disponibles} códigos sin usar</b>. Los {items.length - disponibles}{' '}
-                ya canjeados se quedan, junto con sus partidas y el ranking.
+                Se borrarán los <b>{libres.length} códigos sin usar</b>. Los{' '}
+                {items.length - libres.length} ya canjeados se quedan, junto con sus partidas y
+                el ranking.
               </p>
             )}
             <p className="mt-3">Esto no se puede deshacer.</p>

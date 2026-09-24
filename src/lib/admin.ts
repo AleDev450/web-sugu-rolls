@@ -71,6 +71,8 @@ export interface PedidoCaja {
   vendedor: string;
   /** nombre del cierre de caja; vacío = todavía abierta en la tablet */
   cierre: string;
+  /** pedido especial del cliente: "sin palta", "para llevar"… */
+  nota: string;
   lineas: {
     producto: string;
     promo: string | null;

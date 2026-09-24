@@ -15,6 +15,7 @@ type PedidoCocina = {
   creado: string;
   cliente: string;
   vendedor: string;
+  nota: string;
   lineas: Linea[];
 };
 
@@ -175,15 +176,22 @@ function Cocina() {
                   i === 0 ? 'border-sugu/60 bg-sugu/10' : 'border-white/10 bg-night-soft'
                 }`}
               >
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   {/* número y quién lo pidió: es lo que se canta al entregar */}
                   <span className="min-w-0 truncate text-base font-bold">
                     <span className="text-sugu-glow">#{formatearNumero(p.numero)}</span>{' '}
                     {p.cliente}
                   </span>
-                  <span className="shrink-0 text-right text-[12px] font-semibold text-bone-dim">
-                    <span className="tabular-nums">{espera(p.creado, ahora)}</span>
-                    <span className="ml-1.5 opacity-70">{hora(p.creado)}</span>
+                  {/*
+                    La espera es el dato que decide a qué pedido saltar, así
+                    que se lee de lejos; la hora exacta queda debajo, en
+                    pequeño, para cuando hace falta ubicarlo.
+                  */}
+                  <span className="shrink-0 text-right leading-tight">
+                    <span className="block text-xl font-bold tabular-nums text-bone">
+                      {espera(p.creado, ahora)}
+                    </span>
+                    <span className="block text-[11px] text-bone-dim">{hora(p.creado)}</span>
                   </span>
                 </div>
                 {p.lineas.map((l, j) => (
@@ -191,6 +199,12 @@ function Cocina() {
                     {describirLinea(l)}
                   </p>
                 ))}
+                {/* lo que pidió aparte: destacado, es lo que se olvida */}
+                {(p.nota ?? '').trim() && (
+                  <p className="mt-2 rounded-xl border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-base font-bold text-amber-300">
+                    {p.nota}
+                  </p>
+                )}
                 {p.vendedor && (
                   <p className="mt-1.5 text-[11px] text-bone-dim">Lo tomó {p.vendedor}</p>
                 )}

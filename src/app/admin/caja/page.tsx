@@ -1,9 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Download, ExternalLink, RefreshCw, UserRound, X } from 'lucide-react';
+import { Check, ChefHat, Download, ExternalLink, RefreshCw, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
-import { asignarVendedorACierre, listarCaja, type PedidoCaja } from '@/lib/admin';
+import {
+  asignarVendedorACierre,
+  listarCaja,
+  traerClaveCocina,
+  type PedidoCaja,
+} from '@/lib/admin';
 import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
 import {
   NOMBRE_METODO,
@@ -38,6 +43,7 @@ function aPedido(p: PedidoCaja): Pedido {
     cliente: p.cliente,
     vendedor: p.vendedor,
     cierre: p.cierre ?? '',
+    nota: p.nota ?? '',
     lineas: p.lineas.map((l) => ({
       producto: l.producto as ClaveProducto,
       promo: l.promo ?? null,
@@ -76,6 +82,9 @@ export default function CajaAdmin() {
   const [asignando, setAsignando] = useState<string | null>(null);
   const [nombreVendedor, setNombreVendedor] = useState('');
   const [guardando, setGuardando] = useState(false);
+  /** clave de cocina, para armar el enlace de cada cajero desde aquí */
+  const [claveCocina, setClaveCocina] = useState('');
+  const [copiado, setCopiado] = useState('');
 
   const cargar = useCallback(async () => {
     setItems(null);
@@ -91,6 +100,31 @@ export default function CajaAdmin() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  useEffect(() => {
+    void traerClaveCocina().then((c) => setClaveCocina(c ?? ''));
+  }, []);
+
+  /*
+   * El enlace de cocina de un cajero. Es el mismo que genera su caja; aquí
+   * se rearma para poder repartir los dos sin ir celular por celular.
+   */
+  function enlaceCocinaDe(nombre: string): string {
+    if (!claveCocina || typeof window === 'undefined') return '';
+    return `${window.location.origin}/cocina?k=${claveCocina}&v=${encodeURIComponent(nombre)}`;
+  }
+
+  async function copiarCocina(nombre: string) {
+    const enlace = enlaceCocinaDe(nombre);
+    if (!enlace) return;
+    try {
+      await navigator.clipboard.writeText(enlace);
+      setCopiado(nombre);
+      setTimeout(() => setCopiado(''), 2000);
+    } catch {
+      setError('No se pudo copiar. Selecciona el enlace a mano.');
+    }
+  }
 
   async function guardarVendedorDelCierre(cierre: string) {
     const nombre = nombreVendedor.trim();
@@ -484,6 +518,7 @@ export default function CajaAdmin() {
                   <thead className="text-[11px] uppercase tracking-wider text-bone-dim">
                     <tr>
                       <th className="pb-2 text-left font-medium">Vendedor</th>
+                      <th className="pb-2 text-left font-medium">Cocina</th>
                       <th className="pb-2 text-right font-medium">Pedidos</th>
                       <th className="pb-2 text-right font-medium">Und</th>
                       <th className="pb-2 text-right font-medium">Venta</th>
@@ -493,6 +528,25 @@ export default function CajaAdmin() {
                     {porVendedor.map(([nombre, f]) => (
                       <tr key={nombre} className="border-t border-white/5">
                         <td className="py-2 font-medium">{nombre}</td>
+                        <td className="py-2">
+                          {/* cada cajero tiene su enlace; nunca uno compartido */}
+                          {claveCocina && nombre !== '— sin nombre —' ? (
+                            <button
+                              type="button"
+                              onClick={() => void copiarCocina(nombre)}
+                              className="flex items-center gap-1.5 rounded-lg border border-sky-500/40 px-2 py-1 text-[12px] font-semibold text-sky-300"
+                            >
+                              {copiado === nombre ? (
+                                <Check className="h-3 w-3" />
+                              ) : (
+                                <ChefHat className="h-3 w-3" />
+                              )}
+                              {copiado === nombre ? 'Copiado' : 'Copiar enlace'}
+                            </button>
+                          ) : (
+                            <span className="text-bone-dim">—</span>
+                          )}
+                        </td>
                         <td className="py-2 text-right tabular-nums text-bone-dim">{f.pedidos}</td>
                         <td className="py-2 text-right tabular-nums text-bone-dim">{f.unidades}</td>
                         <td className="py-2 text-right font-semibold tabular-nums">
@@ -544,6 +598,11 @@ export default function CajaAdmin() {
                               {describirLinea(l)}
                             </p>
                           ))}
+                          {(p.nota ?? '').trim() && (
+                            <p className="mt-0.5 text-[12px] font-semibold text-amber-300">
+                              {p.nota}
+                            </p>
+                          )}
                           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                             <span
                               className={`rounded-full px-2 py-0.5 font-semibold ${

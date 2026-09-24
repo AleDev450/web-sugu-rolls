@@ -56,6 +56,12 @@ export type Pedido = {
    * del turno y deja la caja en cero para la siguiente jornada.
    */
   cierre: string;
+  /**
+   * Lo que el cliente pidió aparte: "sin palta", "más queso", "para
+   * llevar". Va en el pedido y no en la línea porque en el mostrador se
+   * dice una vez, al final, y casi siempre vale para todo lo que lleva.
+   */
+  nota: string;
   lineas: Linea[];
   total: number;
   metodo: MetodoPago;
@@ -136,6 +142,9 @@ export function maxSabores(producto: ClaveProducto, variante: string | null): nu
   if (!variante) return 0;
   return variantesDe(producto).find((v) => v.id === variante)?.maxSabores ?? 0;
 }
+
+/** Notas de un toque: lo que más se pide y no hace falta escribir. */
+export const NOTAS_RAPIDAS = ['Para llevar', 'Sin palta', 'Más queso', 'Sin ajonjolí', 'Sin picante'];
 
 /** Los sabores de maki que se preparan en el puesto. */
 export const SABORES = ['Acevichado', 'Avocado', 'California', 'Sugumi', 'Pizza', 'Vegano'];
@@ -333,6 +342,7 @@ function normalizar(guardado: PedidoGuardado): Pedido {
     ...previo,
     numero: previo.numero ?? 0,
     vendedor: previo.vendedor ?? '',
+    nota: previo.nota ?? '',
     cierre: previo.cierre ?? '',
     lineas,
     total,
@@ -477,6 +487,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
     { header: 'Hora', key: 'hora', width: 8 },
     { header: 'Vendedor', key: 'vendedor', width: 16 },
     { header: 'Cliente', key: 'cliente', width: 22 },
+    { header: 'Nota', key: 'nota', width: 24 },
     { header: 'Producto', key: 'producto', width: 12 },
     { header: 'Variante', key: 'variante', width: 18 },
     { header: 'Sabores', key: 'sabores', width: 28 },
@@ -508,6 +519,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
         hora: hora(p.creado),
         vendedor: p.vendedor,
         cliente: p.cliente,
+        nota: p.nota,
         producto: NOMBRE_PRODUCTO[l.producto] ?? l.producto,
         variante: buscarVariante(l.promo)?.nombre ?? '',
         sabores: l.sabores.join(', '),

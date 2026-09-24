@@ -27,6 +27,7 @@ import {
 import {
   METODOS_PAGO,
   NOMBRE_METODO,
+  NOTAS_RAPIDAS,
   PRODUCTOS,
   SABORES,
   type ClaveProducto,
@@ -306,6 +307,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const [efectivoParcial, setEfectivoParcial] = useState('');
   const [pagado, setPagado] = useState(true);
   const [cliente, setCliente] = useState('');
+  const [nota, setNota] = useState('');
 
   // quién abrió la caja
   const [vendedor, setVendedor] = useState<string | null>(null);
@@ -553,6 +555,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     setEfectivoParcial('');
     setPagado(true);
     setCliente('');
+    setNota('');
   }
 
   function agregarLinea() {
@@ -572,6 +575,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       cliente: cliente.trim() || 'Cliente',
       vendedor: vendedor ?? '',
       cierre: '',
+      nota: nota.trim(),
       lineas: lineasFinales,
       total: totalActual,
       metodo,
@@ -708,6 +712,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     pago: ++n,
     estado: ++n,
     cliente: ++n,
+    nota: ++n,
   };
   const faltaVariante = Boolean(producto) && opciones.length > 0 && !variante;
   const faltaSabor = tope > 0 && sabores.length === 0;
@@ -993,6 +998,45 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
             </p>
           </Paso>
 
+          <Paso n={paso.nota} titulo="¿Algo aparte? (opcional)">
+            {/* los atajos evitan escribir lo que se repite todo el día */}
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {NOTAS_RAPIDAS.map((texto) => {
+                const puesta = nota.includes(texto);
+                return (
+                  <button
+                    key={texto}
+                    type="button"
+                    onClick={() =>
+                      setNota((previa) => {
+                        if (previa.includes(texto)) {
+                          return previa
+                            .split(', ')
+                            .filter((t) => t !== texto)
+                            .join(', ');
+                        }
+                        return previa.trim() ? `${previa.trim()}, ${texto}` : texto;
+                      })
+                    }
+                    className={`min-h-[36px] rounded-full border px-3 text-[12px] font-semibold transition-colors ${
+                      puesta ? 'border-sugu bg-sugu text-white' : 'border-white/15 text-bone-dim'
+                    }`}
+                  >
+                    {texto}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="Sin palta, más queso, para llevar…"
+              enterKeyHint="done"
+              className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
+            />
+            <p className="mt-1.5 text-[11px] text-bone-dim">Esto le llega a la cocina.</p>
+          </Paso>
+
           <div className="grid gap-2 border-t border-white/10 pt-4">
             <button
               type="button"
@@ -1073,6 +1117,11 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                             {describirLinea(l)}
                           </p>
                         ))}
+                        {p.nota && (
+                          <p className="mt-1 text-[12px] font-semibold text-amber-300">
+                            {p.nota}
+                          </p>
+                        )}
                         <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           {p.pagado ? (
                             <Etiqueta tono="verde">Pagado</Etiqueta>
@@ -1298,6 +1347,8 @@ function EditarVenta({
   const [copia, setCopia] = useState<Pedido>(pedido);
   const [yape, setYape] = useState(String(pedido.montoYape || ''));
   const [efectivo, setEfectivo] = useState(String(pedido.montoEfectivo || ''));
+  /** índice de la línea abierta a fondo; null = ninguna */
+  const [abierta, setAbierta] = useState<number | null>(null);
 
   const total = totalPedido(copia.lineas);
   const reparto = repartir(copia.metodo, total, Number(yape));
@@ -1316,6 +1367,52 @@ function EditarVenta({
     setYape(String(repartir('mixto', total, total - enEfectivo).montoYape));
   }
 
+  /** Reemplaza una línea manteniendo su total coherente con precio y cantidad. */
+  function cambiarLinea(i: number, cambios: Partial<Linea>) {
+    setCopia((p) => ({
+      ...p,
+      lineas: p.lineas.map((l, j) => {
+        if (j !== i) return l;
+        const nueva = { ...l, ...cambios };
+        return { ...nueva, total: nueva.unitario * nueva.cantidad };
+      }),
+    }));
+  }
+
+  /*
+   * Cambiar de producto arrastra su variante y sus sabores: un onigiri no
+   * puede quedarse con "Dúo" ni con los sabores del maki que era. El precio
+   * vuelve al de la carta, y de ahí se puede retocar a mano.
+   */
+  function cambiarProducto(i: number, producto: ClaveProducto) {
+    const opciones = variantesDe(producto);
+    const variante = opciones.length ? opciones[0].id : null;
+    cambiarLinea(i, {
+      producto,
+      promo: variante,
+      sabores: [],
+      unitario: precioUnitario(producto, variante),
+    });
+  }
+
+  function cambiarVariante(i: number, l: Linea, variante: string) {
+    cambiarLinea(i, {
+      promo: variante,
+      // del dúo al personal sobra un sabor: se recorta al tope de la variante
+      sabores: l.sabores.slice(0, maxSabores(l.producto, variante)),
+      unitario: precioUnitario(l.producto, variante),
+    });
+  }
+
+  function alternarSaborLinea(i: number, l: Linea, sabor: string) {
+    const tope = maxSabores(l.producto, l.promo);
+    if (l.sabores.includes(sabor)) {
+      cambiarLinea(i, { sabores: l.sabores.filter((x) => x !== sabor) });
+    } else if (l.sabores.length < tope) {
+      cambiarLinea(i, { sabores: [...l.sabores, sabor] });
+    }
+  }
+
   const cambiarCantidad = (i: number, delta: number) =>
     setCopia((p) => ({
       ...p,
@@ -1329,44 +1426,153 @@ function EditarVenta({
   return (
     <Ventana titulo="Editar venta">
       <div className="grid gap-4">
-        <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-night-2 p-3">
-          {copia.lineas.map((l, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 text-sm">
-              <span className="min-w-0 flex-1">{describirLinea(l)}</span>
-              <span className="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => cambiarCantidad(i, -1)}
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/15"
-                  aria-label={`Quitar uno de ${describirLinea(l)}`}
-                >
-                  <Minus size={13} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => cambiarCantidad(i, 1)}
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/15"
-                  aria-label={`Agregar uno de ${describirLinea(l)}`}
-                >
-                  <Plus size={13} />
-                </button>
-                {copia.lineas.length > 1 && (
+        <div className="grid gap-2 rounded-2xl border border-white/10 bg-night-2 p-3">
+          {copia.lineas.map((l, i) => {
+            const opciones = variantesDe(l.producto);
+            const tope = maxSabores(l.producto, l.promo);
+            return (
+              <div
+                key={i}
+                className="grid gap-2 border-b border-white/5 pb-2 last:border-0 last:pb-0"
+              >
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  {/* tocar la línea abre su detalle: producto, sabores y precio */}
                   <button
                     type="button"
-                    onClick={() =>
-                      setCopia((p) => ({ ...p, lineas: p.lineas.filter((_, j) => j !== i) }))
-                    }
-                    className="grid h-8 w-8 place-items-center rounded-lg border border-sugu/50 text-sugu-glow"
-                    aria-label={`Quitar ${describirLinea(l)}`}
+                    onClick={() => setAbierta(abierta === i ? null : i)}
+                    className="min-w-0 flex-1 text-left"
                   >
-                    <X size={13} />
+                    <span className="underline decoration-white/25 underline-offset-4">
+                      {describirLinea(l)}
+                    </span>
+                    <span className="ml-1.5 text-[12px] tabular-nums text-bone-dim">
+                      {soles(l.total)}
+                    </span>
                   </button>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => cambiarCantidad(i, -1)}
+                      className="grid h-8 w-8 place-items-center rounded-lg border border-white/15"
+                      aria-label={`Quitar uno de ${describirLinea(l)}`}
+                    >
+                      <Minus size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cambiarCantidad(i, 1)}
+                      className="grid h-8 w-8 place-items-center rounded-lg border border-white/15"
+                      aria-label={`Agregar uno de ${describirLinea(l)}`}
+                    >
+                      <Plus size={13} />
+                    </button>
+                    {copia.lineas.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAbierta(null);
+                          setCopia((p) => ({ ...p, lineas: p.lineas.filter((_, j) => j !== i) }));
+                        }}
+                        className="grid h-8 w-8 place-items-center rounded-lg border border-sugu/50 text-sugu-glow"
+                        aria-label={`Quitar ${describirLinea(l)}`}
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </span>
+                </div>
+
+                {/*
+                  El detalle solo se despliega si hace falta: cambiar el
+                  producto de una venta ya cobrada es la excepción, y tenerlo
+                  siempre abierto alargaría la ventana sin motivo.
+                */}
+                {abierta === i && (
+                  <div className="grid gap-2 rounded-xl border border-white/10 bg-night p-2.5">
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {PRODUCTOS.map((pr) => (
+                        <Opcion
+                          key={pr.id}
+                          activo={l.producto === pr.id}
+                          onClick={() => cambiarProducto(i, pr.id)}
+                        >
+                          <span className="text-[12px]">{pr.nombre}</span>
+                        </Opcion>
+                      ))}
+                    </div>
+
+                    {opciones.length > 0 && (
+                      <div
+                        className={`grid gap-1.5 ${
+                          opciones.length > 2 ? 'grid-cols-3' : 'grid-cols-2'
+                        }`}
+                      >
+                        {opciones.map((v) => (
+                          <Opcion
+                            key={v.id}
+                            activo={l.promo === v.id}
+                            onClick={() => cambiarVariante(i, l, v.id)}
+                          >
+                            <span className="text-[12px]">{v.nombre}</span>
+                          </Opcion>
+                        ))}
+                      </div>
+                    )}
+
+                    {tope > 0 && (
+                      <>
+                        <p className="text-[11px] text-bone-dim">
+                          Sabores · {l.sabores.length} de {tope}
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {SABORES.map((sabor) => {
+                            const elegido = l.sabores.includes(sabor);
+                            return (
+                              <Opcion
+                                key={sabor}
+                                activo={elegido}
+                                disabled={!elegido && l.sabores.length >= tope}
+                                onClick={() => alternarSaborLinea(i, l, sabor)}
+                              >
+                                <span className="text-[12px]">{sabor}</span>
+                              </Opcion>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] text-bone-dim">
+                        Precio por unidad
+                      </span>
+                      <input
+                        value={String(l.unitario)}
+                        onChange={(e) =>
+                          cambiarLinea(i, { unitario: Number(soloNumero(e.target.value)) || 0 })
+                        }
+                        inputMode="decimal"
+                        aria-label="Precio por unidad"
+                        className="w-full rounded-lg border border-white/15 bg-night-2 px-3 py-2 text-base outline-none focus:border-sugu"
+                      />
+                    </label>
+                  </div>
                 )}
-              </span>
-            </div>
-          ))}
+              </div>
+            );
+          })}
           <p className="mt-1 text-right text-lg font-bold tabular-nums">{soles(total)}</p>
         </div>
+
+        <label className="block">
+          <span className="mb-1.5 block text-[13px] font-medium">Algo aparte</span>
+          <input
+            value={copia.nota}
+            onChange={(e) => setCopia((p) => ({ ...p, nota: e.target.value }))}
+            placeholder="Sin palta, más queso, para llevar…"
+            className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+          />
+        </label>
 
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-medium">Cliente</span>
