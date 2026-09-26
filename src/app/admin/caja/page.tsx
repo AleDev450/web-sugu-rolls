@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChefHat, Download, ExternalLink, RefreshCw, UserRound, X } from 'lucide-react';
+import { Check, ChefHat, Download, ExternalLink, Lock, RefreshCw, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
 import {
   asignarVendedorACierre,
+  cerrarDiaDeCaja,
   listarCaja,
+  listarCajaAbierta,
   traerClaveCocina,
   type PedidoCaja,
 } from '@/lib/admin';
@@ -64,10 +66,12 @@ function aPedido(p: PedidoCaja): Pedido {
 /**
  * Caja de feria vista desde el panel.
  *
- * Es SOLO LECTURA a propósito: la tablet del puesto es la fuente y
+ * Es casi SOLO LECTURA a propósito: la tablet del puesto es la fuente y
  * sincroniza en un único sentido, así que una corrección hecha aquí la
  * pisaría el siguiente cambio que se tocara allá. Lo que se arregla, se
- * arregla en la caja.
+ * arregla en la caja. Las dos excepciones son el vendedor de un cierre ya
+ * hecho y cerrar un día que quedó abierto: ninguna la puede pisar el
+ * celular (ver migración 040).
  */
 export default function CajaAdmin() {
   const hoy = diaLocal(new Date());
@@ -85,15 +89,28 @@ export default function CajaAdmin() {
   /** clave de cocina, para armar el enlace de cada cajero desde aquí */
   const [claveCocina, setClaveCocina] = useState('');
   const [copiado, setCopiado] = useState('');
+  /** cobros en caja abierta de cualquier fecha: de aquí sale el cierre por día */
+  const [abiertos, setAbiertos] = useState<Awaited<ReturnType<typeof listarCajaAbierta>> | null>(
+    null,
+  );
+  /** día que se está cerrando, y el nombre que se le pondrá al cierre */
+  const [cerrandoDia, setCerrandoDia] = useState<string | null>(null);
+  const [nombreCierreDia, setNombreCierreDia] = useState('');
 
   const cargar = useCallback(async () => {
     setItems(null);
     setError(null);
     try {
-      setItems(await listarCaja(desde || undefined, hasta || undefined));
+      const [caja, sinCerrar] = await Promise.all([
+        listarCaja(desde || undefined, hasta || undefined),
+        listarCajaAbierta(),
+      ]);
+      setItems(caja);
+      setAbiertos(sinCerrar);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo leer la caja.');
       setItems([]);
+      setAbiertos([]);
     }
   }, [desde, hasta]);
 
@@ -137,6 +154,48 @@ export default function CajaAdmin() {
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo asignar el vendedor.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  /*
+   * Cada día con cobros sin cerrar. Si un vendedor se olvidó de cerrar, al
+   * día siguiente sigue cobrando sobre la misma caja y las dos jornadas se
+   * mezclan en un cierre; esto deja cerrar cada día por separado.
+   */
+  const diasAbiertos = useMemo(() => {
+    const mapa = new Map<string, { cuantos: number; total: number; vendedores: Set<string> }>();
+    for (const p of abiertos ?? []) {
+      const dia = diaLocal(p.creado);
+      const fila = mapa.get(dia) ?? { cuantos: 0, total: 0, vendedores: new Set<string>() };
+      fila.cuantos += 1;
+      fila.total += p.total;
+      if (p.vendedor.trim()) fila.vendedores.add(p.vendedor.trim());
+      mapa.set(dia, fila);
+    }
+    return Array.from(mapa.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dia, f]) => ({
+        dia,
+        fecha: new Date(`${dia}T00:00:00`).toLocaleDateString('es-PE'),
+        cuantos: f.cuantos,
+        total: f.total,
+        vendedores: Array.from(f.vendedores).sort((a, b) => a.localeCompare(b)),
+      }));
+  }, [abiertos]);
+
+  async function cerrarDia(dia: string) {
+    const nombre = nombreCierreDia.trim();
+    if (!nombre) return;
+    setGuardando(true);
+    try {
+      await cerrarDiaDeCaja(dia, nombre);
+      setCerrandoDia(null);
+      setNombreCierreDia('');
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo cerrar el día.');
     } finally {
       setGuardando(false);
     }
@@ -358,6 +417,86 @@ export default function CajaAdmin() {
       </div>
 
       {error && <Aviso tipo="error" texto={error} />}
+
+      {abiertos !== null && (
+        <section className="mb-6 rounded-2xl border border-white/10 bg-night-2 p-4">
+          <h2 className="mb-3 text-sm font-semibold">Cierre por día</h2>
+          {diasAbiertos.length === 0 ? (
+            <p className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-600/10 px-3 py-2 text-[13px] font-semibold text-emerald-300">
+              <Lock className="h-4 w-4" />
+              Caja cerrada: no queda ningún día sin cerrar.
+            </p>
+          ) : (
+            <ul className="grid gap-2">
+              {diasAbiertos.map((d) => (
+                <li
+                  key={d.dia}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+                >
+                  <div className="min-w-0 text-[13px]">
+                    <p className="font-semibold text-amber-300">
+                      {d.fecha}
+                      {d.dia === hoy && ' · hoy'} · sin cerrar
+                    </p>
+                    <p className="text-[12px] text-bone-dim">
+                      {d.cuantos} pedidos · {soles(d.total)}
+                      {d.vendedores.length > 0 && ` · ${d.vendedores.join(', ')}`}
+                    </p>
+                    {d.dia === hoy && (
+                      <p className="text-[11px] text-bone-dim">
+                        Si todavía están atendiendo, lo que cobren después abre una caja nueva.
+                      </p>
+                    )}
+                  </div>
+                  {cerrandoDia === d.dia ? (
+                    <span className="flex items-center gap-1">
+                      <input
+                        value={nombreCierreDia}
+                        onChange={(e) => setNombreCierreDia(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && void cerrarDia(d.dia)}
+                        placeholder="Nombre del cierre"
+                        aria-label="Nombre del cierre"
+                        autoFocus
+                        className="w-44 rounded-lg border border-white/20 bg-night px-2 py-1.5 text-[12px] outline-none focus:border-sugu"
+                      />
+                      <button
+                        type="button"
+                        disabled={guardando || !nombreCierreDia.trim()}
+                        onClick={() => void cerrarDia(d.dia)}
+                        className="grid h-8 w-8 place-items-center rounded-lg bg-sugu text-white disabled:opacity-40"
+                        aria-label={`Cerrar la caja del ${d.fecha}`}
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCerrandoDia(null)}
+                        className="grid h-8 w-8 place-items-center rounded-lg border border-white/15 text-bone-dim"
+                        aria-label="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCerrandoDia(d.dia);
+                        // el mismo nombre que propone la caja al cerrar en el puesto
+                        setNombreCierreDia(`Caja ${d.fecha}`);
+                      }}
+                      className="flex items-center gap-2 rounded-full bg-sugu px-4 py-2 text-[13px] font-semibold text-white"
+                    >
+                      <Lock className="h-4 w-4" />
+                      Cerrar día
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {items === null ? (
         <Cargando />

@@ -52,3 +52,4 @@ Cuando corras una, márcala aquí:
 | `026-trabaja-con-nosotros.sql` | Postulaciones públicas con CV adjunto, descargables desde el panel | ☐ |
 | `027-editar-y-borrar-partidas.sql` | Corregir el puntaje de una partida o borrarla del ranking, sin resetearlo entero | ☐ |
 | `028-temporizador-del-juego.sql` | Duración de la partida ajustable desde el panel (0 = sin límite) | ☐ |
+| `040-cerrar-caja-por-dia.sql` | Cerrar desde el panel la caja que un vendedor dejó abierta; un cobro cerrado ya no se reabre | ☐ |

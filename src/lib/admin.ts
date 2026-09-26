@@ -966,6 +966,44 @@ export async function asignarVendedorACierre(cierre: string, vendedor: string): 
 }
 
 /**
+ * Los cobros que siguen en caja abierta, de cualquier fecha. El panel los
+ * agrupa por día para ver qué jornada se quedó sin cerrar: no puede salir
+ * del filtro de fechas, porque lo olvidado casi siempre es de ayer.
+ */
+export async function listarCajaAbierta(): Promise<{ id: string; creado: string; vendedor: string; total: number }[]> {
+  const { data, error } = await sb()
+    .from('caja_pedidos')
+    .select('id, creado, vendedor, total')
+    .eq('cierre', '')
+    .order('creado', { ascending: true })
+    .limit(2000);
+  if (error) throw error;
+  return (data ?? []).map((p) => ({ ...p, total: Number(p.total) }));
+}
+
+/**
+ * Cierra desde el panel lo que quedó abierto en un día (fecha local del
+ * puesto). Solo toca cobros con el cierre vacío: lo ya cerrado no cambia.
+ *
+ * Lo que impide que el celular lo reabra al subir su próximo cambio es la
+ * migración 040 —un cobro con cierre ya no se reabre en la base— y que la
+ * caja, al sincronizar, baja los cierres hechos aquí.
+ */
+export async function cerrarDiaDeCaja(dia: string, nombre: string): Promise<number> {
+  const limpio = nombre.trim();
+  if (!dia || !limpio) throw new Error('Falta el día o el nombre del cierre.');
+  const { data, error } = await sb()
+    .from('caja_pedidos')
+    .update({ cierre: limpio })
+    .eq('cierre', '')
+    .gte('creado', inicioDelDia(dia))
+    .lt('creado', inicioDelDiaSiguiente(dia))
+    .select('id');
+  if (error) throw error;
+  return (data ?? []).length;
+}
+
+/**
  * Clave del enlace de cocina. Vive en una tabla cerrada al administrador, no
  * en `site_settings`, porque esa tiene lectura pública y cualquiera podría
  * leerla y espiar la cola de preparación.

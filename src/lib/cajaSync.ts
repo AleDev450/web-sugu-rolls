@@ -1,7 +1,7 @@
 'use client';
 
 import { getSupabase } from '@/lib/supabase/client';
-import { leerPedidos, type Pedido } from '@/lib/caja';
+import { guardarPedidos, leerPedidos, type Pedido } from '@/lib/caja';
 
 /**
  * Sincronización de la caja de feria con Supabase.
@@ -120,8 +120,45 @@ export type Resultado = {
   subidos: number;
   borrados: number;
   pendientes: number;
+  /** id → nombre del cierre, para los cobros que el panel cerró por su cuenta */
+  cerradosEnPanel: Record<string, string>;
   error: string | null;
 };
+
+/**
+ * La única bajada de la caja: el cierre que el panel le puso a un día que
+ * quedó abierto (alguien se olvidó de cerrar). Solo se pregunta por los
+ * cobros que aquí siguen abiertos, y solo se trae el nombre del cierre.
+ *
+ * Se aplica al localStorage ANTES de subir la cola, así un cobro editado
+ * que el panel ya cerró sube con su cierre y no con el vacío. Sin señal no
+ * pasa nada: se reintenta en la siguiente vuelta.
+ */
+async function bajarCierres(
+  sb: NonNullable<ReturnType<typeof getSupabase>>,
+): Promise<Record<string, string>> {
+  const abiertos = leerPedidos()
+    .filter((p) => !p.cierre)
+    .map((p) => p.id);
+  if (!abiertos.length) return {};
+
+  const cerrados: Record<string, string> = {};
+  // en tandas: la lista de ids viaja en la URL de la consulta
+  for (let i = 0; i < abiertos.length; i += 100) {
+    const { data, error } = await sb
+      .from('caja_pedidos')
+      .select('id, cierre')
+      .in('id', abiertos.slice(i, i + 100))
+      .neq('cierre', '');
+    if (error) return {};
+    for (const fila of data ?? []) cerrados[fila.id as string] = fila.cierre as string;
+  }
+  if (!Object.keys(cerrados).length) return {};
+
+  // se relee: mientras se esperaba a la red pudo entrar un cobro nuevo
+  guardarPedidos(leerPedidos().map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id] } : p)));
+  return cerrados;
+}
 
 /**
  * Empuja la cola. Devuelve el error en vez de lanzarlo: en plena feria una
@@ -131,12 +168,20 @@ export type Resultado = {
 export async function sincronizar(): Promise<Resultado> {
   const sb = getSupabase();
   if (!sb) {
-    return { subidos: 0, borrados: 0, pendientes: cuantosPendientes(), error: 'SIN_BACKEND' };
+    return {
+      subidos: 0,
+      borrados: 0,
+      pendientes: cuantosPendientes(),
+      cerradosEnPanel: {},
+      error: 'SIN_BACKEND',
+    };
   }
+
+  const cerradosEnPanel = await bajarCierres(sb);
 
   const inicial = leerEstado();
   if (!inicial.pendientes.length && !inicial.borrados.length) {
-    return { subidos: 0, borrados: 0, pendientes: 0, error: null };
+    return { subidos: 0, borrados: 0, pendientes: 0, cerradosEnPanel, error: null };
   }
 
   const locales = new Map(leerPedidos().map((p) => [p.id, p]));
@@ -156,7 +201,13 @@ export async function sincronizar(): Promise<Resultado> {
   if (aSubir.length) {
     const { error } = await sb.from('caja_pedidos').upsert(aSubir.map(aFila));
     if (error) {
-      return { subidos: 0, borrados: 0, pendientes: cuantosPendientes(), error: error.message };
+      return {
+        subidos: 0,
+        borrados: 0,
+        pendientes: cuantosPendientes(),
+        cerradosEnPanel,
+        error: error.message,
+      };
     }
     subidos = aSubir.length;
   }
@@ -171,7 +222,13 @@ export async function sincronizar(): Promise<Resultado> {
         borrados: tras.borrados,
         confirmados: sinRepetir([...tras.confirmados, ...aSubir.map((p) => p.id)]),
       });
-      return { subidos, borrados: 0, pendientes: cuantosPendientes(), error: error.message };
+      return {
+        subidos,
+        borrados: 0,
+        pendientes: cuantosPendientes(),
+        cerradosEnPanel,
+        error: error.message,
+      };
     }
     borrados = aBorrar.length;
   }
@@ -186,5 +243,5 @@ export async function sincronizar(): Promise<Resultado> {
     ),
   });
 
-  return { subidos, borrados, pendientes: cuantosPendientes(), error: null };
+  return { subidos, borrados, pendientes: cuantosPendientes(), cerradosEnPanel, error: null };
 }

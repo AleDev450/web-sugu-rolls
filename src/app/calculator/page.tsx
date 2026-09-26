@@ -368,6 +368,17 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     setSubiendo(false);
     setPendientesSync(r.pendientes);
     setFalloSync(r.error && r.error !== 'SIN_BACKEND' ? r.error : null);
+    /*
+     * Días que el panel cerró porque aquí se olvidaron de cerrar: salen de
+     * la caja abierta igual que si se hubieran cerrado en este equipo.
+     */
+    const cerrados = r.cerradosEnPanel;
+    if (Object.keys(cerrados).length) {
+      setPedidos((previos) =>
+        (previos ?? []).map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id] } : p)),
+      );
+      setAviso('El panel cerró la caja de un día anterior');
+    }
   }, [sincroniza]);
 
   useEffect(() => {
@@ -386,8 +397,14 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
 
   useEffect(() => {
     const alVolver = () => void empujar();
+    // al volver a la pestaña también: trae lo que el panel haya cerrado
+    const alMostrar = () => document.visibilityState === 'visible' && alVolver();
     window.addEventListener('online', alVolver);
-    return () => window.removeEventListener('online', alVolver);
+    document.addEventListener('visibilitychange', alMostrar);
+    return () => {
+      window.removeEventListener('online', alVolver);
+      document.removeEventListener('visibilitychange', alMostrar);
+    };
   }, [empujar]);
 
   // mientras quede cola, se reintenta sin que nadie tenga que tocar nada
