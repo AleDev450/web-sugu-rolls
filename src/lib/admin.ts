@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import type { GrupoSaboresPromo } from '@/data/productos';
 import {
   type ClaveProducto,
+  type Movimiento,
   type Pedido,
   type Precios,
   claveCaja,
@@ -94,6 +95,8 @@ export interface PedidoCaja {
   /** reparto del cobro; en un solo medio uno lleva el total y el otro 0 */
   monto_yape: number;
   monto_efectivo: number;
+  /** vuelto devuelto por Yape (migración 043); 0 si no hubo */
+  vuelto_yape: number;
   pagado: boolean;
   entregado: boolean;
   /** hora en que se tocó "Entregar"; vacía si se dio por entregado al cerrar */
@@ -950,7 +953,21 @@ export async function listarCaja(desde?: string, hasta?: string): Promise<Pedido
     total: Number(p.total),
     monto_yape: Number(p.monto_yape ?? 0),
     monto_efectivo: Number(p.monto_efectivo ?? 0),
+    vuelto_yape: Number(p.vuelto_yape ?? 0),
   }));
+}
+
+/**
+ * Gastos y retiros de la caja en un rango. Una base sin la migración 043
+ * no tiene la tabla: se devuelve vacío en vez de romper la página entera.
+ */
+export async function listarMovimientosCaja(desde?: string, hasta?: string): Promise<Movimiento[]> {
+  let q = sb().from('caja_movimientos').select('*').order('creado', { ascending: false }).limit(2000);
+  if (desde) q = q.gte('creado', inicioDelDia(desde));
+  if (hasta) q = q.lt('creado', inicioDelDiaSiguiente(hasta));
+  const { data, error } = await q;
+  if (error) return [];
+  return ((data ?? []) as Movimiento[]).map((m) => ({ ...m, monto: Number(m.monto) }));
 }
 
 /**
@@ -1106,6 +1123,13 @@ export async function cerrarDiaDeCaja(dia: string, nombre: string): Promise<numb
     .lt('creado', inicioDelDiaSiguiente(dia))
     .select('id');
   if (error) throw error;
+  // los gastos y retiros del día se cierran con él; sin la migración 043 no hay nada que cerrar
+  await sb()
+    .from('caja_movimientos')
+    .update({ cierre: limpio })
+    .eq('cierre', '')
+    .gte('creado', inicioDelDia(dia))
+    .lt('creado', inicioDelDiaSiguiente(dia));
   return (data ?? []).length;
 }
 

@@ -14,6 +14,7 @@ import {
   LogOut,
   Minus,
   PackageCheck,
+  Receipt,
   Pencil,
   Plus,
   RefreshCw,
@@ -25,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  CONCEPTOS_GASTO,
   METODOS_PAGO,
   NOMBRE_METODO,
   NOTAS_RAPIDAS,
@@ -34,18 +36,22 @@ import {
   type ClaveProducto,
   type Linea,
   type MetodoPago,
+  type Movimiento,
   type Pedido,
   type Precios,
   conEntrega,
+  cuadreDeCaja,
   describirLinea,
   descargarExcel,
   dineroDe,
   espera,
   formatearNumero,
+  guardarMovimientos,
   guardarPedidos,
   guardarPrecios,
   guardarVendedor,
   hora,
+  leerMovimientos,
   leerPedidos,
   leerPrecios,
   leerVendedor,
@@ -68,8 +74,12 @@ import {
   cuantosPendientes,
   encolarNoSubidos,
   marcarBorrado,
+  marcarMovimientoBorrado,
+  marcarMovimientoSucio,
   marcarSucio,
+  movimientosPendientes,
   sincronizar,
+  sincronizarMovimientos,
   traerPrecios,
 } from '@/lib/cajaSync';
 import { cerrarSesion, esAdmin, traerClaveCocina, usuarioActual } from '@/lib/admin';
@@ -316,6 +326,20 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const [pagado, setPagado] = useState(true);
   const [cliente, setCliente] = useState('');
   const [nota, setNota] = useState('');
+  /** vuelto que se mandó por Yape porque no había sencillo en el cajón */
+  const [conVuelto, setConVuelto] = useState(false);
+  const [vuelto, setVuelto] = useState('');
+
+  /*
+   * Gastos y retiros de la caja. Se cargan al abrir, igual que los pedidos:
+   * null hasta leer el equipo, para no pisar lo guardado con una lista vacía.
+   */
+  const [movimientos, setMovimientos] = useState<Movimiento[] | null>(null);
+  const [tipoMov, setTipoMov] = useState<'gasto' | 'retiro'>('gasto');
+  const [conceptoMov, setConceptoMov] = useState('');
+  const [montoMov, setMontoMov] = useState('');
+  const [medioMov, setMedioMov] = useState<'efectivo' | 'yape'>('efectivo');
+  const [movPorBorrar, setMovPorBorrar] = useState<string | null>(null);
 
   // quién abrió la caja
   const [vendedor, setVendedor] = useState<string | null>(null);
@@ -356,12 +380,13 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   useEffect(() => {
     setOrigen(window.location.origin);
     setPedidos(leerPedidos());
+    setMovimientos(leerMovimientos());
     setVendedor(leerVendedor());
     const guardados = leerPrecios();
     preciosRef.current = guardados;
     setPrecios(guardados);
     encolarNoSubidos();
-    setPendientesSync(cuantosPendientes());
+    setPendientesSync(cuantosPendientes() + movimientosPendientes());
   }, []);
 
   useEffect(() => {
@@ -422,9 +447,19 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     if (!sincroniza) return;
     setSubiendo(true);
     const r = await sincronizar();
+    const rm = await sincronizarMovimientos();
     setSubiendo(false);
-    setPendientesSync(r.pendientes);
-    setFalloSync(r.error && r.error !== 'SIN_BACKEND' ? r.error : null);
+    setPendientesSync(r.pendientes + rm.pendientes);
+    const fallo = [r.error, rm.error].find((e) => e && e !== 'SIN_BACKEND') ?? null;
+    setFalloSync(fallo);
+    const movCerrados = rm.cerradosEnPanel;
+    if (Object.keys(movCerrados).length) {
+      setMovimientos((previos) =>
+        (previos ?? []).map((m) =>
+          movCerrados[m.id] && !m.cierre ? { ...m, cierre: movCerrados[m.id] } : m,
+        ),
+      );
+    }
     /*
      * Días que el panel cerró porque aquí se olvidaron de cerrar: salen de
      * la caja abierta igual que si se hubieran cerrado en este equipo.
@@ -441,6 +476,15 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   useEffect(() => {
     if (pedidos) guardarPedidos(pedidos);
   }, [pedidos]);
+
+  // mismo orden que con los pedidos: primero se guarda, después se sube
+  useEffect(() => {
+    if (movimientos) guardarMovimientos(movimientos);
+  }, [movimientos]);
+
+  useEffect(() => {
+    if (movimientos) void empujar();
+  }, [movimientos, empujar]);
 
   /*
    * La subida cuelga de `pedidos` y NO de cada manejador: el efecto de
@@ -540,6 +584,15 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
 
   /** Cobros del turno en curso: los que todavía no pertenecen a un cierre. */
   const abiertos = useMemo(() => (pedidos ?? []).filter((p) => !p.cierre), [pedidos]);
+  const movAbiertos = useMemo(
+    () =>
+      (movimientos ?? [])
+        .filter((m) => !m.cierre)
+        .sort((a, b) => b.creado.localeCompare(a.creado)),
+    [movimientos],
+  );
+  /** Lo que debería haber en el cajón y en el Yape con todo lo anotado. */
+  const cuadre = useMemo(() => cuadreDeCaja(abiertos, movAbiertos), [abiertos, movAbiertos]);
 
   const resumen = useMemo(() => {
     const total = abiertos.reduce((s, p) => s + p.total, 0);
@@ -630,6 +683,8 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     setPagado(true);
     setCliente('');
     setNota('');
+    setConVuelto(false);
+    setVuelto('');
   }
 
   function agregarLinea() {
@@ -653,6 +708,11 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       metodo,
       ...repartir(metodo, totalActual, Number(yapeParcial)),
       pagado,
+      // el vuelto por Yape solo existe si entró efectivo
+      vueltoYape:
+        conVuelto && (metodo === 'efectivo' || metodo === 'mixto')
+          ? Math.max(0, Math.round((Number(vuelto) || 0) * 100) / 100)
+          : 0,
       entregado: false,
       entregadoEn: null,
     };
@@ -694,6 +754,34 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     setAviso('Venta corregida');
   }
 
+  /** Anota un gasto o un retiro. Nace en el equipo y sube cuando hay señal. */
+  function anotarMovimiento() {
+    const monto = Math.round((Number(montoMov.replace(',', '.')) || 0) * 100) / 100;
+    if (monto <= 0) return;
+    const nuevo: Movimiento = {
+      id: nuevoId(),
+      creado: new Date().toISOString(),
+      vendedor: vendedor ?? '',
+      cierre: '',
+      tipo: tipoMov,
+      concepto: conceptoMov.trim() || (tipoMov === 'gasto' ? 'Gasto' : 'Retiro de caja'),
+      monto,
+      // un retiro es sacar billetes del cajón: siempre efectivo
+      medio: tipoMov === 'retiro' ? 'efectivo' : medioMov,
+    };
+    marcarMovimientoSucio(nuevo.id);
+    setMovimientos((previos) => [...(previos ?? []), nuevo]);
+    setConceptoMov('');
+    setMontoMov('');
+    setAviso(`${tipoMov === 'gasto' ? 'Gasto' : 'Retiro'} anotado · ${soles(monto)}`);
+  }
+
+  function borrarMovimiento(id: string) {
+    marcarMovimientoBorrado(id);
+    setMovimientos((previos) => (previos ?? []).filter((m) => m.id !== id));
+    setMovPorBorrar(null);
+  }
+
   /**
    * Cierra el turno: sella con un nombre todos los cobros abiertos, baja el
    * Excel de esa jornada y deja la caja en cero para la siguiente. No borra
@@ -705,8 +793,15 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     if (!nombre || abiertos.length === 0) return;
     const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre, entregado: true }));
     for (const p of abiertos) marcarSucio(p.id);
+    // los gastos y retiros de la jornada se cierran con ella
+    for (const m of movAbiertos) marcarMovimientoSucio(m.id);
+    setMovimientos((previos) => (previos ?? []).map((m) => (m.cierre ? m : { ...m, cierre: nombre })));
     setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre, entregado: true })));
-    void descargarExcel(cerrados, paraArchivo(nombre));
+    void descargarExcel(
+      cerrados,
+      paraArchivo(nombre),
+      movAbiertos.map((m) => ({ ...m, cierre: nombre })),
+    );
     setCerrando(false);
     setNombreCierre('');
     setTab('pendientes');
@@ -795,7 +890,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const faltante = !producto
     ? 'Elige un producto'
     : faltaVariante
-      ? `Elige ${producto === 'maki' ? 'Personal o Dúo' : 'la base'}`
+      ? `Elige ${producto === 'maki' ? 'la presentación' : 'la base'}`
       : faltaSabor
         ? 'Elige el sabor'
         : '';
@@ -831,6 +926,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                 {resumen.canjeado > 0 && (
                   <Etiqueta tono="azul">Canje {soles(resumen.canjeado)}</Etiqueta>
                 )}
+                <Etiqueta tono="gris">En caja {soles(cuadre.efectivoEnCaja)}</Etiqueta>
               </p>
               <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-bone-dim">
                 Llevas atendiendo
@@ -1055,6 +1151,35 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                 </p>
               </div>
             )}
+            {(metodo === 'efectivo' || metodo === 'mixto') && (
+              <div className="mt-2 rounded-2xl border border-white/10 bg-night-2 p-3">
+                <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium">
+                  <input
+                    type="checkbox"
+                    checked={conVuelto}
+                    onChange={(e) => setConVuelto(e.target.checked)}
+                    className="h-5 w-5 accent-[#E31323]"
+                  />
+                  Se devolvió el vuelto por Yape
+                </label>
+                {conVuelto && (
+                  <>
+                    <input
+                      value={vuelto}
+                      onChange={(e) => setVuelto(e.target.value.replace(/[^\d.]/g, ''))}
+                      inputMode="decimal"
+                      placeholder="Monto del vuelto"
+                      aria-label="Monto del vuelto por Yape"
+                      className="mt-2 w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                    />
+                    <p className="mt-1.5 text-[11px] text-bone-dim">
+                      Entra ese monto de más al cajón y sale del Yape. El cobro del pedido no
+                      cambia.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </Paso>
 
           <Paso n={paso.estado} titulo="¿Ya pagó?">
@@ -1216,6 +1341,9 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                               ? `Yape ${soles(p.montoYape)} · Efec. ${soles(p.montoEfectivo)}`
                               : NOMBRE_METODO[p.metodo]}
                           </Etiqueta>
+                          {p.vueltoYape > 0 && (
+                            <Etiqueta tono="azul">Vuelto Yape {soles(p.vueltoYape)}</Etiqueta>
+                          )}
                         </p>
                       </div>
                       <span className="shrink-0 text-lg font-bold tabular-nums">
@@ -1278,7 +1406,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
             <>
               <button
                 type="button"
-                onClick={() => descargarExcel(abiertos, 'caja-abierta')}
+                onClick={() => descargarExcel(abiertos, 'caja-abierta', movAbiertos)}
                 className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600/15 font-semibold text-emerald-300 active:scale-[0.99]"
               >
                 <Download size={18} />
@@ -1299,6 +1427,159 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
           )}
         </section>
       </div>
+
+      {/* ---------------- Gastos y retiros ---------------- */}
+      <section className="mx-auto mt-2 max-w-5xl px-4">
+        <div className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+          <div className="grid content-start gap-3">
+            <h2 className="flex items-center gap-2 text-sm font-bold">
+              <Receipt size={16} />
+              Gastos y retiros de caja
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              <Opcion activo={tipoMov === 'gasto'} onClick={() => setTipoMov('gasto')}>
+                <span>Gasto</span>
+                <span className="text-[10px] font-normal opacity-70">Motorizado, comida…</span>
+              </Opcion>
+              <Opcion activo={tipoMov === 'retiro'} onClick={() => setTipoMov('retiro')}>
+                <span>Saqué de caja</span>
+                <span className="text-[10px] font-normal opacity-70">Efectivo que agarré</span>
+              </Opcion>
+            </div>
+
+            {tipoMov === 'gasto' && (
+              <div className="flex flex-wrap gap-1.5">
+                {CONCEPTOS_GASTO.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setConceptoMov(c)}
+                    className={`min-h-[36px] rounded-full border px-3 text-[12px] font-semibold transition-colors ${
+                      conceptoMov === c ? 'border-sugu bg-sugu text-white' : 'border-white/15 text-bone-dim'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
+              <input
+                value={conceptoMov}
+                onChange={(e) => setConceptoMov(e.target.value)}
+                placeholder={tipoMov === 'gasto' ? 'En qué se gastó' : 'Para qué (opcional)'}
+                aria-label="Concepto"
+                className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none placeholder:text-white/30 focus:border-sugu"
+              />
+              <input
+                value={montoMov}
+                onChange={(e) => setMontoMov(e.target.value.replace(/[^\d.,]/g, ''))}
+                inputMode="decimal"
+                placeholder="S/ 0.00"
+                aria-label="Monto"
+                onKeyDown={(e) => e.key === 'Enter' && anotarMovimiento()}
+                className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-right text-base tabular-nums outline-none placeholder:text-white/30 focus:border-sugu"
+              />
+            </div>
+
+            {tipoMov === 'gasto' && (
+              <div className="grid grid-cols-2 gap-2">
+                <Opcion activo={medioMov === 'efectivo'} onClick={() => setMedioMov('efectivo')}>
+                  <span className="text-[12px]">Pagué en efectivo</span>
+                </Opcion>
+                <Opcion activo={medioMov === 'yape'} onClick={() => setMedioMov('yape')}>
+                  <span className="text-[12px]">Pagué por Yape</span>
+                </Opcion>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={anotarMovimiento}
+              disabled={!(Number(montoMov.replace(',', '.')) > 0)}
+              className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white disabled:bg-night-3 disabled:text-bone-dim"
+            >
+              {tipoMov === 'gasto' ? 'Anotar gasto' : 'Anotar lo que saqué'}
+            </button>
+          </div>
+
+          <div className="grid content-start gap-3">
+            {/* el cuadre: es lo que se cuenta al final, así que va arriba y grande */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-white/10 bg-night-2 p-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-bone-dim">
+                  Debe haber en caja
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-400">
+                  {soles(cuadre.efectivoEnCaja)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-night-2 p-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-bone-dim">Yape neto</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums">{soles(cuadre.yapeNeto)}</p>
+              </div>
+            </div>
+            <dl className="grid gap-1 rounded-2xl border border-white/10 bg-night-2 p-3 text-[13px]">
+              {[
+                ['Cobrado en efectivo', cuadre.efectivoCobrado, ''],
+                ['Vueltos dados por Yape', cuadre.vueltos, '+'],
+                ['Gastos en efectivo', cuadre.gastosEfectivo, '−'],
+                ['Lo que saqué de caja', cuadre.retiros, '−'],
+                ['Gastos por Yape', cuadre.gastosYape, ''],
+              ].map(([et, monto, signo]) => (
+                <div key={et as string} className="flex justify-between gap-3">
+                  <dt className="text-bone-dim">{et}</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {signo && Number(monto) > 0 ? `${signo} ` : ''}
+                    {soles(Number(monto))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            {movAbiertos.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-white/15 p-5 text-center text-[13px] text-bone-dim">
+                Sin gastos ni retiros en esta caja.
+              </p>
+            ) : (
+              <ul className="grid gap-2">
+                {movAbiertos.map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-night-2 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-semibold">{m.concepto}</p>
+                      <p className="text-[11px] text-bone-dim">
+                        {hora(m.creado)} · {m.tipo === 'gasto' ? 'Gasto' : 'Saqué de caja'} ·{' '}
+                        {m.medio === 'yape' ? 'Yape' : 'Efectivo'}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="font-bold tabular-nums">− {soles(m.monto)}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          movPorBorrar === m.id ? borrarMovimiento(m.id) : setMovPorBorrar(m.id)
+                        }
+                        className={`min-h-[36px] rounded-xl border px-2.5 text-[12px] font-semibold ${
+                          movPorBorrar === m.id
+                            ? 'border-sugu bg-sugu/15 text-sugu'
+                            : 'border-white/15 text-bone-dim'
+                        }`}
+                        aria-label={`Borrar ${m.concepto}`}
+                      >
+                        {movPorBorrar === m.id ? '¿Seguro?' : <Trash2 size={14} />}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
 
       {editando && (
         <EditarVenta
@@ -1353,6 +1634,16 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
             <span className="font-semibold text-bone">{soles(resumen.total)}</span>. Se descarga el
             Excel de este cierre y la caja vuelve a cero.
           </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[13px]">
+            <p className="rounded-xl border border-white/10 bg-night-2 px-3 py-2">
+              <span className="block text-[11px] text-bone-dim">Debe haber en caja</span>
+              <span className="font-bold text-emerald-400">{soles(cuadre.efectivoEnCaja)}</span>
+            </p>
+            <p className="rounded-xl border border-white/10 bg-night-2 px-3 py-2">
+              <span className="block text-[11px] text-bone-dim">Yape neto</span>
+              <span className="font-bold">{soles(cuadre.yapeNeto)}</span>
+            </p>
+          </div>
           {resumen.pendiente > 0 && (
             <p className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300">
               Ojo: quedan {soles(resumen.pendiente)} sin cobrar. Se cierran igual, marcados como
@@ -1433,6 +1724,7 @@ function EditarVenta({
   const [copia, setCopia] = useState<Pedido>(pedido);
   const [yape, setYape] = useState(String(pedido.montoYape || ''));
   const [efectivo, setEfectivo] = useState(String(pedido.montoEfectivo || ''));
+  const [vueltoEd, setVueltoEd] = useState(pedido.vueltoYape ? String(pedido.vueltoYape) : '');
   /** índice de la línea abierta a fondo; null = ninguna */
   const [abierta, setAbierta] = useState<number | null>(null);
 
@@ -1714,6 +2006,20 @@ function EditarVenta({
               </p>
             </div>
           )}
+          {(copia.metodo === 'efectivo' || copia.metodo === 'mixto') && (
+            <label className="mt-2 block">
+              <span className="mb-1.5 block text-[12px] text-bone-dim">
+                Vuelto devuelto por Yape (vacío si no hubo)
+              </span>
+              <input
+                value={vueltoEd}
+                onChange={(e) => setVueltoEd(e.target.value.replace(/[^\d.]/g, ''))}
+                inputMode="decimal"
+                placeholder="0.00"
+                className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+              />
+            </label>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -1741,7 +2047,16 @@ function EditarVenta({
           </button>
           <button
             type="button"
-            onClick={() => alGuardar({ ...copia, montoYape: Number(yape) || 0 })}
+            onClick={() =>
+              alGuardar({
+                ...copia,
+                montoYape: Number(yape) || 0,
+                vueltoYape:
+                  copia.metodo === 'efectivo' || copia.metodo === 'mixto'
+                    ? Math.round((Number(vueltoEd) || 0) * 100) / 100
+                    : 0,
+              })
+            }
             className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white"
           >
             Guardar

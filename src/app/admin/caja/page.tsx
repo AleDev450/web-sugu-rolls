@@ -8,6 +8,7 @@ import {
   cerrarDiaDeCaja,
   listarCaja,
   listarCajaAbierta,
+  listarMovimientosCaja,
   traerClaveCocina,
   type PedidoCaja,
 } from '@/lib/admin';
@@ -18,9 +19,11 @@ import {
   NOMBRE_METODO,
   NOMBRE_PRODUCTO,
   type ClaveProducto,
+  type Movimiento,
   type Pedido,
   arqueoPorMetodo,
   buscarVariante,
+  cuadreDeCaja,
   descargarExcel,
   dineroDe,
   rangoFechas,
@@ -60,6 +63,7 @@ function aPedido(p: PedidoCaja): Pedido {
     metodo: p.metodo,
     montoYape: Number(p.monto_yape ?? 0),
     montoEfectivo: Number(p.monto_efectivo ?? 0),
+    vueltoYape: Number(p.vuelto_yape ?? 0),
     pagado: p.pagado,
     entregado: p.entregado,
     entregadoEn: p.entregado_en ?? null,
@@ -85,6 +89,8 @@ export default function CajaAdmin() {
   /** el detalle de siempre, o los gráficos */
   const [vista, setVista] = useState<'detalle' | 'estadisticas' | 'precios'>('detalle');
   const [items, setItems] = useState<PedidoCaja[] | null>(null);
+  /** gastos y retiros del mismo rango */
+  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
   /** cierre al que se le está poniendo nombre de vendedor, y el nombre */
@@ -106,11 +112,13 @@ export default function CajaAdmin() {
     setItems(null);
     setError(null);
     try {
-      const [caja, sinCerrar] = await Promise.all([
+      const [caja, sinCerrar, movs] = await Promise.all([
         listarCaja(desde || undefined, hasta || undefined),
         listarCajaAbierta(),
+        listarMovimientosCaja(desde || undefined, hasta || undefined),
       ]);
       setItems(caja);
+      setMovimientos(movs);
       setAbiertos(sinCerrar);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo leer la caja.');
@@ -229,6 +237,20 @@ export default function CajaAdmin() {
   }, [items, vendedor, cierre]);
 
   const pedidosVisibles = useMemo(() => visibles.map(aPedido), [visibles]);
+
+  /** Gastos y retiros con los mismos filtros de vendedor y cierre que los pedidos. */
+  const movVisibles = useMemo(() => {
+    let base = movimientos;
+    if (vendedor !== 'todos') base = base.filter((m) => m.vendedor.trim() === vendedor);
+    if (cierre === 'abierta') base = base.filter((m) => !m.cierre.trim());
+    else if (cierre !== 'todos') base = base.filter((m) => m.cierre.trim() === cierre);
+    return base;
+  }, [movimientos, vendedor, cierre]);
+
+  const cuadre = useMemo(
+    () => cuadreDeCaja(pedidosVisibles, movVisibles),
+    [pedidosVisibles, movVisibles],
+  );
 
   /** Atajos de rango: las estadísticas piden semanas, no un solo día. */
   function ultimosDias(n: number) {
@@ -441,7 +463,7 @@ export default function CajaAdmin() {
         {visibles.length > 0 && (
           <button
             type="button"
-            onClick={() => descargarExcel(visibles.map(aPedido), etiquetaArchivo)}
+            onClick={() => descargarExcel(pedidosVisibles, etiquetaArchivo, movVisibles)}
             className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-600/15 px-4 py-2 text-[13px] font-semibold text-emerald-300"
           >
             <Download className="h-4 w-4" />
@@ -629,6 +651,93 @@ export default function CajaAdmin() {
                     pedidos cobrados sin monto. Se arregla corriendo la migración 035.
                   </p>
                 )}
+              </section>
+
+              <section className="rounded-2xl border border-white/10 bg-night-2 p-4 lg:col-span-2">
+                <h2 className="mb-3 text-sm font-semibold">Cuadre de efectivo, gastos y retiros</h2>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="grid content-start gap-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-white/10 bg-night p-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-bone-dim">
+                          Debe haber en caja
+                        </p>
+                        <p className="mt-1 text-xl font-bold tabular-nums text-emerald-400">
+                          {soles(cuadre.efectivoEnCaja)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-night p-3">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-bone-dim">
+                          Yape neto
+                        </p>
+                        <p className="mt-1 text-xl font-bold tabular-nums">{soles(cuadre.yapeNeto)}</p>
+                      </div>
+                    </div>
+                    <table className="w-full text-[13px]">
+                      <tbody>
+                        {(
+                          [
+                            ['Cobrado en efectivo', cuadre.efectivoCobrado, ''],
+                            ['Vueltos dados por Yape', cuadre.vueltos, '+'],
+                            ['Gastos en efectivo', cuadre.gastosEfectivo, '−'],
+                            ['Retiros del cajón', cuadre.retiros, '−'],
+                            ['Cobrado por Yape', cuadre.yapeCobrado, ''],
+                            ['Gastos por Yape', cuadre.gastosYape, ''],
+                          ] as const
+                        ).map(([et, monto, signo]) => (
+                          <tr key={et} className="border-t border-white/5">
+                            <td className="py-1.5 text-bone-dim">{et}</td>
+                            <td className="py-1.5 text-right font-semibold tabular-nums">
+                              {signo && monto > 0 ? `${signo} ` : ''}
+                              {soles(monto)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-[11px] text-bone-dim">
+                      En caja = efectivo cobrado + vueltos que se dieron por Yape − gastos en
+                      efectivo − lo que se sacó del cajón. Yape neto = Yape cobrado − vueltos −
+                      gastos por Yape.
+                    </p>
+                  </div>
+
+                  <div>
+                    {movVisibles.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-white/15 p-6 text-center text-[13px] text-bone-dim">
+                        Sin gastos ni retiros en este rango.
+                      </p>
+                    ) : (
+                      <table className="w-full text-[13px]">
+                        <thead className="text-[11px] uppercase tracking-wider text-bone-dim">
+                          <tr>
+                            <th className="pb-2 text-left font-medium">Concepto</th>
+                            <th className="pb-2 text-left font-medium">Quién</th>
+                            <th className="pb-2 text-right font-medium">Monto</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {movVisibles.map((m) => (
+                            <tr key={m.id} className="border-t border-white/5">
+                              <td className="py-2">
+                                <span className="font-medium">{m.concepto}</span>
+                                <span className="block text-[11px] text-bone-dim">
+                                  {fechaCorta(m.creado)} {hora(m.creado)} ·{' '}
+                                  {m.tipo === 'gasto' ? 'Gasto' : 'Retiro del cajón'} ·{' '}
+                                  {m.medio === 'yape' ? 'Yape' : 'Efectivo'}
+                                </span>
+                              </td>
+                              <td className="py-2 text-bone-dim">{m.vendedor || '—'}</td>
+                              <td className="py-2 text-right font-semibold tabular-nums">
+                                {soles(m.monto)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
               </section>
 
               <section className="rounded-2xl border border-white/10 bg-night-2 p-4">
@@ -820,6 +929,11 @@ export default function CajaAdmin() {
                                 ? `Yape ${soles(p.monto_yape)} · Efec. ${soles(p.monto_efectivo)}`
                                 : (NOMBRE_METODO[p.metodo] ?? p.metodo)}
                             </span>
+                            {p.vuelto_yape > 0 && (
+                              <span className="rounded-full bg-violet-600/20 px-2 py-0.5 font-semibold text-violet-300">
+                                Vuelto Yape {soles(p.vuelto_yape)}
+                              </span>
+                            )}
                             {p.entregado && (
                               <span className="rounded-full bg-sky-600/20 px-2 py-0.5 font-semibold text-sky-400">
                                 Entregado

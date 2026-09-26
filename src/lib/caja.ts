@@ -68,6 +68,12 @@ export type Pedido = {
   /** Reparto del cobro. En un solo medio, uno lleva el total y el otro 0. */
   montoYape: number;
   montoEfectivo: number;
+  /**
+   * Vuelto que se le mandó por Yape porque en el cajón no había sencillo.
+   * El cliente pagó en efectivo de más: ese extra ENTRA al cajón y la misma
+   * cantidad SALE del Yape. El cobro del pedido no cambia.
+   */
+  vueltoYape: number;
   pagado: boolean;
   entregado: boolean;
   /**
@@ -381,6 +387,80 @@ export function arqueoPorMetodo(pedidos: Pedido[]): ArqueoMetodo[] {
   ].filter((f) => f.monto > 0 || f.pedidos > 0);
 }
 
+/* ------------------------------------------------------------------ */
+/* Gastos y retiros                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Plata que sale de la caja sin ser una venta.
+ *
+ *   · GASTO: se pagó algo del puesto —el motorizado, la comida, el agua—.
+ *     Puede salir del cajón o del Yape.
+ *   · RETIRO: alguien sacó efectivo del cajón (para llevarlo, para
+ *     guardarlo). No es un gasto: la plata sigue siendo del negocio, solo
+ *     que ya no está en el cajón. Siempre es efectivo.
+ *
+ * Viven con la caja abierta y se sellan con el mismo cierre que los
+ * pedidos, así el cuadre de cada jornada los incluye.
+ */
+export type TipoMovimiento = 'gasto' | 'retiro';
+
+export type Movimiento = {
+  id: string;
+  creado: string;
+  vendedor: string;
+  /** vacío = caja abierta, igual que en los pedidos */
+  cierre: string;
+  tipo: TipoMovimiento;
+  concepto: string;
+  monto: number;
+  medio: 'efectivo' | 'yape';
+};
+
+/** Lo que más se paga en una feria: un toque y listo. */
+export const CONCEPTOS_GASTO = ['Motorizado', 'Comida', 'Agua', 'Hielo', 'Bolsas'];
+
+export type Cuadre = {
+  efectivoCobrado: number;
+  yapeCobrado: number;
+  /** vueltos dados por Yape: más efectivo en el cajón, menos Yape */
+  vueltos: number;
+  gastosEfectivo: number;
+  gastosYape: number;
+  retiros: number;
+  /** lo que debería haber en el cajón ahora mismo */
+  efectivoEnCaja: number;
+  /** lo que entró al Yape descontando vueltos y gastos pagados por Yape */
+  yapeNeto: number;
+};
+
+/**
+ * Cuánta plata debería haber, y dónde. Es la cuenta que se hace al cerrar:
+ * lo cobrado en efectivo, más lo que entró de más por vueltos que se
+ * devolvieron por Yape, menos lo que se gastó o se sacó del cajón.
+ */
+export function cuadreDeCaja(pedidos: Pedido[], movimientos: Movimiento[]): Cuadre {
+  const cobrados = pedidos.filter((p) => p.pagado);
+  const efectivoCobrado = cobrados.reduce((s, p) => s + p.montoEfectivo, 0);
+  const yapeCobrado = cobrados.reduce((s, p) => s + p.montoYape, 0);
+  const vueltos = cobrados.reduce((s, p) => s + (p.vueltoYape || 0), 0);
+  const suma = (filtro: (m: Movimiento) => boolean) =>
+    movimientos.filter(filtro).reduce((s, m) => s + m.monto, 0);
+  const gastosEfectivo = suma((m) => m.tipo === 'gasto' && m.medio === 'efectivo');
+  const gastosYape = suma((m) => m.tipo === 'gasto' && m.medio === 'yape');
+  const retiros = suma((m) => m.tipo === 'retiro');
+  return {
+    efectivoCobrado: aCentimos(efectivoCobrado),
+    yapeCobrado: aCentimos(yapeCobrado),
+    vueltos: aCentimos(vueltos),
+    gastosEfectivo: aCentimos(gastosEfectivo),
+    gastosYape: aCentimos(gastosYape),
+    retiros: aCentimos(retiros),
+    efectivoEnCaja: aCentimos(efectivoCobrado + vueltos - gastosEfectivo - retiros),
+    yapeNeto: aCentimos(yapeCobrado - vueltos - gastosYape),
+  };
+}
+
 /** Rango de fechas que cubre un grupo de pedidos, para encabezar un resumen. */
 export function rangoFechas(pedidos: Pedido[]): string {
   if (!pedidos.length) return '';
@@ -441,6 +521,7 @@ function normalizar(guardado: PedidoGuardado): Pedido {
     nota: previo.nota ?? '',
     cierre: previo.cierre ?? '',
     entregadoEn: previo.entregadoEn ?? null,
+    vueltoYape: Number(previo.vueltoYape ?? 0),
     lineas,
     total,
     metodo,
@@ -504,6 +585,28 @@ export function guardarVendedor(nombre: string): void {
  * vez que hubo señal. Sin ellos se cobra a precio de carta; con ellos, una
  * feria sin conexión sigue cobrando lo que el panel decidió.
  */
+const CLAVE_MOVIMIENTOS = 'sugu-caja-movimientos';
+
+/** Gastos y retiros del equipo, con el mismo cuidado que los pedidos. */
+export function leerMovimientos(): Movimiento[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const crudo = window.localStorage.getItem(CLAVE_MOVIMIENTOS);
+    const datos = crudo ? JSON.parse(crudo) : [];
+    return Array.isArray(datos) ? (datos as Movimiento[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function guardarMovimientos(movimientos: Movimiento[]): void {
+  try {
+    window.localStorage.setItem(CLAVE_MOVIMIENTOS, JSON.stringify(movimientos));
+  } catch {
+    /* sin almacenamiento duran lo que dure la pestaña */
+  }
+}
+
 const CLAVE_PRECIOS = 'sugu-caja-precios';
 
 export function leerPrecios(): Precios {
@@ -598,7 +701,11 @@ export function describirLinea(l: Linea): string {
  * `exceljs` se importa aquí dentro —no arriba— para que la librería no pese
  * en la carga de la caja: solo baja cuando de verdad se cierra el día.
  */
-export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promise<void> {
+export async function descargarExcel(
+  pedidos: Pedido[],
+  etiqueta: string,
+  movimientos: Movimiento[] = [],
+): Promise<void> {
   const ExcelJS = (await import('exceljs')).default;
   const libro = new ExcelJS.Workbook();
   const hoja = libro.addWorksheet('Caja');
@@ -619,6 +726,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
     { header: 'Pago', key: 'metodo', width: 14 },
     { header: 'Yape', key: 'yape', width: 12 },
     { header: 'Efectivo', key: 'efectivo', width: 12 },
+    { header: 'Vuelto por Yape', key: 'vuelto', width: 15 },
     { header: 'Cobrado', key: 'pagado', width: 10 },
     { header: 'Entregado', key: 'entregado', width: 11 },
     { header: 'Cierre', key: 'cierre', width: 20 },
@@ -656,6 +764,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
          */
         yape: i === 0 ? p.montoYape : null,
         efectivo: i === 0 ? p.montoEfectivo : null,
+        vuelto: i === 0 && p.vueltoYape ? p.vueltoYape : null,
         pagado: p.pagado ? 'Sí' : 'No',
         entregado: p.entregado ? 'Sí' : 'No',
         cierre: p.cierre,
@@ -663,7 +772,7 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
     });
   }
 
-  for (const clave of ['unitario', 'total', 'yape', 'efectivo']) {
+  for (const clave of ['unitario', 'total', 'yape', 'efectivo', 'vuelto']) {
     hoja.getColumn(clave).numFmt = '"S/" #,##0.00';
   }
 
@@ -689,9 +798,55 @@ export async function descargarExcel(pedidos: Pedido[], etiqueta: string): Promi
       hoja.addRow({ unitario: `Cobrado en ${NOMBRE_METODO[a.metodo]}`, total: a.monto }),
     ),
   ];
+  /*
+   * El cuadre del cajón: solo si hubo vueltos por Yape, gastos o retiros.
+   * Sin ellos el efectivo esperado es el cobrado en efectivo, que ya está
+   * arriba, y repetirlo solo alarga la hoja.
+   */
+  const cuadre = cuadreDeCaja(ordenados, movimientos);
+  if (cuadre.vueltos || movimientos.length) {
+    filas.push(
+      hoja.addRow({}),
+      hoja.addRow({ unitario: 'Vueltos por Yape', total: cuadre.vueltos }),
+      hoja.addRow({ unitario: 'Gastos en efectivo', total: -cuadre.gastosEfectivo }),
+      hoja.addRow({ unitario: 'Gastos por Yape', total: -cuadre.gastosYape }),
+      hoja.addRow({ unitario: 'Retiros del cajón', total: -cuadre.retiros }),
+      hoja.addRow({ unitario: 'Efectivo en caja', total: cuadre.efectivoEnCaja }),
+      hoja.addRow({ unitario: 'Yape neto', total: cuadre.yapeNeto }),
+    );
+  }
   for (const fila of filas) {
     fila.font = { bold: true };
     fila.getCell('unitario').numFmt = '@';
+  }
+
+  if (movimientos.length) {
+    const mov = libro.addWorksheet('Gastos y retiros');
+    mov.columns = [
+      { header: 'Fecha', key: 'fecha', width: 12 },
+      { header: 'Hora', key: 'hora', width: 8 },
+      { header: 'Vendedor', key: 'vendedor', width: 16 },
+      { header: 'Tipo', key: 'tipo', width: 10 },
+      { header: 'Concepto', key: 'concepto', width: 26 },
+      { header: 'Pagado con', key: 'medio', width: 12 },
+      { header: 'Monto', key: 'monto', width: 12 },
+      { header: 'Cierre', key: 'cierre', width: 20 },
+    ];
+    mov.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    mov.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0263B' } };
+    for (const m of [...movimientos].sort((a, b) => a.creado.localeCompare(b.creado))) {
+      mov.addRow({
+        fecha: fechaCorta(m.creado),
+        hora: hora(m.creado),
+        vendedor: m.vendedor,
+        tipo: m.tipo === 'gasto' ? 'Gasto' : 'Retiro',
+        concepto: m.concepto,
+        medio: m.medio === 'yape' ? 'Yape' : 'Efectivo',
+        monto: m.monto,
+        cierre: m.cierre,
+      });
+    }
+    mov.getColumn('monto').numFmt = '"S/" #,##0.00';
   }
 
   const buffer = await libro.xlsx.writeBuffer();

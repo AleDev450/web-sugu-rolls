@@ -2,11 +2,14 @@
 
 import { getSupabase } from '@/lib/supabase/client';
 import {
+  type Movimiento,
   type Pedido,
   type Precios,
   claveCaja,
   combinarPrecios,
+  guardarMovimientos,
   guardarPedidos,
+  leerMovimientos,
   leerPedidos,
 } from '@/lib/caja';
 
@@ -141,8 +144,12 @@ function aFila(p: Pedido) {
     pagado: p.pagado,
     entregado: p.entregado,
     entregado_en: p.entregadoEn ?? null,
+    vuelto_yape: p.vueltoYape ?? 0,
   };
 }
+
+/** Columnas que llegaron con migraciones posteriores a la tabla. */
+const COLUMNAS_NUEVAS = ['entregado_en', 'vuelto_yape'];
 
 export type Resultado = {
   subidos: number;
@@ -229,19 +236,18 @@ export async function sincronizar(): Promise<Resultado> {
   if (aSubir.length) {
     let { error } = await sb.from('caja_pedidos').upsert(aSubir.map(aFila));
     /*
-     * Una base sin la migración 041 no conoce `entregado_en`. Se sube sin
-     * la hora de entrega antes que dejar la caja sin sincronizar.
+     * Una base sin las migraciones 041/043 no conoce `entregado_en` ni
+     * `vuelto_yape`. Se sube sin ellas antes que dejar la caja sin
+     * sincronizar: el cobro es lo que no se puede perder.
      */
-    if (error?.message.includes('entregado_en')) {
-      ({ error } = await sb
-        .from('caja_pedidos')
-        .upsert(
-          aSubir.map((p) => {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se quita a propósito
-            const { entregado_en, ...sinHora } = aFila(p);
-            return sinHora;
-          }),
-        ));
+    if (COLUMNAS_NUEVAS.some((c) => error?.message.includes(c))) {
+      ({ error } = await sb.from('caja_pedidos').upsert(
+        aSubir.map((p) => {
+          const fila: Record<string, unknown> = aFila(p);
+          for (const c of COLUMNAS_NUEVAS) delete fila[c];
+          return fila;
+        }),
+      ));
     }
     if (error) {
       return {
@@ -287,4 +293,129 @@ export async function sincronizar(): Promise<Resultado> {
   });
 
   return { subidos, borrados, pendientes: cuantosPendientes(), cerradosEnPanel, error: null };
+}
+
+/* ------------------------------------------------------------------ */
+/* Gastos y retiros                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Misma idea que los pedidos, en pequeño: cada gasto o retiro nace en la
+ * tablet con su id, se guarda primero en el equipo y sube cuando hay señal.
+ * Son pocos por jornada, así que la cola es solo "qué falta subir" y "qué
+ * se borró".
+ */
+const CLAVE_MOV = 'sugu-caja-mov-sync';
+
+type EstadoMov = { pendientes: string[]; borrados: string[] };
+
+function leerEstadoMov(): EstadoMov {
+  if (typeof window === 'undefined') return { pendientes: [], borrados: [] };
+  try {
+    const datos = JSON.parse(window.localStorage.getItem(CLAVE_MOV) ?? '{}') as Partial<EstadoMov>;
+    return { pendientes: datos.pendientes ?? [], borrados: datos.borrados ?? [] };
+  } catch {
+    return { pendientes: [], borrados: [] };
+  }
+}
+
+function guardarEstadoMov(estado: EstadoMov): void {
+  try {
+    window.localStorage.setItem(CLAVE_MOV, JSON.stringify(estado));
+  } catch {
+    /* sin almacenamiento la cola dura lo que dure la pestaña */
+  }
+}
+
+export function marcarMovimientoSucio(id: string): void {
+  const e = leerEstadoMov();
+  guardarEstadoMov({
+    pendientes: sinRepetir([...e.pendientes, id]),
+    borrados: e.borrados.filter((x) => x !== id),
+  });
+}
+
+export function marcarMovimientoBorrado(id: string): void {
+  const e = leerEstadoMov();
+  guardarEstadoMov({
+    pendientes: e.pendientes.filter((x) => x !== id),
+    borrados: sinRepetir([...e.borrados, id]),
+  });
+}
+
+export function movimientosPendientes(): number {
+  const e = leerEstadoMov();
+  return e.pendientes.length + e.borrados.length;
+}
+
+export type ResultadoMov = {
+  pendientes: number;
+  /** id → cierre de los movimientos que el panel cerró al cerrar un día */
+  cerradosEnPanel: Record<string, string>;
+  error: string | null;
+};
+
+/**
+ * Sube los gastos y retiros pendientes y trae el cierre de los que el panel
+ * haya cerrado. Una base sin la migración 043 devuelve error y la cola
+ * queda intacta: se reintenta sola cuando la tabla exista.
+ */
+export async function sincronizarMovimientos(): Promise<ResultadoMov> {
+  const sb = getSupabase();
+  if (!sb) return { pendientes: movimientosPendientes(), cerradosEnPanel: {}, error: 'SIN_BACKEND' };
+
+  // bajada: cierres hechos desde el panel sobre movimientos que aquí siguen abiertos
+  const cerradosEnPanel: Record<string, string> = {};
+  const abiertos = leerMovimientos()
+    .filter((m) => !m.cierre)
+    .map((m) => m.id);
+  if (abiertos.length) {
+    const { data, error } = await sb
+      .from('caja_movimientos')
+      .select('id, cierre')
+      .in('id', abiertos.slice(0, 200))
+      .neq('cierre', '');
+    if (!error) {
+      for (const fila of data ?? []) cerradosEnPanel[fila.id as string] = fila.cierre as string;
+      if (Object.keys(cerradosEnPanel).length) {
+        guardarMovimientos(
+          leerMovimientos().map((m) =>
+            cerradosEnPanel[m.id] && !m.cierre ? { ...m, cierre: cerradosEnPanel[m.id] } : m,
+          ),
+        );
+      }
+    }
+  }
+
+  const inicial = leerEstadoMov();
+  if (!inicial.pendientes.length && !inicial.borrados.length) {
+    return { pendientes: 0, cerradosEnPanel, error: null };
+  }
+
+  const locales = new Map(leerMovimientos().map((m) => [m.id, m]));
+  const aSubir = inicial.pendientes.map((id) => locales.get(id)).filter(Boolean) as Movimiento[];
+
+  if (aSubir.length) {
+    const { error } = await sb.from('caja_movimientos').upsert(aSubir);
+    if (error) return { pendientes: movimientosPendientes(), cerradosEnPanel, error: error.message };
+  }
+  if (inicial.borrados.length) {
+    const { error } = await sb.from('caja_movimientos').delete().in('id', inicial.borrados);
+    if (error) {
+      const tras = leerEstadoMov();
+      guardarEstadoMov({
+        pendientes: tras.pendientes.filter((id) => !inicial.pendientes.includes(id)),
+        borrados: tras.borrados,
+      });
+      return { pendientes: movimientosPendientes(), cerradosEnPanel, error: error.message };
+    }
+  }
+
+  // solo se descuenta lo de esta tanda: lo anotado mientras tanto queda para la próxima
+  const tras = leerEstadoMov();
+  guardarEstadoMov({
+    pendientes: tras.pendientes.filter((id) => !inicial.pendientes.includes(id)),
+    borrados: tras.borrados.filter((id) => !inicial.borrados.includes(id)),
+  });
+  return { pendientes: movimientosPendientes(), cerradosEnPanel, error: null };
 }

@@ -25,6 +25,12 @@ export default function CodigosAdmin() {
   const [borrado, setBorrado] = useState<Borrado | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  /*
+   * Los usados van en su propia pestaña: la lista de trabajo es la de los
+   * que todavía se pueden repartir, y mezclarlos obligaba a buscarlos entre
+   * cientos de canjeados.
+   */
+  const [vista, setVista] = useState<'disponibles' | 'usados'>('disponibles');
 
   const cargar = async () => {
     try {
@@ -130,6 +136,14 @@ export default function CodigosAdmin() {
 
   if (!items) return <Cargando />;
 
+  const usados = items
+    .filter((c) => c.redeemed_at)
+    .sort((a, b) => (b.redeemed_at ?? '').localeCompare(a.redeemed_at ?? ''));
+  const disponibles = items
+    .filter((c) => !c.redeemed_at)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const visibles = vista === 'usados' ? usados : disponibles;
+
   return (
     <>
       <Encabezado
@@ -206,6 +220,27 @@ export default function CodigosAdmin() {
         </div>
       )}
 
+      <div className="mb-4 flex gap-1 rounded-full border border-white/10 bg-night-soft p-1 text-[13px] font-semibold sm:w-fit">
+        {(
+          [
+            ['disponibles', `Disponibles (${disponibles.length})`],
+            ['usados', `Usados (${usados.length})`],
+          ] as const
+        ).map(([clave, nombre]) => (
+          <button
+            key={clave}
+            type="button"
+            onClick={() => setVista(clave)}
+            aria-pressed={vista === clave}
+            className={`flex-1 rounded-full px-5 py-2 transition-colors sm:flex-none ${
+              vista === clave ? 'bg-sugu text-white' : 'text-bone-dim hover:text-bone'
+            }`}
+          >
+            {nombre}
+          </button>
+        ))}
+      </div>
+
       <div className="overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b border-white/10 bg-night-soft">
@@ -214,10 +249,11 @@ export default function CodigosAdmin() {
               <th className="p-4">Etiqueta</th>
               <th className="p-4">Estado</th>
               <th className="p-4">Generado</th>
+              {vista === 'usados' && <th className="p-4">Usado</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-white/10">
-            {items.map((c) => (
+            {visibles.map((c) => (
               <tr key={c.id} className="transition-colors hover:bg-white/[0.03]">
                 <td className="p-4">
                   <button
@@ -243,14 +279,27 @@ export default function CodigosAdmin() {
                 <td className="p-4 text-bone-dim">
                   {new Date(c.created_at).toLocaleDateString('es')}
                 </td>
+                {vista === 'usados' && (
+                  <td className="p-4 text-bone-dim">
+                    {c.redeemed_at &&
+                      new Date(c.redeemed_at).toLocaleString('es', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
 
-        {items.length === 0 && (
+        {visibles.length === 0 && (
           <p className="p-16 text-center text-sm text-bone-dim">
-            Aún no has generado códigos.
+            {items.length === 0
+              ? 'Aún no has generado códigos.'
+              : vista === 'usados'
+                ? 'Todavía no se ha canjeado ningún código.'
+                : 'No quedan códigos disponibles. Genera un lote nuevo.'}
           </p>
         )}
       </div>
