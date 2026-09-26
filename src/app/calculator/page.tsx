@@ -34,6 +34,7 @@ import {
   type Linea,
   type MetodoPago,
   type Pedido,
+  conEntrega,
   describirLinea,
   descargarExcel,
   dineroDe,
@@ -597,6 +598,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       ...repartir(metodo, totalActual, Number(yapeParcial)),
       pagado,
       entregado: false,
+      entregadoEn: null,
     };
     marcarSucio(nuevo.id);
     setPedidos((previos) => [...(previos ?? []), nuevo]);
@@ -608,7 +610,9 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
 
   function parchear(id: string, cambios: Partial<Pedido>) {
     marcarSucio(id);
-    setPedidos((previos) => (previos ?? []).map((p) => (p.id === id ? { ...p, ...cambios } : p)));
+    setPedidos((previos) =>
+      (previos ?? []).map((p) => (p.id === id ? conEntrega(p, { ...p, ...cambios }) : p)),
+    );
   }
 
   function eliminar(id: string) {
@@ -627,7 +631,9 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       ...repartir(editado.metodo, total, editado.montoYape),
     };
     marcarSucio(completo.id);
-    setPedidos((previos) => (previos ?? []).map((p) => (p.id === completo.id ? completo : p)));
+    setPedidos((previos) =>
+      (previos ?? []).map((p) => (p.id === completo.id ? conEntrega(p, completo) : p)),
+    );
     setEditando(null);
     setAviso('Venta corregida');
   }

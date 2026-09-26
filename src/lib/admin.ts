@@ -88,6 +88,8 @@ export interface PedidoCaja {
   monto_efectivo: number;
   pagado: boolean;
   entregado: boolean;
+  /** hora en que se tocó "Entregar"; vacía si se dio por entregado al cerrar */
+  entregado_en: string | null;
   /** con qué cuenta estaba abierta la caja; lo sella el servidor */
   usuario_email: string;
   created_at: string;

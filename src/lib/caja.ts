@@ -70,12 +70,18 @@ export type Pedido = {
   montoEfectivo: number;
   pagado: boolean;
   entregado: boolean;
+  /**
+   * Cuándo se tocó "Entregar", en la hora del equipo. Con `creado` da el
+   * tiempo de atención. Vacío si nunca se entregó a mano: lo que se da por
+   * entregado al cerrar la caja no tiene hora real y no entra en el promedio.
+   */
+  entregadoEn: string | null;
 };
 
 /* El maki va primero: es lo que más se vende y no debe costar un toque extra. */
 export const PRODUCTOS: { id: ClaveProducto; nombre: string; pista: string }[] = [
   { id: 'maki', nombre: 'Maki', pista: 'Personal o Dúo' },
-  { id: 'pokebowl', nombre: 'Poke Bowl', pista: 'S/ 18' },
+  { id: 'pokebowl', nombre: 'Poke Bowl', pista: 'S/ 18 · 20' },
   { id: 'onigiri', nombre: 'Onigiri', pista: 'S/ 6' },
 ];
 
@@ -109,6 +115,7 @@ export const VARIANTES: Record<ClaveProducto, Variante[]> = {
     { id: 'pollo', nombre: 'Pollo', precio: 18, maxSabores: 0, pista: 'S/ 18' },
     { id: 'tartar', nombre: 'Tartar de pescado', precio: 18, maxSabores: 0, pista: 'S/ 18' },
     { id: 'tofu', nombre: 'Tofu', precio: 18, maxSabores: 0, pista: 'S/ 18' },
+    { id: 'langostino', nombre: 'Langostino', precio: 20, maxSabores: 0, pista: 'S/ 20' },
   ],
   // el onigiri se vende tal cual: no hay variante que elegir
   onigiri: [],
@@ -182,6 +189,17 @@ export function unidadesDe(lineas: Linea[], producto: ClaveProducto): number {
  */
 export function siguienteNumero(abiertos: Pedido[]): number {
   return abiertos.reduce((mayor, p) => Math.max(mayor, p.numero ?? 0), 0) + 1;
+}
+
+/**
+ * Aplica un cambio a un pedido sellando la hora de entrega: se pone al
+ * pasar a entregado y se borra al devolverlo. Una corrección que no toca
+ * la entrega conserva la hora que ya tenía.
+ */
+export function conEntrega(previo: Pedido, nuevo: Pedido): Pedido {
+  if (!nuevo.entregado) return { ...nuevo, entregadoEn: null };
+  if (previo.entregado) return { ...nuevo, entregadoEn: previo.entregadoEn ?? null };
+  return { ...nuevo, entregadoEn: new Date().toISOString() };
 }
 
 /** 1 -> "001". A partir de 1000 crece solo, sin recortar. */
@@ -332,6 +350,7 @@ function normalizar(guardado: PedidoGuardado): Pedido {
     vendedor: previo.vendedor ?? '',
     nota: previo.nota ?? '',
     cierre: previo.cierre ?? '',
+    entregadoEn: previo.entregadoEn ?? null,
     lineas,
     total,
     metodo,

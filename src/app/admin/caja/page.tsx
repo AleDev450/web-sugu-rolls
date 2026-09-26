@@ -12,6 +12,7 @@ import {
   type PedidoCaja,
 } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
+import EstadisticasCaja from '@/components/admin/EstadisticasCaja';
 import {
   NOMBRE_METODO,
   NOMBRE_PRODUCTO,
@@ -60,6 +61,7 @@ function aPedido(p: PedidoCaja): Pedido {
     montoEfectivo: Number(p.monto_efectivo ?? 0),
     pagado: p.pagado,
     entregado: p.entregado,
+    entregadoEn: p.entregado_en ?? null,
   };
 }
 
@@ -79,6 +81,8 @@ export default function CajaAdmin() {
   const [hasta, setHasta] = useState(hoy);
   const [vendedor, setVendedor] = useState('todos');
   const [cierre, setCierre] = useState('todos');
+  /** el detalle de siempre, o los gráficos */
+  const [vista, setVista] = useState<'detalle' | 'estadisticas'>('detalle');
   const [items, setItems] = useState<PedidoCaja[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
@@ -223,6 +227,17 @@ export default function CajaAdmin() {
     return base;
   }, [items, vendedor, cierre]);
 
+  const pedidosVisibles = useMemo(() => visibles.map(aPedido), [visibles]);
+
+  /** Atajos de rango: las estadísticas piden semanas, no un solo día. */
+  function ultimosDias(n: number) {
+    const inicio = new Date();
+    inicio.setDate(inicio.getDate() - (n - 1));
+    setDesde(diaLocal(inicio));
+    setHasta(hoy);
+    setPagina(1);
+  }
+
   const resumen = useMemo(() => {
     const total = visibles.reduce((s, p) => s + p.total, 0);
     const cobrados = visibles.filter((p) => p.pagado);
@@ -238,7 +253,7 @@ export default function CajaAdmin() {
   }, [visibles]);
 
   /** Arqueo: cuánto entró por cada vía. Es lo que se cuenta al cerrar. */
-  const porMetodo = useMemo(() => arqueoPorMetodo(visibles.map(aPedido)), [visibles]);
+  const porMetodo = useMemo(() => arqueoPorMetodo(pedidosVisibles), [pedidosVisibles]);
 
   /*
    * El arqueo sin contar el canje tiene que dar exactamente lo cobrado. Si
@@ -348,6 +363,24 @@ export default function CajaAdmin() {
           </div>
         }
       />
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {[
+          { et: 'Hoy', dias: 1 },
+          { et: '7 días', dias: 7 },
+          { et: '30 días', dias: 30 },
+          { et: '90 días', dias: 90 },
+        ].map((r) => (
+          <button
+            key={r.et}
+            type="button"
+            onClick={() => ultimosDias(r.dias)}
+            className="rounded-full border border-white/15 px-3 py-1.5 text-[12px] font-semibold text-bone-dim transition-colors hover:border-white/30 hover:text-bone"
+          >
+            {r.et}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <input
@@ -520,7 +553,30 @@ export default function CajaAdmin() {
             ))}
           </div>
 
-          {visibles.length === 0 ? (
+          <div className="mb-6 flex gap-1 rounded-full border border-white/10 bg-night-2 p-1 text-[13px] font-semibold sm:w-fit">
+            {(
+              [
+                ['detalle', 'Detalle'],
+                ['estadisticas', 'Estadísticas'],
+              ] as const
+            ).map(([clave, nombre]) => (
+              <button
+                key={clave}
+                type="button"
+                onClick={() => setVista(clave)}
+                aria-pressed={vista === clave}
+                className={`flex-1 rounded-full px-5 py-2 transition-colors sm:flex-none ${
+                  vista === clave ? 'bg-sugu text-white' : 'text-bone-dim hover:text-bone'
+                }`}
+              >
+                {nombre}
+              </button>
+            ))}
+          </div>
+
+          {vista === 'estadisticas' ? (
+            <EstadisticasCaja pedidos={pedidosVisibles} desde={desde} hasta={hasta} />
+          ) : visibles.length === 0 ? (
             <p className="rounded-3xl border border-dashed border-white/15 p-10 text-center text-sm text-bone-dim">
               No hay ventas de caja en ese rango.
             </p>

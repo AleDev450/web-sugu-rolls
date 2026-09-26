@@ -113,6 +113,7 @@ function aFila(p: Pedido) {
     monto_efectivo: p.montoEfectivo ?? 0,
     pagado: p.pagado,
     entregado: p.entregado,
+    entregado_en: p.entregadoEn ?? null,
   };
 }
 
@@ -199,7 +200,22 @@ export async function sincronizar(): Promise<Resultado> {
   let borrados = 0;
 
   if (aSubir.length) {
-    const { error } = await sb.from('caja_pedidos').upsert(aSubir.map(aFila));
+    let { error } = await sb.from('caja_pedidos').upsert(aSubir.map(aFila));
+    /*
+     * Una base sin la migración 041 no conoce `entregado_en`. Se sube sin
+     * la hora de entrega antes que dejar la caja sin sincronizar.
+     */
+    if (error?.message.includes('entregado_en')) {
+      ({ error } = await sb
+        .from('caja_pedidos')
+        .upsert(
+          aSubir.map((p) => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars -- se quita a propósito
+            const { entregado_en, ...sinHora } = aFila(p);
+            return sinHora;
+          }),
+        ));
+    }
     if (error) {
       return {
         subidos: 0,
