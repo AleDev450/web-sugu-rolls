@@ -418,7 +418,7 @@ export type Movimiento = {
 };
 
 /** Lo que más se paga en una feria: un toque y listo. */
-export const CONCEPTOS_GASTO = ['Motorizado', 'Comida', 'Agua', 'Hielo', 'Bolsas'];
+export const CONCEPTOS_GASTO = ['Motorizado', 'Comida', 'Agua'];
 
 export type Cuadre = {
   efectivoCobrado: number;

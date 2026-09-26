@@ -11,6 +11,8 @@ import {
   CloudOff,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   LogOut,
   Minus,
   PackageCheck,
@@ -340,6 +342,37 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const [montoMov, setMontoMov] = useState('');
   const [medioMov, setMedioMov] = useState<'efectivo' | 'yape'>('efectivo');
   const [movPorBorrar, setMovPorBorrar] = useState<string | null>(null);
+  /*
+   * La pantalla tiene dos pestañas: cobrar, que es lo de todo el rato, y los
+   * gastos de la caja, que se tocan de vez en cuando. Juntos en una sola
+   * página, los gastos quedaban al fondo de un scroll larguísimo.
+   */
+  const [seccion, setSeccion] = useState<'caja' | 'gastos'>('caja');
+  /*
+   * Ocultar la plata de la cabecera: en el puesto la pantalla la ve
+   * cualquiera que pasa. Se recuerda en el equipo; si el navegador no deja
+   * guardarlo, simplemente vuelve a mostrarse al recargar.
+   */
+  const [oculto, setOculto] = useState(false);
+  useEffect(() => {
+    try {
+      setOculto(window.localStorage.getItem('sugu-caja-oculto') === '1');
+    } catch {
+      /* sin almacenamiento se muestra */
+    }
+  }, []);
+  function alternarOculto() {
+    setOculto((antes) => {
+      try {
+        window.localStorage.setItem('sugu-caja-oculto', antes ? '0' : '1');
+      } catch {
+        /* se oculta igual, solo que no se recuerda */
+      }
+      return !antes;
+    });
+  }
+  /** Un monto de la cabecera, o puntos si está oculto. */
+  const dinero = (n: number) => (oculto ? 'S/ ••••' : soles(n));
 
   // quién abrió la caja
   const [vendedor, setVendedor] = useState<string | null>(null);
@@ -917,16 +950,29 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                   <Pencil size={11} />
                 </button>
               </p>
-              <p className="text-3xl font-bold leading-none text-sugu-glow sm:text-4xl">
-                {soles(resumen.total)}
+              <p className="flex items-center gap-2">
+                <span className="text-3xl font-bold leading-none text-sugu-glow sm:text-4xl">
+                  {dinero(resumen.total)}
+                </span>
+                <button
+                  type="button"
+                  onClick={alternarOculto}
+                  aria-pressed={oculto}
+                  aria-label={oculto ? 'Mostrar montos' : 'Ocultar montos'}
+                  title={oculto ? 'Mostrar montos' : 'Ocultar montos'}
+                  className="grid h-9 w-9 place-items-center rounded-full border border-white/15 text-bone-dim transition-colors active:bg-white/10"
+                >
+                  {oculto ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
               </p>
               <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <Etiqueta tono="verde">Cobrado {soles(resumen.cobrado)}</Etiqueta>
-                <Etiqueta tono="ambar">Por cobrar {soles(resumen.pendiente)}</Etiqueta>
+                <Etiqueta tono="verde">Cobrado {dinero(resumen.cobrado)}</Etiqueta>
+                <Etiqueta tono="ambar">Por cobrar {dinero(resumen.pendiente)}</Etiqueta>
                 {resumen.canjeado > 0 && (
-                  <Etiqueta tono="azul">Canje {soles(resumen.canjeado)}</Etiqueta>
+                  <Etiqueta tono="azul">Canje {dinero(resumen.canjeado)}</Etiqueta>
                 )}
-                <Etiqueta tono="gris">En caja {soles(cuadre.efectivoEnCaja)}</Etiqueta>
+                <Etiqueta tono="gris">En caja {dinero(cuadre.efectivoEnCaja)}</Etiqueta>
+                <Etiqueta tono="azul">Vuelto en Yape {dinero(cuadre.vueltos)}</Etiqueta>
               </p>
               <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-bone-dim">
                 Llevas atendiendo
@@ -974,612 +1020,639 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-5xl gap-5 px-4 py-5 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">
-        {/* ---------------- Registro ---------------- */}
-        <section className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4">
-          <Paso n={paso.producto} titulo="Producto">
-            <div className="grid grid-cols-3 gap-2">
-              {PRODUCTOS.map((p) => (
-                <Opcion key={p.id} activo={producto === p.id} onClick={() => elegirProducto(p.id)}>
-                  <span>{p.nombre}</span>
-                  <span className="text-[10px] font-normal opacity-70">
-                    {rangoPrecio(p.id, precios)}
-                  </span>
-                </Opcion>
-              ))}
-            </div>
-          </Paso>
+      <nav className="mx-auto max-w-5xl px-4 pt-4">
+        <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
+          {(
+            [
+              ['caja', 'Caja'],
+              ['gastos', `Gastos caja${movAbiertos.length ? ` (${movAbiertos.length})` : ''}`],
+            ] as const
+          ).map(([clave, nombre]) => (
+            <button
+              key={clave}
+              type="button"
+              onClick={() => setSeccion(clave)}
+              aria-pressed={seccion === clave}
+              className={`min-h-[44px] flex-1 rounded-lg px-3 text-[14px] font-semibold transition-colors ${
+                seccion === clave ? 'bg-sugu text-white' : 'text-bone-dim'
+              }`}
+            >
+              {nombre}
+            </button>
+          ))}
+        </div>
+      </nav>
 
-          {opciones.length > 0 && (
-            <Paso n={paso.variante} titulo={producto === 'maki' ? 'Promoción' : 'Base'}>
-              <div className={`grid gap-2 ${opciones.length > 2 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                {opciones.map((v) => (
-                  <Opcion key={v.id} activo={variante === v.id} onClick={() => elegirVariante(v.id)}>
-                    <span>{v.nombre}</span>
+      {seccion === 'caja' && (
+        <div className="mx-auto grid max-w-5xl gap-5 px-4 py-5 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">
+          {/* ---------------- Registro ---------------- */}
+          <section className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4">
+            <Paso n={paso.producto} titulo="Producto">
+              <div className="grid grid-cols-3 gap-2">
+                {PRODUCTOS.map((p) => (
+                  <Opcion key={p.id} activo={producto === p.id} onClick={() => elegirProducto(p.id)}>
+                    <span>{p.nombre}</span>
                     <span className="text-[10px] font-normal opacity-70">
-                      {producto && pistaVariante(producto, v, precios)}
+                      {rangoPrecio(p.id, precios)}
                     </span>
                   </Opcion>
                 ))}
               </div>
             </Paso>
-          )}
 
-          {tope > 0 && (
-            <Paso
-              n={paso.sabores}
-              titulo="Sabores"
-              extra={
-                <span className="text-[12px] font-semibold text-bone-dim">
-                  {sabores.length} de {tope}
-                </span>
-              }
-            >
-              <div className="grid grid-cols-2 gap-2">
-                {SABORES.map((sabor) => {
-                  const elegido = sabores.includes(sabor);
-                  return (
-                    <Opcion
-                      key={sabor}
-                      activo={elegido}
-                      // al llegar al tope el resto se apaga: el límite se ve, no se explica
-                      disabled={!elegido && sabores.length >= tope}
-                      onClick={() => alternarSabor(sabor)}
-                    >
-                      {sabor}
+            {opciones.length > 0 && (
+              <Paso n={paso.variante} titulo={producto === 'maki' ? 'Promoción' : 'Base'}>
+                <div className={`grid gap-2 ${opciones.length > 2 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {opciones.map((v) => (
+                    <Opcion key={v.id} activo={variante === v.id} onClick={() => elegirVariante(v.id)}>
+                      <span>{v.nombre}</span>
+                      <span className="text-[10px] font-normal opacity-70">
+                        {producto && pistaVariante(producto, v, precios)}
+                      </span>
                     </Opcion>
-                  );
-                })}
-              </div>
-              {variante === 'duo' && sabores.length === 1 && (
-                <p className="mt-1.5 text-[11px] text-bone-dim">
-                  El dúo vale S/ 35 con uno o con dos sabores.
-                </p>
-              )}
-            </Paso>
-          )}
-
-          <Paso n={paso.cantidad} titulo="Cantidad">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setCantidad((c) => Math.max(1, c - 1))}
-                className="grid h-[58px] flex-1 place-items-center rounded-2xl border border-white/15 bg-night-2 active:scale-[0.98]"
-                aria-label="Quitar uno"
-              >
-                <Minus size={20} />
-              </button>
-              <span className="min-w-[4rem] text-center text-3xl font-bold tabular-nums">
-                {cantidad}
-              </span>
-              <button
-                type="button"
-                onClick={() => setCantidad((c) => Math.min(99, c + 1))}
-                className="grid h-[58px] flex-1 place-items-center rounded-2xl border border-white/15 bg-night-2 active:scale-[0.98]"
-                aria-label="Agregar uno"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-            <p className="mt-1.5 text-[11px] text-bone-dim">
-              Para dos promos con sabores distintos, usa «Agregar otro».
-            </p>
-          </Paso>
-
-          {lineasFinales.length > 0 && (
-            <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-night-2 p-3">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-bone-dim">Este pedido</p>
-              {lineas.map((l, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="min-w-0 flex-1">{describirLinea(l)}</span>
-                  <span className="shrink-0 font-semibold tabular-nums">{soles(l.total)}</span>
-                  <button
-                    type="button"
-                    onClick={() => setLineas((previas) => previas.filter((_, j) => j !== i))}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-white/15 text-bone-dim"
-                    aria-label={`Quitar ${describirLinea(l)}`}
-                  >
-                    <X size={14} />
-                  </button>
+                  ))}
                 </div>
-              ))}
-              {lineaActual && (
-                // la línea en curso se muestra en gris: todavía se puede cambiar
-                <div className="flex items-center justify-between gap-2 text-sm text-bone-dim">
-                  <span className="min-w-0 flex-1">{describirLinea(lineaActual)}</span>
-                  <span className="shrink-0 font-semibold tabular-nums">
-                    {soles(lineaActual.total)}
+              </Paso>
+            )}
+
+            {tope > 0 && (
+              <Paso
+                n={paso.sabores}
+                titulo="Sabores"
+                extra={
+                  <span className="text-[12px] font-semibold text-bone-dim">
+                    {sabores.length} de {tope}
                   </span>
-                  <span className="h-7 w-7 shrink-0" />
-                </div>
-              )}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={agregarLinea}
-            disabled={!lineaActual}
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-2xl border border-dashed border-white/25 text-[13px] font-semibold text-bone transition-colors active:scale-[0.99] disabled:opacity-30"
-          >
-            <Plus size={16} />
-            Agregar otro al pedido
-          </button>
-
-          <Paso n={paso.pago} titulo="Forma de pago">
-            <div className="grid grid-cols-3 gap-2">
-              {METODOS_PAGO.map((m) => (
-                <Opcion key={m} activo={metodo === m} onClick={() => setMetodo(m)}>
-                  {ICONO_METODO[m]}
-                  <span className="text-[12px]">{NOMBRE_METODO[m]}</span>
-                </Opcion>
-              ))}
-            </div>
-            {metodo === 'canje' && (
-              <p className="mt-2 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[12px] text-sky-300">
-                El canje se entrega pero no entra plata: no suma a lo cobrado del día.
-              </p>
-            )}
-            {metodo === 'mixto' && yapeMixto && (
-              <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-night-2 p-3">
+                }
+              >
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-[12px] text-bone-dim">Yape</span>
-                    <input
-                      value={yapeParcial}
-                      onChange={(e) => ponerYape(e.target.value)}
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-[12px] text-bone-dim">Efectivo</span>
-                    <input
-                      value={efectivoParcial}
-                      onChange={(e) => ponerEfectivo(e.target.value)}
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
-                    />
-                  </label>
+                  {SABORES.map((sabor) => {
+                    const elegido = sabores.includes(sabor);
+                    return (
+                      <Opcion
+                        key={sabor}
+                        activo={elegido}
+                        // al llegar al tope el resto se apaga: el límite se ve, no se explica
+                        disabled={!elegido && sabores.length >= tope}
+                        onClick={() => alternarSabor(sabor)}
+                      >
+                        {sabor}
+                      </Opcion>
+                    );
+                  })}
                 </div>
-                <p className="text-[13px]">
-                  Yape <span className="font-bold">{soles(yapeMixto.montoYape)}</span> + Efectivo{' '}
-                  <span className="font-bold">{soles(yapeMixto.montoEfectivo)}</span> ={' '}
-                  <span className="font-bold">{soles(totalActual)}</span>
-                </p>
-              </div>
+                {variante === 'duo' && sabores.length === 1 && (
+                  <p className="mt-1.5 text-[11px] text-bone-dim">
+                    El dúo vale S/ 35 con uno o con dos sabores.
+                  </p>
+                )}
+              </Paso>
             )}
-            {(metodo === 'efectivo' || metodo === 'mixto') && (
-              <div className="mt-2 rounded-2xl border border-white/10 bg-night-2 p-3">
-                <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium">
-                  <input
-                    type="checkbox"
-                    checked={conVuelto}
-                    onChange={(e) => setConVuelto(e.target.checked)}
-                    className="h-5 w-5 accent-[#E31323]"
-                  />
-                  Se devolvió el vuelto por Yape
-                </label>
-                {conVuelto && (
-                  <>
-                    <input
-                      value={vuelto}
-                      onChange={(e) => setVuelto(e.target.value.replace(/[^\d.]/g, ''))}
-                      inputMode="decimal"
-                      placeholder="Monto del vuelto"
-                      aria-label="Monto del vuelto por Yape"
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
-                    />
-                    <p className="mt-1.5 text-[11px] text-bone-dim">
-                      Entra ese monto de más al cajón y sale del Yape. El cobro del pedido no
-                      cambia.
-                    </p>
-                  </>
+
+            <Paso n={paso.cantidad} titulo="Cantidad">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCantidad((c) => Math.max(1, c - 1))}
+                  className="grid h-[58px] flex-1 place-items-center rounded-2xl border border-white/15 bg-night-2 active:scale-[0.98]"
+                  aria-label="Quitar uno"
+                >
+                  <Minus size={20} />
+                </button>
+                <span className="min-w-[4rem] text-center text-3xl font-bold tabular-nums">
+                  {cantidad}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCantidad((c) => Math.min(99, c + 1))}
+                  className="grid h-[58px] flex-1 place-items-center rounded-2xl border border-white/15 bg-night-2 active:scale-[0.98]"
+                  aria-label="Agregar uno"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+              <p className="mt-1.5 text-[11px] text-bone-dim">
+                Para dos promos con sabores distintos, usa «Agregar otro».
+              </p>
+            </Paso>
+
+            {lineasFinales.length > 0 && (
+              <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-night-2 p-3">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-bone-dim">Este pedido</p>
+                {lineas.map((l, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="min-w-0 flex-1">{describirLinea(l)}</span>
+                    <span className="shrink-0 font-semibold tabular-nums">{soles(l.total)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setLineas((previas) => previas.filter((_, j) => j !== i))}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-white/15 text-bone-dim"
+                      aria-label={`Quitar ${describirLinea(l)}`}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+                {lineaActual && (
+                  // la línea en curso se muestra en gris: todavía se puede cambiar
+                  <div className="flex items-center justify-between gap-2 text-sm text-bone-dim">
+                    <span className="min-w-0 flex-1">{describirLinea(lineaActual)}</span>
+                    <span className="shrink-0 font-semibold tabular-nums">
+                      {soles(lineaActual.total)}
+                    </span>
+                    <span className="h-7 w-7 shrink-0" />
+                  </div>
                 )}
               </div>
             )}
-          </Paso>
 
-          <Paso n={paso.estado} titulo="¿Ya pagó?">
-            <div className="grid grid-cols-2 gap-2">
-              <Opcion activo={pagado} onClick={() => setPagado(true)}>
-                Sí pagó
-              </Opcion>
-              <Opcion activo={!pagado} onClick={() => setPagado(false)}>
-                No pagó
-              </Opcion>
+            <button
+              type="button"
+              onClick={agregarLinea}
+              disabled={!lineaActual}
+              className="flex min-h-[48px] items-center justify-center gap-2 rounded-2xl border border-dashed border-white/25 text-[13px] font-semibold text-bone transition-colors active:scale-[0.99] disabled:opacity-30"
+            >
+              <Plus size={16} />
+              Agregar otro al pedido
+            </button>
+
+            <Paso n={paso.pago} titulo="Forma de pago">
+              <div className="grid grid-cols-3 gap-2">
+                {METODOS_PAGO.map((m) => (
+                  <Opcion key={m} activo={metodo === m} onClick={() => setMetodo(m)}>
+                    {ICONO_METODO[m]}
+                    <span className="text-[12px]">{NOMBRE_METODO[m]}</span>
+                  </Opcion>
+                ))}
+              </div>
+              {metodo === 'canje' && (
+                <p className="mt-2 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[12px] text-sky-300">
+                  El canje se entrega pero no entra plata: no suma a lo cobrado del día.
+                </p>
+              )}
+              {metodo === 'mixto' && yapeMixto && (
+                <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-night-2 p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1.5 block text-[12px] text-bone-dim">Yape</span>
+                      <input
+                        value={yapeParcial}
+                        onChange={(e) => ponerYape(e.target.value)}
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-[12px] text-bone-dim">Efectivo</span>
+                      <input
+                        value={efectivoParcial}
+                        onChange={(e) => ponerEfectivo(e.target.value)}
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[13px]">
+                    Yape <span className="font-bold">{soles(yapeMixto.montoYape)}</span> + Efectivo{' '}
+                    <span className="font-bold">{soles(yapeMixto.montoEfectivo)}</span> ={' '}
+                    <span className="font-bold">{soles(totalActual)}</span>
+                  </p>
+                </div>
+              )}
+              {(metodo === 'efectivo' || metodo === 'mixto') && (
+                <div className="mt-2 rounded-2xl border border-white/10 bg-night-2 p-3">
+                  <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium">
+                    <input
+                      type="checkbox"
+                      checked={conVuelto}
+                      onChange={(e) => setConVuelto(e.target.checked)}
+                      className="h-5 w-5 accent-[#E31323]"
+                    />
+                    Se devolvió el vuelto por Yape
+                  </label>
+                  {conVuelto && (
+                    <>
+                      <input
+                        value={vuelto}
+                        onChange={(e) => setVuelto(e.target.value.replace(/[^\d.]/g, ''))}
+                        inputMode="decimal"
+                        placeholder="Monto del vuelto"
+                        aria-label="Monto del vuelto por Yape"
+                        className="mt-2 w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none focus:border-sugu"
+                      />
+                      <p className="mt-1.5 text-[11px] text-bone-dim">
+                        Entra ese monto de más al cajón y sale del Yape. El cobro del pedido no
+                        cambia.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+            </Paso>
+
+            <Paso n={paso.estado} titulo="¿Ya pagó?">
+              <div className="grid grid-cols-2 gap-2">
+                <Opcion activo={pagado} onClick={() => setPagado(true)}>
+                  Sí pagó
+                </Opcion>
+                <Opcion activo={!pagado} onClick={() => setPagado(false)}>
+                  No pagó
+                </Opcion>
+              </div>
+            </Paso>
+
+            <Paso n={paso.cliente} titulo="Cliente (opcional)">
+              <input
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
+                placeholder="Cliente"
+                enterKeyHint="done"
+                className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
+              />
+              <p className="mt-1.5 text-[11px] text-bone-dim">
+                Si lo dejas vacío se guarda como «Cliente».
+              </p>
+            </Paso>
+
+            <Paso n={paso.nota} titulo="¿Algo aparte? (opcional)">
+              {/* los atajos evitan escribir lo que se repite todo el día */}
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {NOTAS_RAPIDAS.map((texto) => {
+                  const puesta = nota.includes(texto);
+                  return (
+                    <button
+                      key={texto}
+                      type="button"
+                      onClick={() =>
+                        setNota((previa) => {
+                          if (previa.includes(texto)) {
+                            return previa
+                              .split(', ')
+                              .filter((t) => t !== texto)
+                              .join(', ');
+                          }
+                          return previa.trim() ? `${previa.trim()}, ${texto}` : texto;
+                        })
+                      }
+                      className={`min-h-[36px] rounded-full border px-3 text-[12px] font-semibold transition-colors ${
+                        puesta ? 'border-sugu bg-sugu text-white' : 'border-white/15 text-bone-dim'
+                      }`}
+                    >
+                      {texto}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                placeholder="Sin palta, más queso, para llevar…"
+                enterKeyHint="done"
+                className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
+              />
+              <p className="mt-1.5 text-[11px] text-bone-dim">Esto le llega a la cocina.</p>
+            </Paso>
+
+            <div className="grid gap-2 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={registrar}
+                disabled={!puedeRegistrar}
+                className="flex min-h-[64px] items-center justify-between rounded-2xl bg-sugu px-5 text-left font-bold text-white transition-colors active:scale-[0.99] disabled:bg-night-3 disabled:text-bone-dim"
+              >
+                <span className="text-base">{puedeRegistrar ? 'Registrar pedido' : faltante}</span>
+                <span className="text-2xl tabular-nums">{soles(totalActual)}</span>
+              </button>
+              <button
+                type="button"
+                onClick={limpiarTodo}
+                className="min-h-[40px] rounded-xl border border-white/15 text-[13px] font-semibold text-bone-dim"
+              >
+                Limpiar
+              </button>
             </div>
-          </Paso>
+          </section>
 
-          <Paso n={paso.cliente} titulo="Cliente (opcional)">
-            <input
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              placeholder="Cliente"
-              enterKeyHint="done"
-              className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
-            />
-            <p className="mt-1.5 text-[11px] text-bone-dim">
-              Si lo dejas vacío se guarda como «Cliente».
-            </p>
-          </Paso>
-
-          <Paso n={paso.nota} titulo="¿Algo aparte? (opcional)">
-            {/* los atajos evitan escribir lo que se repite todo el día */}
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {NOTAS_RAPIDAS.map((texto) => {
-                const puesta = nota.includes(texto);
+          {/* ---------------- Lista ---------------- */}
+          <section className="grid gap-3">
+            <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
+              {(['pendientes', 'entregados'] as const).map((t) => {
+                const cuantos = abiertos.filter((p) =>
+                  t === 'pendientes' ? !p.entregado : p.entregado,
+                ).length;
                 return (
                   <button
-                    key={texto}
+                    key={t}
                     type="button"
-                    onClick={() =>
-                      setNota((previa) => {
-                        if (previa.includes(texto)) {
-                          return previa
-                            .split(', ')
-                            .filter((t) => t !== texto)
-                            .join(', ');
-                        }
-                        return previa.trim() ? `${previa.trim()}, ${texto}` : texto;
-                      })
-                    }
-                    className={`min-h-[36px] rounded-full border px-3 text-[12px] font-semibold transition-colors ${
-                      puesta ? 'border-sugu bg-sugu text-white' : 'border-white/15 text-bone-dim'
+                    onClick={() => {
+                      setTab(t);
+                      setPagina(1);
+                    }}
+                    className={`flex-1 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors ${
+                      tab === t ? 'bg-sugu text-white' : 'text-bone-dim'
                     }`}
                   >
-                    {texto}
+                    {t === 'pendientes' ? 'Por entregar' : 'Entregados'} ({cuantos})
                   </button>
                 );
               })}
             </div>
-            <input
-              value={nota}
-              onChange={(e) => setNota(e.target.value)}
-              placeholder="Sin palta, más queso, para llevar…"
-              enterKeyHint="done"
-              className="w-full rounded-2xl border border-white/15 bg-night px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/30 focus:border-sugu"
-            />
-            <p className="mt-1.5 text-[11px] text-bone-dim">Esto le llega a la cocina.</p>
-          </Paso>
 
-          <div className="grid gap-2 border-t border-white/10 pt-4">
-            <button
-              type="button"
-              onClick={registrar}
-              disabled={!puedeRegistrar}
-              className="flex min-h-[64px] items-center justify-between rounded-2xl bg-sugu px-5 text-left font-bold text-white transition-colors active:scale-[0.99] disabled:bg-night-3 disabled:text-bone-dim"
-            >
-              <span className="text-base">{puedeRegistrar ? 'Registrar pedido' : faltante}</span>
-              <span className="text-2xl tabular-nums">{soles(totalActual)}</span>
-            </button>
-            <button
-              type="button"
-              onClick={limpiarTodo}
-              className="min-h-[40px] rounded-xl border border-white/15 text-[13px] font-semibold text-bone-dim"
-            >
-              Limpiar
-            </button>
-          </div>
-        </section>
-
-        {/* ---------------- Lista ---------------- */}
-        <section className="grid gap-3">
-          <div className="flex gap-1 rounded-xl border border-white/15 bg-night-2 p-1">
-            {(['pendientes', 'entregados'] as const).map((t) => {
-              const cuantos = abiertos.filter((p) =>
-                t === 'pendientes' ? !p.entregado : p.entregado,
-              ).length;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    setTab(t);
-                    setPagina(1);
-                  }}
-                  className={`flex-1 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors ${
-                    tab === t ? 'bg-sugu text-white' : 'text-bone-dim'
-                  }`}
-                >
-                  {t === 'pendientes' ? 'Por entregar' : 'Entregados'} ({cuantos})
-                </button>
-              );
-            })}
-          </div>
-
-          {visibles.length === 0 ? (
-            <p className="rounded-3xl border border-dashed border-white/15 p-8 text-center text-sm text-bone-dim">
-              {tab === 'pendientes'
-                ? 'No queda nada por entregar.'
-                : 'Todavía no has entregado ningún pedido.'}
-            </p>
-          ) : (
-            <>
-              <ul className="grid gap-2">
-                {enPagina.map((p) => (
-                  <li
-                    key={p.id}
-                    className={`rounded-2xl border bg-night-soft p-3 ${
-                      p.entregado ? 'border-white/5 opacity-70' : 'border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-bone-dim">
-                          <span className="font-bold text-bone">#{formatearNumero(p.numero)}</span>
-                          <span>
-                            {hora(p.creado)} · {p.cliente}
-                          </span>
-                          {/* lo que lleva esperando; una vez entregado ya da igual */}
-                          {!p.entregado && (
-                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 font-semibold tabular-nums">
-                              {espera(p.creado, ahora)}
-                            </span>
-                          )}
-                        </p>
-                        {p.lineas.map((l, i) => (
-                          <p key={i} className="mt-0.5 font-semibold">
-                            {describirLinea(l)}
-                          </p>
-                        ))}
-                        {p.nota && (
-                          <p className="mt-1 text-[12px] font-semibold text-amber-300">
-                            {p.nota}
-                          </p>
-                        )}
-                        <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          {p.pagado ? (
-                            <Etiqueta tono="verde">Pagado</Etiqueta>
-                          ) : (
-                            <Etiqueta tono="ambar">Por cobrar</Etiqueta>
-                          )}
-                          <Etiqueta tono="gris">
-                            {p.metodo === 'mixto'
-                              ? `Yape ${soles(p.montoYape)} · Efec. ${soles(p.montoEfectivo)}`
-                              : NOMBRE_METODO[p.metodo]}
-                          </Etiqueta>
-                          {p.vueltoYape > 0 && (
-                            <Etiqueta tono="azul">Vuelto Yape {soles(p.vueltoYape)}</Etiqueta>
-                          )}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-lg font-bold tabular-nums">
-                        {soles(p.total)}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <AccionFila
-                        tono={p.entregado ? 'listo' : 'neutro'}
-                        icono={<PackageCheck size={15} />}
-                        onClick={() => parchear(p.id, { entregado: !p.entregado })}
-                      >
-                        {p.entregado ? 'Devolver' : 'Entregar'}
-                      </AccionFila>
-                      <AccionFila icono={<Pencil size={15} />} onClick={() => setEditando(p)}>
-                        Editar
-                      </AccionFila>
-                      <AccionFila
-                        tono="peligro"
-                        icono={<Trash2 size={15} />}
-                        onClick={() => (porBorrar === p.id ? eliminar(p.id) : setPorBorrar(p.id))}
-                      >
-                        {porBorrar === p.id ? '¿Seguro?' : 'Eliminar'}
-                      </AccionFila>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              {totalPaginas > 1 && (
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPagina(paginaSegura - 1)}
-                    disabled={paginaSegura === 1}
-                    className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-white/15 bg-night-2 text-[13px] font-semibold disabled:opacity-30"
-                  >
-                    <ChevronLeft size={16} />
-                    Anterior
-                  </button>
-                  <span className="text-[12px] text-bone-dim">
-                    {paginaSegura} / {totalPaginas}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPagina(paginaSegura + 1)}
-                    disabled={paginaSegura === totalPaginas}
-                    className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-white/15 bg-night-2 text-[13px] font-semibold disabled:opacity-30"
-                  >
-                    Siguiente
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-
-          {abiertos.length > 0 && (
-            <>
-              <button
-                type="button"
-                onClick={() => descargarExcel(abiertos, 'caja-abierta', movAbiertos)}
-                className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600/15 font-semibold text-emerald-300 active:scale-[0.99]"
-              >
-                <Download size={18} />
-                Descargar Excel ({abiertos.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setNombreCierre(`Caja ${new Date().toLocaleDateString('es-PE')}`);
-                  setCerrando(true);
-                }}
-                className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-white/20 bg-night-2 font-semibold text-bone active:scale-[0.99]"
-              >
-                <Archive size={18} />
-                Cerrar caja ({abiertos.length})
-              </button>
-            </>
-          )}
-        </section>
-      </div>
-
-      {/* ---------------- Gastos y retiros ---------------- */}
-      <section className="mx-auto mt-2 max-w-5xl px-4">
-        <div className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-          <div className="grid content-start gap-3">
-            <h2 className="flex items-center gap-2 text-sm font-bold">
-              <Receipt size={16} />
-              Gastos y retiros de caja
-            </h2>
-            <div className="grid grid-cols-2 gap-2">
-              <Opcion activo={tipoMov === 'gasto'} onClick={() => setTipoMov('gasto')}>
-                <span>Gasto</span>
-                <span className="text-[10px] font-normal opacity-70">Motorizado, comida…</span>
-              </Opcion>
-              <Opcion activo={tipoMov === 'retiro'} onClick={() => setTipoMov('retiro')}>
-                <span>Saqué de caja</span>
-                <span className="text-[10px] font-normal opacity-70">Efectivo que agarré</span>
-              </Opcion>
-            </div>
-
-            {tipoMov === 'gasto' && (
-              <div className="flex flex-wrap gap-1.5">
-                {CONCEPTOS_GASTO.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setConceptoMov(c)}
-                    className={`min-h-[36px] rounded-full border px-3 text-[12px] font-semibold transition-colors ${
-                      conceptoMov === c ? 'border-sugu bg-sugu text-white' : 'border-white/15 text-bone-dim'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
-              <input
-                value={conceptoMov}
-                onChange={(e) => setConceptoMov(e.target.value)}
-                placeholder={tipoMov === 'gasto' ? 'En qué se gastó' : 'Para qué (opcional)'}
-                aria-label="Concepto"
-                className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none placeholder:text-white/30 focus:border-sugu"
-              />
-              <input
-                value={montoMov}
-                onChange={(e) => setMontoMov(e.target.value.replace(/[^\d.,]/g, ''))}
-                inputMode="decimal"
-                placeholder="S/ 0.00"
-                aria-label="Monto"
-                onKeyDown={(e) => e.key === 'Enter' && anotarMovimiento()}
-                className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-right text-base tabular-nums outline-none placeholder:text-white/30 focus:border-sugu"
-              />
-            </div>
-
-            {tipoMov === 'gasto' && (
-              <div className="grid grid-cols-2 gap-2">
-                <Opcion activo={medioMov === 'efectivo'} onClick={() => setMedioMov('efectivo')}>
-                  <span className="text-[12px]">Pagué en efectivo</span>
-                </Opcion>
-                <Opcion activo={medioMov === 'yape'} onClick={() => setMedioMov('yape')}>
-                  <span className="text-[12px]">Pagué por Yape</span>
-                </Opcion>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={anotarMovimiento}
-              disabled={!(Number(montoMov.replace(',', '.')) > 0)}
-              className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white disabled:bg-night-3 disabled:text-bone-dim"
-            >
-              {tipoMov === 'gasto' ? 'Anotar gasto' : 'Anotar lo que saqué'}
-            </button>
-          </div>
-
-          <div className="grid content-start gap-3">
-            {/* el cuadre: es lo que se cuenta al final, así que va arriba y grande */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-white/10 bg-night-2 p-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-bone-dim">
-                  Debe haber en caja
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-400">
-                  {soles(cuadre.efectivoEnCaja)}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-night-2 p-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-bone-dim">Yape neto</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums">{soles(cuadre.yapeNeto)}</p>
-              </div>
-            </div>
-            <dl className="grid gap-1 rounded-2xl border border-white/10 bg-night-2 p-3 text-[13px]">
-              {[
-                ['Cobrado en efectivo', cuadre.efectivoCobrado, ''],
-                ['Vueltos dados por Yape', cuadre.vueltos, '+'],
-                ['Gastos en efectivo', cuadre.gastosEfectivo, '−'],
-                ['Lo que saqué de caja', cuadre.retiros, '−'],
-                ['Gastos por Yape', cuadre.gastosYape, ''],
-              ].map(([et, monto, signo]) => (
-                <div key={et as string} className="flex justify-between gap-3">
-                  <dt className="text-bone-dim">{et}</dt>
-                  <dd className="font-semibold tabular-nums">
-                    {signo && Number(monto) > 0 ? `${signo} ` : ''}
-                    {soles(Number(monto))}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-
-            {movAbiertos.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-white/15 p-5 text-center text-[13px] text-bone-dim">
-                Sin gastos ni retiros en esta caja.
+            {visibles.length === 0 ? (
+              <p className="rounded-3xl border border-dashed border-white/15 p-8 text-center text-sm text-bone-dim">
+                {tab === 'pendientes'
+                  ? 'No queda nada por entregar.'
+                  : 'Todavía no has entregado ningún pedido.'}
               </p>
             ) : (
-              <ul className="grid gap-2">
-                {movAbiertos.map((m) => (
-                  <li
-                    key={m.id}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-night-2 px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold">{m.concepto}</p>
-                      <p className="text-[11px] text-bone-dim">
-                        {hora(m.creado)} · {m.tipo === 'gasto' ? 'Gasto' : 'Saqué de caja'} ·{' '}
-                        {m.medio === 'yape' ? 'Yape' : 'Efectivo'}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="font-bold tabular-nums">− {soles(m.monto)}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          movPorBorrar === m.id ? borrarMovimiento(m.id) : setMovPorBorrar(m.id)
-                        }
-                        className={`min-h-[36px] rounded-xl border px-2.5 text-[12px] font-semibold ${
-                          movPorBorrar === m.id
-                            ? 'border-sugu bg-sugu/15 text-sugu'
-                            : 'border-white/15 text-bone-dim'
-                        }`}
-                        aria-label={`Borrar ${m.concepto}`}
-                      >
-                        {movPorBorrar === m.id ? '¿Seguro?' : <Trash2 size={14} />}
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="grid gap-2">
+                  {enPagina.map((p) => (
+                    <li
+                      key={p.id}
+                      className={`rounded-2xl border bg-night-soft p-3 ${
+                        p.entregado ? 'border-white/5 opacity-70' : 'border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-bone-dim">
+                            <span className="font-bold text-bone">#{formatearNumero(p.numero)}</span>
+                            <span>
+                              {hora(p.creado)} · {p.cliente}
+                            </span>
+                            {/* lo que lleva esperando; una vez entregado ya da igual */}
+                            {!p.entregado && (
+                              <span className="rounded-full bg-white/10 px-1.5 py-0.5 font-semibold tabular-nums">
+                                {espera(p.creado, ahora)}
+                              </span>
+                            )}
+                          </p>
+                          {p.lineas.map((l, i) => (
+                            <p key={i} className="mt-0.5 font-semibold">
+                              {describirLinea(l)}
+                            </p>
+                          ))}
+                          {p.nota && (
+                            <p className="mt-1 text-[12px] font-semibold text-amber-300">
+                              {p.nota}
+                            </p>
+                          )}
+                          <p className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            {p.pagado ? (
+                              <Etiqueta tono="verde">Pagado</Etiqueta>
+                            ) : (
+                              <Etiqueta tono="ambar">Por cobrar</Etiqueta>
+                            )}
+                            <Etiqueta tono="gris">
+                              {p.metodo === 'mixto'
+                                ? `Yape ${soles(p.montoYape)} · Efec. ${soles(p.montoEfectivo)}`
+                                : NOMBRE_METODO[p.metodo]}
+                            </Etiqueta>
+                            {p.vueltoYape > 0 && (
+                              <Etiqueta tono="azul">Vuelto Yape {soles(p.vueltoYape)}</Etiqueta>
+                            )}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-lg font-bold tabular-nums">
+                          {soles(p.total)}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <AccionFila
+                          tono={p.entregado ? 'listo' : 'neutro'}
+                          icono={<PackageCheck size={15} />}
+                          onClick={() => parchear(p.id, { entregado: !p.entregado })}
+                        >
+                          {p.entregado ? 'Devolver' : 'Entregar'}
+                        </AccionFila>
+                        <AccionFila icono={<Pencil size={15} />} onClick={() => setEditando(p)}>
+                          Editar
+                        </AccionFila>
+                        <AccionFila
+                          tono="peligro"
+                          icono={<Trash2 size={15} />}
+                          onClick={() => (porBorrar === p.id ? eliminar(p.id) : setPorBorrar(p.id))}
+                        >
+                          {porBorrar === p.id ? '¿Seguro?' : 'Eliminar'}
+                        </AccionFila>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {totalPaginas > 1 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPagina(paginaSegura - 1)}
+                      disabled={paginaSegura === 1}
+                      className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-white/15 bg-night-2 text-[13px] font-semibold disabled:opacity-30"
+                    >
+                      <ChevronLeft size={16} />
+                      Anterior
+                    </button>
+                    <span className="text-[12px] text-bone-dim">
+                      {paginaSegura} / {totalPaginas}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPagina(paginaSegura + 1)}
+                      disabled={paginaSegura === totalPaginas}
+                      className="flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-white/15 bg-night-2 text-[13px] font-semibold disabled:opacity-30"
+                    >
+                      Siguiente
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
+              </>
             )}
-          </div>
+
+            {abiertos.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => descargarExcel(abiertos, 'caja-abierta', movAbiertos)}
+                  className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-600/15 font-semibold text-emerald-300 active:scale-[0.99]"
+                >
+                  <Download size={18} />
+                  Descargar Excel ({abiertos.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNombreCierre(`Caja ${new Date().toLocaleDateString('es-PE')}`);
+                    setCerrando(true);
+                  }}
+                  className="flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border border-white/20 bg-night-2 font-semibold text-bone active:scale-[0.99]"
+                >
+                  <Archive size={18} />
+                  Cerrar caja ({abiertos.length})
+                </button>
+              </>
+            )}
+          </section>
         </div>
-      </section>
+      )}
+
+      {/* ---------------- Gastos caja ---------------- */}
+      {seccion === 'gastos' && (
+        <section className="mx-auto max-w-5xl px-4 py-5">
+          <div className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+            <div className="grid content-start gap-3">
+              <h2 className="flex items-center gap-2 text-sm font-bold">
+                <Receipt size={16} />
+                Gastos y retiros de caja
+              </h2>
+              <div className="grid grid-cols-2 gap-2">
+                <Opcion activo={tipoMov === 'gasto'} onClick={() => setTipoMov('gasto')}>
+                  <span>Gasto</span>
+                  <span className="text-[10px] font-normal opacity-70">Motorizado, comida…</span>
+                </Opcion>
+                <Opcion activo={tipoMov === 'retiro'} onClick={() => setTipoMov('retiro')}>
+                  <span>Saqué de caja</span>
+                  <span className="text-[10px] font-normal opacity-70">Efectivo que agarré</span>
+                </Opcion>
+              </div>
+
+              {tipoMov === 'gasto' && (
+                <div className="flex flex-wrap gap-1.5">
+                  {CONCEPTOS_GASTO.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setConceptoMov(c)}
+                      className={`min-h-[36px] rounded-full border px-3 text-[12px] font-semibold transition-colors ${
+                        conceptoMov === c ? 'border-sugu bg-sugu text-white' : 'border-white/15 text-bone-dim'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2">
+                <input
+                  value={conceptoMov}
+                  onChange={(e) => setConceptoMov(e.target.value)}
+                  placeholder={tipoMov === 'gasto' ? 'En qué se gastó' : 'Para qué (opcional)'}
+                  aria-label="Concepto"
+                  className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-base outline-none placeholder:text-white/30 focus:border-sugu"
+                />
+                <input
+                  value={montoMov}
+                  onChange={(e) => setMontoMov(e.target.value.replace(/[^\d.,]/g, ''))}
+                  inputMode="decimal"
+                  placeholder="S/ 0.00"
+                  aria-label="Monto"
+                  onKeyDown={(e) => e.key === 'Enter' && anotarMovimiento()}
+                  className="w-full rounded-xl border border-white/15 bg-night px-3 py-2.5 text-right text-base tabular-nums outline-none placeholder:text-white/30 focus:border-sugu"
+                />
+              </div>
+
+              {tipoMov === 'gasto' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Opcion activo={medioMov === 'efectivo'} onClick={() => setMedioMov('efectivo')}>
+                    <span className="text-[12px]">Pagué en efectivo</span>
+                  </Opcion>
+                  <Opcion activo={medioMov === 'yape'} onClick={() => setMedioMov('yape')}>
+                    <span className="text-[12px]">Pagué por Yape</span>
+                  </Opcion>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={anotarMovimiento}
+                disabled={!(Number(montoMov.replace(',', '.')) > 0)}
+                className="min-h-[52px] rounded-2xl bg-sugu font-bold text-white disabled:bg-night-3 disabled:text-bone-dim"
+              >
+                {tipoMov === 'gasto' ? 'Anotar gasto' : 'Anotar lo que saqué'}
+              </button>
+            </div>
+
+            <div className="grid content-start gap-3">
+              {/* el cuadre: es lo que se cuenta al final, así que va arriba y grande */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-2xl border border-white/10 bg-night-2 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-bone-dim">
+                    Debe haber en caja
+                  </p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-400">
+                    {soles(cuadre.efectivoEnCaja)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-night-2 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-bone-dim">Yape neto</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums">{soles(cuadre.yapeNeto)}</p>
+                </div>
+              </div>
+              <dl className="grid gap-1 rounded-2xl border border-white/10 bg-night-2 p-3 text-[13px]">
+                {[
+                  ['Cobrado en efectivo', cuadre.efectivoCobrado, ''],
+                  ['Vueltos dados por Yape', cuadre.vueltos, '+'],
+                  ['Gastos en efectivo', cuadre.gastosEfectivo, '−'],
+                  ['Lo que saqué de caja', cuadre.retiros, '−'],
+                  ['Gastos por Yape', cuadre.gastosYape, ''],
+                ].map(([et, monto, signo]) => (
+                  <div key={et as string} className="flex justify-between gap-3">
+                    <dt className="text-bone-dim">{et}</dt>
+                    <dd className="font-semibold tabular-nums">
+                      {signo && Number(monto) > 0 ? `${signo} ` : ''}
+                      {soles(Number(monto))}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+
+              {movAbiertos.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-white/15 p-5 text-center text-[13px] text-bone-dim">
+                  Sin gastos ni retiros en esta caja.
+                </p>
+              ) : (
+                <ul className="grid gap-2">
+                  {movAbiertos.map((m) => (
+                    <li
+                      key={m.id}
+                      className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-night-2 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-semibold">{m.concepto}</p>
+                        <p className="text-[11px] text-bone-dim">
+                          {hora(m.creado)} · {m.tipo === 'gasto' ? 'Gasto' : 'Saqué de caja'} ·{' '}
+                          {m.medio === 'yape' ? 'Yape' : 'Efectivo'}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="font-bold tabular-nums">− {soles(m.monto)}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            movPorBorrar === m.id ? borrarMovimiento(m.id) : setMovPorBorrar(m.id)
+                          }
+                          className={`min-h-[36px] rounded-xl border px-2.5 text-[12px] font-semibold ${
+                            movPorBorrar === m.id
+                              ? 'border-sugu bg-sugu/15 text-sugu'
+                              : 'border-white/15 text-bone-dim'
+                          }`}
+                          aria-label={`Borrar ${m.concepto}`}
+                        >
+                          {movPorBorrar === m.id ? '¿Seguro?' : <Trash2 size={14} />}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {editando && (
         <EditarVenta
