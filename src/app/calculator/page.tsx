@@ -375,7 +375,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     const cerrados = r.cerradosEnPanel;
     if (Object.keys(cerrados).length) {
       setPedidos((previos) =>
-        (previos ?? []).map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id] } : p)),
+        (previos ?? []).map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id], entregado: true } : p)),
       );
       setAviso('El panel cerró la caja de un día anterior');
     }
@@ -635,14 +635,15 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   /**
    * Cierra el turno: sella con un nombre todos los cobros abiertos, baja el
    * Excel de esa jornada y deja la caja en cero para la siguiente. No borra
-   * nada: lo cerrado sigue en el panel y en el historial del celular.
+   * nada: lo cerrado sigue en el panel y en el historial del celular. Una
+   * jornada cerrada se da por entregada entera: nada queda pendiente.
    */
   function cerrarCaja() {
     const nombre = nombreCierre.trim();
     if (!nombre || abiertos.length === 0) return;
-    const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre }));
+    const cerrados = abiertos.map((p) => ({ ...p, cierre: nombre, entregado: true }));
     for (const p of abiertos) marcarSucio(p.id);
-    setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre })));
+    setPedidos((previos) => (previos ?? []).map((p) => (p.cierre ? p : { ...p, cierre: nombre, entregado: true })));
     void descargarExcel(cerrados, paraArchivo(nombre));
     setCerrando(false);
     setNombreCierre('');

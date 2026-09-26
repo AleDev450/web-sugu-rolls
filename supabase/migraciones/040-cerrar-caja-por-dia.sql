@@ -15,6 +15,12 @@
 -- Nadie reabre ni renombra; lo primero que lo cerró —la tablet o el
 -- panel— es lo que vale. El resto de la fila se sigue actualizando normal.
 --
+-- Y una caja cerrada es una jornada terminada: todo lo cobrado ahí se
+-- entregó ese día, aunque nadie tocara "Entregar". Así un cobro cerrado
+-- nunca queda como pendiente y el reporte cuenta lo entregado en la fecha
+-- de su venta (`creado`). No hay columna de fecha de entrega: en el puesto
+-- se entrega el mismo día que se cobra.
+--
 -- Idempotente.
 -- =====================================================================
 
@@ -25,8 +31,11 @@ security invoker
 set search_path = public
 as $$
 begin
-  if coalesce(old.cierre, '') <> '' then
+  if tg_op = 'UPDATE' and coalesce(old.cierre, '') <> '' then
     new.cierre := old.cierre;
+  end if;
+  if coalesce(new.cierre, '') <> '' then
+    new.entregado := true;
   end if;
   return new;
 end;
@@ -34,8 +43,13 @@ $$;
 
 drop trigger if exists caja_cierre_fijo_trg on public.caja_pedidos;
 create trigger caja_cierre_fijo_trg
-  before update on public.caja_pedidos
+  before insert or update on public.caja_pedidos
   for each row execute function public.caja_cierre_fijo();
+
+-- los cierres de antes: lo que quedó sin marcar se entregó en su día
+update public.caja_pedidos
+set entregado = true
+where cierre <> '' and not entregado;
 
 -- el panel busca los días que quedaron abiertos sin importar la fecha
 create index if not exists caja_pedidos_abiertos_idx

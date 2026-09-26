@@ -156,7 +156,7 @@ async function bajarCierres(
   if (!Object.keys(cerrados).length) return {};
 
   // se relee: mientras se esperaba a la red pudo entrar un cobro nuevo
-  guardarPedidos(leerPedidos().map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id] } : p)));
+  guardarPedidos(leerPedidos().map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id], entregado: true } : p)));
   return cerrados;
 }
 

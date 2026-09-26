@@ -984,6 +984,7 @@ export async function listarCajaAbierta(): Promise<{ id: string; creado: string;
 /**
  * Cierra desde el panel lo que quedó abierto en un día (fecha local del
  * puesto). Solo toca cobros con el cierre vacío: lo ya cerrado no cambia.
+ * Cerrar es dar la jornada por terminada, así que todo queda entregado.
  *
  * Lo que impide que el celular lo reabra al subir su próximo cambio es la
  * migración 040 —un cobro con cierre ya no se reabre en la base— y que la
@@ -994,7 +995,7 @@ export async function cerrarDiaDeCaja(dia: string, nombre: string): Promise<numb
   if (!dia || !limpio) throw new Error('Falta el día o el nombre del cierre.');
   const { data, error } = await sb()
     .from('caja_pedidos')
-    .update({ cierre: limpio })
+    .update({ cierre: limpio, entregado: true })
     .eq('cierre', '')
     .gte('creado', inicioDelDia(dia))
     .lt('creado', inicioDelDiaSiguiente(dia))
