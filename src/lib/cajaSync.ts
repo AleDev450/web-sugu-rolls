@@ -1,7 +1,34 @@
 'use client';
 
 import { getSupabase } from '@/lib/supabase/client';
-import { guardarPedidos, leerPedidos, type Pedido } from '@/lib/caja';
+import {
+  type Pedido,
+  type Precios,
+  claveCaja,
+  combinarPrecios,
+  guardarPedidos,
+  leerPedidos,
+} from '@/lib/caja';
+
+/**
+ * Los precios que el panel fijó para esta caja: el base y, encima, los de
+ * este cajero. Devuelve null si no se pudo preguntar —sin señal, o una base
+ * sin la migración 042—: entonces se sigue cobrando con lo que ya había.
+ */
+export async function traerPrecios(vendedor: string): Promise<Precios | null> {
+  const sb = getSupabase();
+  if (!sb || !vendedor.trim()) return null;
+  const { data, error } = await sb
+    .from('caja_precios')
+    .select('caja, precios')
+    .in('caja', ['', claveCaja(vendedor)]);
+  if (error) return null;
+  const filas = (data ?? []) as { caja: string; precios: Precios }[];
+  return combinarPrecios(
+    filas.find((f) => f.caja === '')?.precios,
+    filas.find((f) => f.caja === claveCaja(vendedor))?.precios,
+  );
+}
 
 /**
  * Sincronización de la caja de feria con Supabase.

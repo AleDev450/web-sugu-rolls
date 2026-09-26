@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Archive,
   Banknote,
@@ -28,12 +28,14 @@ import {
   METODOS_PAGO,
   NOMBRE_METODO,
   NOTAS_RAPIDAS,
+  PRECIOS_CARTA,
   PRODUCTOS,
   SABORES,
   type ClaveProducto,
   type Linea,
   type MetodoPago,
   type Pedido,
+  type Precios,
   conEntrega,
   describirLinea,
   descargarExcel,
@@ -41,15 +43,20 @@ import {
   espera,
   formatearNumero,
   guardarPedidos,
+  guardarPrecios,
   guardarVendedor,
   hora,
   leerPedidos,
+  leerPrecios,
   leerVendedor,
   maxSabores,
   nuevoId,
   paraArchivo,
+  pistaVariante,
   precioUnitario,
+  rangoPrecio,
   repartir,
+  repreciar,
   rollsDe,
   siguienteNumero,
   soles,
@@ -63,6 +70,7 @@ import {
   marcarBorrado,
   marcarSucio,
   sincronizar,
+  traerPrecios,
 } from '@/lib/cajaSync';
 import { cerrarSesion, esAdmin, traerClaveCocina, usuarioActual } from '@/lib/admin';
 import { hayBackend } from '@/lib/contenido';
@@ -327,6 +335,14 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const [mostrandoCocina, setMostrandoCocina] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
+  /*
+   * Precios con los que se cobra: los que el panel fijó para esta caja, o
+   * los de carta si nunca hubo señal. El ref es para comparar al recibir
+   * unos nuevos sin rehacer los efectos cada vez que cambian.
+   */
+  const [precios, setPrecios] = useState<Precios>(PRECIOS_CARTA);
+  const preciosRef = useRef<Precios>(PRECIOS_CARTA);
+
   // subida al panel
   const [pendientesSync, setPendientesSync] = useState(0);
   const [subiendo, setSubiendo] = useState(false);
@@ -341,6 +357,9 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     setOrigen(window.location.origin);
     setPedidos(leerPedidos());
     setVendedor(leerVendedor());
+    const guardados = leerPrecios();
+    preciosRef.current = guardados;
+    setPrecios(guardados);
     encolarNoSubidos();
     setPendientesSync(cuantosPendientes());
   }, []);
@@ -361,6 +380,43 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     claveCocina && vendedor
       ? `${origen}/cocina?k=${claveCocina}&v=${encodeURIComponent(vendedor)}`
       : '';
+
+  /**
+   * Trae los precios del panel. Si cambiaron, las ventas de la caja abierta
+   * pasan a los nuevos —salvo las líneas retocadas a mano— y vuelven a
+   * subir. Lo ya cerrado no se toca: se cuadró con los precios de entonces.
+   */
+  const actualizarPrecios = useCallback(async () => {
+    if (!sincroniza || !vendedor) return;
+    const nuevos = await traerPrecios(vendedor);
+    if (!nuevos) return;
+    const antes = preciosRef.current;
+    if (Object.keys(nuevos).every((k) => nuevos[k] === antes[k])) return;
+    preciosRef.current = nuevos;
+    setPrecios(nuevos);
+    guardarPrecios(nuevos);
+    setPedidos((previos) =>
+      (previos ?? []).map((p) => {
+        if (p.cierre) return p;
+        const nuevo = repreciar(p, antes, nuevos);
+        // idempotente: si React repite este paso, marcar dos veces no duplica nada
+        if (nuevo !== p) marcarSucio(p.id);
+        return nuevo;
+      }),
+    );
+    setAviso('Precios actualizados desde el panel');
+  }, [sincroniza, vendedor]);
+
+  useEffect(() => {
+    void actualizarPrecios();
+    const alMostrar = () => document.visibilityState === 'visible' && void actualizarPrecios();
+    document.addEventListener('visibilitychange', alMostrar);
+    const t = setInterval(() => void actualizarPrecios(), 60000);
+    return () => {
+      document.removeEventListener('visibilitychange', alMostrar);
+      clearInterval(t);
+    };
+  }, [actualizarPrecios]);
 
   const empujar = useCallback(async () => {
     if (!sincroniza) return;
@@ -450,7 +506,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     if (exigeVariante && !variante) return null;
     const cuantosSabores = maxSabores(producto, variante);
     if (cuantosSabores > 0 && sabores.length === 0) return null;
-    const unitario = precioUnitario(producto, variante);
+    const unitario = precioUnitario(producto, variante, precios);
     if (unitario <= 0) return null;
     return {
       producto,
@@ -460,7 +516,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       unitario,
       total: unitario * cantidad,
     };
-  }, [producto, variante, sabores, cantidad]);
+  }, [producto, variante, sabores, cantidad, precios]);
 
   /*
    * Lo que se registraría ahora mismo. La línea en curso entra sola, sin
@@ -830,7 +886,9 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
               {PRODUCTOS.map((p) => (
                 <Opcion key={p.id} activo={producto === p.id} onClick={() => elegirProducto(p.id)}>
                   <span>{p.nombre}</span>
-                  <span className="text-[10px] font-normal opacity-70">{p.pista}</span>
+                  <span className="text-[10px] font-normal opacity-70">
+                    {rangoPrecio(p.id, precios)}
+                  </span>
                 </Opcion>
               ))}
             </div>
@@ -842,7 +900,9 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                 {opciones.map((v) => (
                   <Opcion key={v.id} activo={variante === v.id} onClick={() => elegirVariante(v.id)}>
                     <span>{v.nombre}</span>
-                    <span className="text-[10px] font-normal opacity-70">{v.pista}</span>
+                    <span className="text-[10px] font-normal opacity-70">
+                      {producto && pistaVariante(producto, v, precios)}
+                    </span>
                   </Opcion>
                 ))}
               </div>
@@ -1243,6 +1303,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       {editando && (
         <EditarVenta
           pedido={editando}
+          precios={precios}
           alGuardar={guardarEdicion}
           alCancelar={() => setEditando(null)}
         />
@@ -1360,10 +1421,12 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
  */
 function EditarVenta({
   pedido,
+  precios,
   alGuardar,
   alCancelar,
 }: {
   pedido: Pedido;
+  precios: Precios;
   alGuardar: (p: Pedido) => void;
   alCancelar: () => void;
 }) {
@@ -1414,7 +1477,7 @@ function EditarVenta({
       producto,
       promo: variante,
       sabores: [],
-      unitario: precioUnitario(producto, variante),
+      unitario: precioUnitario(producto, variante, precios),
     });
   }
 
@@ -1423,7 +1486,7 @@ function EditarVenta({
       promo: variante,
       // del dúo al personal sobra un sabor: se recorta al tope de la variante
       sabores: l.sabores.slice(0, maxSabores(l.producto, variante)),
-      unitario: precioUnitario(l.producto, variante),
+      unitario: precioUnitario(l.producto, variante, precios),
     });
   }
 

@@ -54,3 +54,4 @@ Cuando corras una, márcala aquí:
 | `028-temporizador-del-juego.sql` | Duración de la partida ajustable desde el panel (0 = sin límite) | ☐ |
 | `040-cerrar-caja-por-dia.sql` | Cerrar desde el panel la caja que un vendedor dejó abierta; un cobro cerrado ya no se reabre | ☐ |
 | `041-hora-de-entrega.sql` | Hora de entrega de cada cobro de caja, para el tiempo de atención en las estadísticas | ☐ |
+| `042-precios-por-caja.sql` | Precios de la caja editables desde el panel, con precios propios por cajero; el maki de 5 piezas cuenta medio roll en cocina | ☐ |

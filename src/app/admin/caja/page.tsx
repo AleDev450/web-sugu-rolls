@@ -13,6 +13,7 @@ import {
 } from '@/lib/admin';
 import { Aviso, Cargando, Encabezado } from '@/components/admin/ui';
 import EstadisticasCaja from '@/components/admin/EstadisticasCaja';
+import PreciosCaja from '@/components/admin/PreciosCaja';
 import {
   NOMBRE_METODO,
   NOMBRE_PRODUCTO,
@@ -82,7 +83,7 @@ export default function CajaAdmin() {
   const [vendedor, setVendedor] = useState('todos');
   const [cierre, setCierre] = useState('todos');
   /** el detalle de siempre, o los gráficos */
-  const [vista, setVista] = useState<'detalle' | 'estadisticas'>('detalle');
+  const [vista, setVista] = useState<'detalle' | 'estadisticas' | 'precios'>('detalle');
   const [items, setItems] = useState<PedidoCaja[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
@@ -558,6 +559,7 @@ export default function CajaAdmin() {
               [
                 ['detalle', 'Detalle'],
                 ['estadisticas', 'Estadísticas'],
+                ['precios', 'Precios'],
               ] as const
             ).map(([clave, nombre]) => (
               <button
@@ -574,7 +576,12 @@ export default function CajaAdmin() {
             ))}
           </div>
 
-          {vista === 'estadisticas' ? (
+          {vista === 'precios' ? (
+            <PreciosCaja
+              vendedores={[...vendedores, ...(abiertos ?? []).map((p) => p.vendedor)]}
+              abiertos={(abiertos ?? []).map((p) => p.vendedor)}
+            />
+          ) : vista === 'estadisticas' ? (
             <EstadisticasCaja pedidos={pedidosVisibles} desde={desde} hasta={hasta} />
           ) : visibles.length === 0 ? (
             <p className="rounded-3xl border border-dashed border-white/15 p-10 text-center text-sm text-bone-dim">

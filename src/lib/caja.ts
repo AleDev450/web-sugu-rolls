@@ -79,10 +79,10 @@ export type Pedido = {
 };
 
 /* El maki va primero: es lo que más se vende y no debe costar un toque extra. */
-export const PRODUCTOS: { id: ClaveProducto; nombre: string; pista: string }[] = [
-  { id: 'maki', nombre: 'Maki', pista: 'Personal o Dúo' },
-  { id: 'pokebowl', nombre: 'Poke Bowl', pista: 'S/ 18 · 20' },
-  { id: 'onigiri', nombre: 'Onigiri', pista: 'S/ 6' },
+export const PRODUCTOS: { id: ClaveProducto; nombre: string }[] = [
+  { id: 'maki', nombre: 'Maki' },
+  { id: 'pokebowl', nombre: 'Poke Bowl' },
+  { id: 'onigiri', nombre: 'Onigiri' },
 ];
 
 export const NOMBRE_PRODUCTO: Record<ClaveProducto, string> = {
@@ -97,32 +97,82 @@ export const NOMBRE_PRODUCTO: Record<ClaveProducto, string> = {
  * El precio lo pone la VARIANTE, no cuántos sabores se eligieron: un dúo de
  * un solo sabor sigue costando 35. `maxSabores` es el tope, no una
  * obligación; en 0 significa que ese producto no elige sabores.
+ *
+ * `precio` es el de CARTA. El que se cobra puede ser otro: el panel pone
+ * precios propios por caja (ver `Precios`), así que para cobrar se usa
+ * siempre `precioUnitario` con los precios vigentes, nunca este número.
  */
 export type Variante = {
   id: string;
   nombre: string;
   precio: number;
   maxSabores: number;
-  pista: string;
+  /** lo que va bajo el precio en el botón: "1 sabor", "1 o 2 sabores" */
+  detalle?: string;
 };
 
 export const VARIANTES: Record<ClaveProducto, Variante[]> = {
   maki: [
-    { id: 'personal', nombre: 'Personal', precio: 20, maxSabores: 1, pista: 'S/ 20 · 1 sabor' },
-    { id: 'duo', nombre: 'Dúo', precio: 35, maxSabores: 2, pista: 'S/ 35 · 1 o 2 sabores' },
+    { id: 'cinco', nombre: '5 piezas', precio: 15, maxSabores: 1, detalle: '1 sabor' },
+    { id: 'personal', nombre: 'Personal', precio: 20, maxSabores: 1, detalle: '1 sabor' },
+    { id: 'duo', nombre: 'Dúo', precio: 35, maxSabores: 2, detalle: '1 o 2 sabores' },
   ],
   pokebowl: [
-    { id: 'pollo', nombre: 'Pollo', precio: 18, maxSabores: 0, pista: 'S/ 18' },
-    { id: 'tartar', nombre: 'Tartar de pescado', precio: 18, maxSabores: 0, pista: 'S/ 18' },
-    { id: 'tofu', nombre: 'Tofu', precio: 18, maxSabores: 0, pista: 'S/ 18' },
-    { id: 'langostino', nombre: 'Langostino', precio: 20, maxSabores: 0, pista: 'S/ 20' },
+    { id: 'pollo', nombre: 'Pollo', precio: 18, maxSabores: 0 },
+    { id: 'tartar', nombre: 'Tartar de pescado', precio: 18, maxSabores: 0 },
+    { id: 'tofu', nombre: 'Tofu', precio: 18, maxSabores: 0 },
+    { id: 'langostino', nombre: 'Langostino', precio: 20, maxSabores: 0 },
   ],
   // el onigiri se vende tal cual: no hay variante que elegir
   onigiri: [],
 };
 
-/** Precio de los productos que no tienen variante. */
+/** Precio de carta de los productos que no tienen variante. */
 const PRECIO_SIMPLE: Record<ClaveProducto, number> = { maki: 0, pokebowl: 0, onigiri: 6 };
+
+/**
+ * Precios vigentes, por clave: el id de la variante ('duo', 'pollo'…) o el
+ * del producto cuando no tiene variantes ('onigiri'). Los ids de variante
+ * no se repiten entre productos, así que una sola tabla alcanza.
+ */
+export type Precios = Record<string, number>;
+
+/** Clave de precio de una línea: su variante, o el producto si no tiene. */
+export const clavePrecio = (producto: ClaveProducto, variante: string | null) =>
+  variantesDe(producto).length ? (variante ?? '') : producto;
+
+/** Todo lo que se vende en la caja, en el orden de la carta. Es lo que edita el panel. */
+export const MENU_CAJA: { clave: string; producto: ClaveProducto; nombre: string; carta: number }[] =
+  PRODUCTOS.flatMap((p) =>
+    VARIANTES[p.id].length
+      ? VARIANTES[p.id].map((v) => ({
+          clave: v.id,
+          producto: p.id,
+          nombre: `${p.nombre} ${v.nombre}`,
+          carta: v.precio,
+        }))
+      : [{ clave: p.id, producto: p.id, nombre: p.nombre, carta: PRECIO_SIMPLE[p.id] }],
+  );
+
+/** Los precios de carta: lo que rige mientras el panel no diga otra cosa. */
+export const PRECIOS_CARTA: Precios = Object.fromEntries(MENU_CAJA.map((m) => [m.clave, m.carta]));
+
+/**
+ * Junta las capas de precio: carta, luego el base del panel, luego el de
+ * esa caja. Solo cuenta un número positivo: un campo vacío hereda.
+ */
+export function combinarPrecios(...capas: (Precios | null | undefined)[]): Precios {
+  const final: Precios = { ...PRECIOS_CARTA };
+  for (const capa of capas) {
+    for (const [clave, valor] of Object.entries(capa ?? {})) {
+      if (clave in final && Number(valor) > 0) final[clave] = Number(valor);
+    }
+  }
+  return final;
+}
+
+/** Clave de caja para los precios: el cajero, sin mayúsculas ni espacios de más. */
+export const claveCaja = (vendedor: string) => vendedor.trim().toLowerCase();
 
 export function variantesDe(producto: ClaveProducto): Variante[] {
   return VARIANTES[producto] ?? [];
@@ -138,11 +188,48 @@ export function buscarVariante(id: string | null): Variante | undefined {
   return undefined;
 }
 
-export function precioUnitario(producto: ClaveProducto, variante: string | null): number {
-  const opciones = variantesDe(producto);
-  if (!opciones.length) return PRECIO_SIMPLE[producto];
-  if (!variante) return 0;
-  return opciones.find((v) => v.id === variante)?.precio ?? 0;
+export function precioUnitario(
+  producto: ClaveProducto,
+  variante: string | null,
+  precios: Precios = PRECIOS_CARTA,
+): number {
+  if (variantesDe(producto).length && !variante) return 0;
+  return precios[clavePrecio(producto, variante)] ?? 0;
+}
+
+const fmtPrecio = (n: number) => `S/ ${Number.isInteger(n) ? n : n.toFixed(2)}`;
+
+/** "S/ 18" o "S/ 15 – 35": lo que se muestra bajo el nombre del producto. */
+export function rangoPrecio(producto: ClaveProducto, precios: Precios): string {
+  const valores = MENU_CAJA.filter((m) => m.producto === producto).map((m) => precios[m.clave] ?? 0);
+  const menor = Math.min(...valores);
+  const mayor = Math.max(...valores);
+  return menor === mayor ? fmtPrecio(menor) : `${fmtPrecio(menor)} – ${mayor}`;
+}
+
+/** Lo que va bajo una variante: su precio vigente y, si elige sabores, cuántos. */
+export const pistaVariante = (producto: ClaveProducto, v: Variante, precios: Precios) =>
+  [fmtPrecio(precioUnitario(producto, v.id, precios)), v.detalle].filter(Boolean).join(' · ');
+
+/**
+ * Pasa un pedido de unos precios a otros. Solo cambia las líneas que
+ * estaban cobradas al precio anterior: si alguien retocó un precio a mano
+ * en "Editar venta" —un descuento, una cortesía—, eso se respeta. Devuelve
+ * el mismo objeto si no hubo nada que cambiar.
+ */
+export function repreciar(pedido: Pedido, antes: Precios, ahora: Precios): Pedido {
+  let cambio = false;
+  const lineas = pedido.lineas.map((l) => {
+    const clave = clavePrecio(l.producto, l.promo);
+    const viejo = antes[clave];
+    const nuevo = ahora[clave];
+    if (!nuevo || viejo === nuevo || l.unitario !== viejo) return l;
+    cambio = true;
+    return { ...l, unitario: nuevo, total: nuevo * l.cantidad };
+  });
+  if (!cambio) return pedido;
+  const total = totalPedido(lineas);
+  return { ...pedido, lineas, total, ...repartir(pedido.metodo, total, pedido.montoYape) };
 }
 
 export function maxSabores(producto: ClaveProducto, variante: string | null): number {
@@ -160,15 +247,18 @@ export const totalPedido = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.to
 
 export const unidades = (lineas: Linea[]) => lineas.reduce((s, l) => s + l.cantidad, 0);
 
+/** Cuántos rolls es cada presentación de maki: el de 5 piezas es medio roll. */
+const ROLLS_POR_PROMO: Record<string, number> = { cinco: 0.5, personal: 1, duo: 2 };
+
 /**
- * Rolls de verdad que hay que preparar. Un maki Personal es uno y un Dúo
- * son dos, así que contar pedidos no sirve para saber cuánto se corta: lo
- * que importa en la tabla es el roll, no el ticket.
+ * Rolls de verdad que hay que preparar. Un maki Personal es uno, un Dúo
+ * son dos y el de 5 piezas es medio, así que contar pedidos no sirve para
+ * saber cuánto se corta: lo que importa en la tabla es el roll, no el ticket.
  */
 export function rollsDe(lineas: Linea[]): number {
   return lineas
     .filter((l) => l.producto === 'maki')
-    .reduce((s, l) => s + l.cantidad * (l.promo === 'duo' ? 2 : 1), 0);
+    .reduce((s, l) => s + l.cantidad * (ROLLS_POR_PROMO[l.promo ?? ''] ?? 1), 0);
 }
 
 /** Unidades de un producto concreto: los contadores de la cabecera. */
@@ -406,6 +496,31 @@ export function guardarVendedor(nombre: string): void {
     window.localStorage.setItem(CLAVE_VENDEDOR, nombre);
   } catch {
     /* sin almacenamiento el nombre dura lo que dure la pestaña */
+  }
+}
+
+/*
+ * Los precios vigentes de esta caja, tal como los mandó el panel la última
+ * vez que hubo señal. Sin ellos se cobra a precio de carta; con ellos, una
+ * feria sin conexión sigue cobrando lo que el panel decidió.
+ */
+const CLAVE_PRECIOS = 'sugu-caja-precios';
+
+export function leerPrecios(): Precios {
+  if (typeof window === 'undefined') return PRECIOS_CARTA;
+  try {
+    const crudo = window.localStorage.getItem(CLAVE_PRECIOS);
+    return crudo ? combinarPrecios(JSON.parse(crudo) as Precios) : PRECIOS_CARTA;
+  } catch {
+    return PRECIOS_CARTA;
+  }
+}
+
+export function guardarPrecios(precios: Precios): void {
+  try {
+    window.localStorage.setItem(CLAVE_PRECIOS, JSON.stringify(precios));
+  } catch {
+    /* sin almacenamiento los precios duran lo que dure la pestaña */
   }
 }
 

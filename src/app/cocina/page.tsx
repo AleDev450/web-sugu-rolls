@@ -96,7 +96,8 @@ function Cocina() {
       p_vendedor: vendedor,
     });
     const fila = (totales as Resumen[] | null)?.[0];
-    if (fila) setResumen(fila);
+    // desde la 042 los rolls traen decimales: el de 5 piezas es medio roll
+    if (fila) setResumen({ ...fila, rolls: Number(fila.rolls) });
   }, [clave, vendedor]);
 
   useEffect(() => {

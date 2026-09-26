@@ -2,6 +2,14 @@
 
 import { getSupabase } from '@/lib/supabase/client';
 import type { GrupoSaboresPromo } from '@/data/productos';
+import {
+  type ClaveProducto,
+  type Pedido,
+  type Precios,
+  claveCaja,
+  combinarPrecios,
+  repreciar,
+} from '@/lib/caja';
 
 /**
  * Operaciones del panel de administración.
@@ -992,6 +1000,101 @@ export async function listarCajaAbierta(): Promise<{ id: string; creado: string;
  * migración 040 —un cobro con cierre ya no se reabre en la base— y que la
  * caja, al sincronizar, baja los cierres hechos aquí.
  */
+/** Una capa de precios de la caja: la base (`caja` = '') o la de un cajero. */
+export interface FilaPreciosCaja {
+  caja: string;
+  nombre: string;
+  precios: Precios;
+}
+
+export async function listarPreciosCaja(): Promise<FilaPreciosCaja[]> {
+  const { data, error } = await sb().from('caja_precios').select('caja, nombre, precios');
+  if (error) throw error;
+  return (data ?? []) as FilaPreciosCaja[];
+}
+
+/** Los precios que de verdad cobra la caja de un cajero: carta ← base ← la suya. */
+export function preciosVigentes(filas: FilaPreciosCaja[], vendedor: string): Precios {
+  const base = filas.find((f) => f.caja === '')?.precios;
+  const propia = vendedor.trim() ? filas.find((f) => f.caja === claveCaja(vendedor))?.precios : null;
+  return combinarPrecios(base, propia);
+}
+
+/**
+ * Guarda una capa de precios. Una caja sin ningún precio propio se borra:
+ * así vuelve a seguir al base y no queda una fila vacía que confunda.
+ */
+export async function guardarPreciosCaja(caja: string, nombre: string, precios: Precios): Promise<void> {
+  const limpios = Object.fromEntries(Object.entries(precios).filter(([, v]) => Number(v) > 0));
+  if (caja && !Object.keys(limpios).length) {
+    const { error } = await sb().from('caja_precios').delete().eq('caja', caja);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await sb()
+    .from('caja_precios')
+    .upsert({ caja, nombre: nombre.trim(), precios: limpios, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+/**
+ * Lleva las ventas de las cajas ABIERTAS a los precios nuevos. Lo cerrado
+ * no se toca: ya se contó y se cuadró con esos precios.
+ *
+ * El celular hace lo mismo al recibir los precios, con la misma regla
+ * —solo cambia lo que estaba al precio anterior, respeta lo retocado a
+ * mano—, así que los dos llegan al mismo resultado. Hacerlo también aquí
+ * es para que el panel lo muestre al instante, aunque el celular esté sin
+ * señal.
+ */
+export async function repreciarCajasAbiertas(
+  antes: FilaPreciosCaja[],
+  ahora: FilaPreciosCaja[],
+): Promise<number> {
+  const { data, error } = await sb()
+    .from('caja_pedidos')
+    .select('id, vendedor, lineas, total, metodo, monto_yape, monto_efectivo')
+    .eq('cierre', '');
+  if (error) throw error;
+
+  const cambios = (data ?? []).flatMap((fila) => {
+    const pedido = {
+      lineas: (fila.lineas as Pedido['lineas']).map((l) => ({
+        ...l,
+        producto: l.producto as ClaveProducto,
+        unitario: Number(l.unitario),
+        total: Number(l.total),
+      })),
+      total: Number(fila.total),
+      metodo: fila.metodo,
+      montoYape: Number(fila.monto_yape ?? 0),
+      montoEfectivo: Number(fila.monto_efectivo ?? 0),
+    } as Pedido;
+    const nuevo = repreciar(
+      pedido,
+      preciosVigentes(antes, fila.vendedor as string),
+      preciosVigentes(ahora, fila.vendedor as string),
+    );
+    if (nuevo === pedido) return [];
+    return [
+      {
+        id: fila.id as string,
+        lineas: nuevo.lineas,
+        total: nuevo.total,
+        monto_yape: nuevo.montoYape,
+        monto_efectivo: nuevo.montoEfectivo,
+      },
+    ];
+  });
+
+  const resultados = await Promise.all(
+    cambios.map(({ id, ...campos }) => sb().from('caja_pedidos').update(campos).eq('id', id)),
+  );
+  const fallo = resultados.find((r) => r.error);
+  if (fallo?.error) throw fallo.error;
+  return cambios.length;
+}
+
 export async function cerrarDiaDeCaja(dia: string, nombre: string): Promise<number> {
   const limpio = nombre.trim();
   if (!dia || !limpio) throw new Error('Falta el día o el nombre del cierre.');
