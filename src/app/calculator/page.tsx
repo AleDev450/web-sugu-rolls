@@ -80,6 +80,7 @@ import {
   marcarMovimientoSucio,
   marcarSucio,
   movimientosPendientes,
+  reiniciarCocina,
   sincronizar,
   sincronizarMovimientos,
   traerPrecios,
@@ -494,15 +495,23 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       );
     }
     /*
-     * Días que el panel cerró porque aquí se olvidaron de cerrar: salen de
-     * la caja abierta igual que si se hubieran cerrado en este equipo.
+     * Lo que escribieron otros: días que el panel cerró porque aquí se
+     * olvidaron, y pedidos que la cocina marcó listos o entregó directo al
+     * cliente. Se aplican igual que si se hubieran tocado en este equipo.
      */
-    const cerrados = r.cerradosEnPanel;
-    if (Object.keys(cerrados).length) {
+    const cambios = r.delServidor;
+    const ids = Object.keys(cambios);
+    if (ids.length) {
       setPedidos((previos) =>
-        (previos ?? []).map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id], entregado: true } : p)),
+        (previos ?? []).map((p) => (cambios[p.id] ? { ...p, ...cambios[p.id] } : p)),
       );
-      setAviso('El panel cerró la caja de un día anterior');
+      if (ids.some((id) => cambios[id].cierre)) {
+        setAviso('El panel cerró la caja de un día anterior');
+      } else if (ids.some((id) => cambios[id].cocinaEstado === 'entregado')) {
+        setAviso('La cocina entregó un pedido');
+      } else if (ids.some((id) => cambios[id].cocinaEstado === 'listo')) {
+        setAviso('La cocina tiene un pedido listo');
+      }
     }
   }, [sincroniza]);
 
@@ -566,6 +575,18 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
    * cada segundo y gastar batería en una feria.
    */
   const hayPendientes = (pedidos ?? []).some((p) => !p.cierre && !p.entregado);
+
+  /*
+   * Mientras haya pedidos sin entregar se pregunta cada 15 segundos: es lo
+   * que tarda en enterarse la caja de que la cocina marcó uno listo o se lo
+   * dio directo al cliente. Con todo entregado no hay nada que esperar.
+   */
+  useEffect(() => {
+    if (!hayPendientes || !sincroniza) return;
+    const t = setInterval(() => void empujar(), 15000);
+    return () => clearInterval(t);
+  }, [hayPendientes, sincroniza, empujar]);
+
   const [ahora, setAhora] = useState(() => Date.now());
   useEffect(() => {
     if (!hayPendientes) return;
@@ -748,6 +769,8 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
           : 0,
       entregado: false,
       entregadoEn: null,
+      cocinaEstado: '',
+      cocinaEn: null,
     };
     marcarSucio(nuevo.id);
     setPedidos((previos) => [...(previos ?? []), nuevo]);
@@ -757,7 +780,17 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     limpiarTodo();
   }
 
+  /**
+   * Si el cajero devuelve un pedido que entregó la cocina, se limpia lo que
+   * ella marcó para que el pedido vuelva a su cola.
+   */
+  function avisarDevolucion(id: string, nuevoEntregado: boolean) {
+    const previo = (pedidos ?? []).find((p) => p.id === id);
+    if (previo?.cocinaEstado === 'entregado' && !nuevoEntregado) void reiniciarCocina(id);
+  }
+
   function parchear(id: string, cambios: Partial<Pedido>) {
+    if (cambios.entregado === false) avisarDevolucion(id, false);
     marcarSucio(id);
     setPedidos((previos) =>
       (previos ?? []).map((p) => (p.id === id ? conEntrega(p, { ...p, ...cambios }) : p)),
@@ -779,6 +812,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       total,
       ...repartir(editado.metodo, total, editado.montoYape),
     };
+    avisarDevolucion(completo.id, completo.entregado);
     marcarSucio(completo.id);
     setPedidos((previos) =>
       (previos ?? []).map((p) => (p.id === completo.id ? conEntrega(p, completo) : p)),
@@ -1372,8 +1406,12 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                   {enPagina.map((p) => (
                     <li
                       key={p.id}
-                      className={`rounded-2xl border bg-night-soft p-3 ${
-                        p.entregado ? 'border-white/5 opacity-70' : 'border-white/10'
+                      className={`rounded-2xl border p-3 ${
+                        !p.pagado
+                          ? 'border-amber-500/60 bg-amber-500/10'
+                          : p.entregado
+                            ? 'border-white/5 bg-night-soft opacity-70'
+                            : 'border-white/10 bg-night-soft'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -1413,6 +1451,12 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                             </Etiqueta>
                             {p.vueltoYape > 0 && (
                               <Etiqueta tono="azul">Vuelto Yape {soles(p.vueltoYape)}</Etiqueta>
+                            )}
+                            {p.cocinaEstado === 'listo' && !p.entregado && (
+                              <Etiqueta tono="verde">Listo en cocina</Etiqueta>
+                            )}
+                            {p.cocinaEstado === 'entregado' && (
+                              <Etiqueta tono="azul">Entregó cocina</Etiqueta>
                             )}
                           </p>
                         </div>

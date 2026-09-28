@@ -64,6 +64,8 @@ function aPedido(p: PedidoCaja): Pedido {
     montoYape: Number(p.monto_yape ?? 0),
     montoEfectivo: Number(p.monto_efectivo ?? 0),
     vueltoYape: Number(p.vuelto_yape ?? 0),
+    cocinaEstado: (p.cocina_estado ?? '') as Pedido['cocinaEstado'],
+    cocinaEn: p.cocina_en ?? null,
     pagado: p.pagado,
     entregado: p.entregado,
     entregadoEn: p.entregado_en ?? null,

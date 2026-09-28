@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ChefHat, RefreshCw, WifiOff } from 'lucide-react';
+import { AlertTriangle, Check, ChefHat, HandPlatter, RefreshCw, Undo2, WifiOff } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase/client';
 import { describirLinea, espera, formatearNumero, hora, type Linea } from '@/lib/caja';
 
@@ -19,6 +19,11 @@ type PedidoCocina = {
   vendedor: string;
   nota: string;
   lineas: Linea[];
+  /** si ya se cobró; la cocina no ve montos, solo si falta pagar */
+  pagado?: boolean;
+  /** '' por preparar, 'listo' terminado (desde la 044) */
+  cocina_estado?: '' | 'listo' | 'entregado';
+  cocina_en?: string | null;
 };
 
 /**
@@ -39,8 +44,19 @@ type PedidoCocina = {
  * haría falta abrirle la tabla. Preguntar cada cinco segundos da lo mismo
  * en una cocina y no obliga a aflojar los permisos.
  *
- * Es solo mirar. Cuando el cajero marca "Entregado", el pedido deja de
- * aparecer aquí en el siguiente refresco.
+ * La cocina marca su parte (migración 044), porque el cajero no siempre
+ * está: sale a comprar y deja pedidos apuntados, o el cliente tarda en
+ * recoger lo que ya está hecho.
+ *
+ *   · LISTO: terminado. Sale de la cola de preparación y queda abajo, en
+ *     "Listos para recoger", hasta que alguien lo entregue. La caja lo ve
+ *     como "Listo en cocina".
+ *   · ENTREGADO AL CLIENTE: la cocina se lo dio directo. Desaparece de aquí
+ *     y la caja lo pasa a entregado sola.
+ *
+ * Si el pedido NO está pagado se pinta en ámbar y entregarlo pide
+ * confirmar: la cocina no cobra, pero no debería soltar un plato sin que
+ * alguien lo haya cobrado.
  */
 function Cocina() {
   const parametros = useSearchParams();
@@ -51,6 +67,8 @@ function Cocina() {
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [ultima, setUltima] = useState<Date | null>(null);
   const [cargando, setCargando] = useState(false);
+  /** pedido sin pagar al que ya se le tocó "entregar" una vez: el segundo toque confirma */
+  const [porConfirmar, setPorConfirmar] = useState<string | null>(null);
 
   const traer = useCallback(async () => {
     const sb = getSupabase();
@@ -100,6 +118,48 @@ function Cocina() {
     if (fila) setResumen({ ...fila, rolls: Number(fila.rolls) });
   }, [clave, vendedor]);
 
+  /**
+   * Marca el estado de un pedido. Se aplica en pantalla antes de que conteste
+   * el servidor —la cocina no puede quedarse esperando con las manos
+   * ocupadas— y se vuelve a preguntar después para quedar al día.
+   */
+  const marcar = useCallback(
+    async (id: string, estado: '' | 'listo' | 'entregado') => {
+      const sb = getSupabase();
+      if (!sb) return;
+      setPorConfirmar(null);
+      setPedidos((previos) =>
+        (previos ?? [])
+          .map((p) => (p.id === id ? { ...p, cocina_estado: estado, cocina_en: new Date().toISOString() } : p))
+          .filter((p) => p.cocina_estado !== 'entregado'),
+      );
+      const { error: fallo } = await sb.rpc('cocina_marcar', {
+        p_clave: clave,
+        p_vendedor: vendedor,
+        p_id: id,
+        p_estado: estado,
+      });
+      if (fallo) {
+        setError(
+          fallo.message.includes('cocina_marcar')
+            ? 'Todavía no se puede marcar desde la cocina: falta correr la migración 044.'
+            : fallo.message.includes('PEDIDO_NO_ENCONTRADO')
+              ? 'Ese pedido ya no está en la caja abierta.'
+              : 'No se pudo marcar. Revisa la conexión e inténtalo otra vez.',
+        );
+      }
+      void traer();
+    },
+    [clave, vendedor, traer],
+  );
+
+  // el "¿seguro?" de un pedido sin pagar se olvida solo si no se confirma
+  useEffect(() => {
+    if (!porConfirmar) return;
+    const t = setTimeout(() => setPorConfirmar(null), 4000);
+    return () => clearTimeout(t);
+  }, [porConfirmar]);
+
   useEffect(() => {
     // las dos, igual que abajo: un enlace incompleto no debe ni preguntar
     if (!clave || !vendedor) return;
@@ -135,6 +195,21 @@ function Cocina() {
     );
   }
 
+  const porPreparar = (pedidos ?? []).filter((p) => !p.cocina_estado);
+  // los listos, del que más espera al más nuevo: el de arriba es al que hay que llamar
+  const listos = (pedidos ?? [])
+    .filter((p) => p.cocina_estado === 'listo')
+    .sort((a, b) => (a.cocina_en ?? '').localeCompare(b.cocina_en ?? ''));
+
+  /** Entregar al cliente; si no está pagado, el primer toque solo pregunta. */
+  const entregar = (p: PedidoCocina) => {
+    if (p.pagado === false && porConfirmar !== p.id) {
+      setPorConfirmar(p.id);
+      return;
+    }
+    void marcar(p.id, 'entregado');
+  };
+
   return (
     <main className="min-h-[100dvh] bg-night pb-10 text-bone">
       <header className="sticky top-0 z-10 border-b border-white/10 bg-night/95 px-4 py-3 backdrop-blur">
@@ -145,8 +220,13 @@ function Cocina() {
               Cocina{vendedor && ` · ${vendedor}`}
             </p>
             <p className="text-2xl font-bold leading-tight">
-              {pedidos === null ? '—' : `${pedidos.length} por preparar`}
+              {pedidos === null ? '—' : `${porPreparar.length} por preparar`}
             </p>
+            {listos.length > 0 && (
+              <p className="text-[13px] font-semibold text-emerald-400">
+                {listos.length} {listos.length === 1 ? 'listo' : 'listos'} para recoger
+              </p>
+            )}
             {resumen && (
               <>
                 <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] text-bone-dim">
@@ -189,7 +269,7 @@ function Cocina() {
 
         {pedidos === null ? (
           <p className="p-10 text-center text-sm text-bone-dim">Cargando…</p>
-        ) : pedidos.length === 0 ? (
+        ) : porPreparar.length === 0 && listos.length === 0 ? (
           /*
            * "Todo preparado" SOLO si de verdad se pudo preguntar. Si la
            * consulta falló, la lista vacía no significa que no haya nada que
@@ -202,15 +282,26 @@ function Cocina() {
             </p>
           )
         ) : (
-          /* el último pedido arriba; el de más abajo es el que más espera */
+          <>
+          {porPreparar.length === 0 && (
+            <p className="mb-4 rounded-3xl border border-dashed border-white/15 p-8 text-center text-bone-dim">
+              Nada por preparar.
+            </p>
+          )}
+          {/* el último pedido arriba; el de más abajo es el que más espera */}
           <ol className="grid gap-3">
-            {pedidos.map((p, i) => (
+            {porPreparar.map((p, i) => (
               <li
                 key={p.id}
                 className={`rounded-2xl border p-4 ${
-                  i === 0 ? 'border-sugu/60 bg-sugu/10' : 'border-white/10 bg-night-soft'
+                  p.pagado === false
+                    ? 'border-amber-500/70 bg-amber-500/10'
+                    : i === 0
+                      ? 'border-sugu/60 bg-sugu/10'
+                      : 'border-white/10 bg-night-soft'
                 }`}
               >
+                {p.pagado === false && <FaltaPagar />}
                 <div className="flex items-start justify-between gap-3">
                   {/* número y quién lo pidió: es lo que se canta al entregar */}
                   <span className="min-w-0 truncate text-base font-bold">
@@ -243,12 +334,114 @@ function Cocina() {
                 {p.vendedor && (
                   <p className="mt-1.5 text-[11px] text-bone-dim">Lo tomó {p.vendedor}</p>
                 )}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void marcar(p.id, 'listo')}
+                    className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl bg-emerald-600 text-[15px] font-bold text-white active:scale-[0.99]"
+                  >
+                    <Check size={18} />
+                    Listo
+                  </button>
+                  <BotonEntregar
+                    confirmando={porConfirmar === p.id}
+                    onClick={() => entregar(p)}
+                  />
+                </div>
               </li>
             ))}
           </ol>
+
+          {/*
+            Lo terminado que nadie ha recogido. Ya no estorba la cola, pero
+            sigue a la vista para llamar al cliente por su número.
+          */}
+          {listos.length > 0 && (
+            <section className="mt-6">
+              <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-400">
+                Listos para recoger
+              </h2>
+              <ul className="grid gap-2">
+                {listos.map((p) => (
+                  <li
+                    key={p.id}
+                    className={`rounded-2xl border p-3 ${
+                      p.pagado === false
+                        ? 'border-amber-500/70 bg-amber-500/10'
+                        : 'border-emerald-500/40 bg-emerald-500/5'
+                    }`}
+                  >
+                    {p.pagado === false && <FaltaPagar />}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-bold">
+                          <span className="text-sugu-glow">#{formatearNumero(p.numero)}</span>{' '}
+                          {p.cliente}
+                        </p>
+                        <p className="truncate text-[13px] text-bone-dim">
+                          {p.lineas.map((l) => describirLinea(l)).join(' · ')}
+                        </p>
+                      </div>
+                      {p.cocina_en && (
+                        <span className="shrink-0 text-right text-[12px] leading-tight text-bone-dim">
+                          listo hace
+                          <span className="block text-base font-bold tabular-nums text-bone">
+                            {espera(p.cocina_en, ahora)}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                      <BotonEntregar
+                        confirmando={porConfirmar === p.id}
+                        onClick={() => entregar(p)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void marcar(p.id, '')}
+                        className="flex min-h-[48px] items-center gap-1.5 rounded-xl border border-white/15 px-3 text-[13px] font-semibold text-bone-dim"
+                        aria-label={`Volver a poner el pedido ${formatearNumero(p.numero)} por preparar`}
+                      >
+                        <Undo2 size={15} />
+                        Deshacer
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          </>
         )}
       </div>
     </main>
+  );
+}
+
+/** La franja que avisa que el pedido no está cobrado. Sin montos: solo el aviso. */
+function FaltaPagar() {
+  return (
+    <p className="mb-2 flex items-center gap-1.5 rounded-lg bg-amber-500 px-2.5 py-1 text-[12px] font-extrabold uppercase tracking-wide text-night">
+      <AlertTriangle size={14} />
+      Falta pagar · cobrar antes de entregar
+    </p>
+  );
+}
+
+function BotonEntregar({ confirmando, onClick }: { confirmando: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-[48px] items-center justify-center gap-2 rounded-xl border text-[14px] font-bold active:scale-[0.99] ${
+        confirmando
+          ? 'border-amber-500 bg-amber-500 text-night'
+          : 'border-sky-500/50 bg-sky-500/15 text-sky-300'
+      }`}
+    >
+      <HandPlatter size={17} />
+      {confirmando ? '¿Ya pagó? Tocar para entregar' : 'Entregado al cliente'}
+    </button>
   );
 }
 

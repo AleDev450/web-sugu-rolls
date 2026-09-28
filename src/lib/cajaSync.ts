@@ -2,6 +2,7 @@
 
 import { getSupabase } from '@/lib/supabase/client';
 import {
+  type EstadoCocina,
   type Movimiento,
   type Pedido,
   type Precios,
@@ -155,44 +156,111 @@ export type Resultado = {
   subidos: number;
   borrados: number;
   pendientes: number;
-  /** id → nombre del cierre, para los cobros que el panel cerró por su cuenta */
-  cerradosEnPanel: Record<string, string>;
+  /** lo que el panel o la cocina cambiaron en cobros de esta caja */
+  delServidor: Record<string, CambioServidor>;
   error: string | null;
 };
 
+/** Lo que otro escribió sobre un pedido de esta caja: el panel o la cocina. */
+export type CambioServidor = Partial<
+  Pick<Pedido, 'cierre' | 'entregado' | 'entregadoEn' | 'cocinaEstado' | 'cocinaEn'>
+>;
+
+type FilaBajada = {
+  id: string;
+  cierre: string;
+  entregado_en?: string | null;
+  cocina_estado?: string;
+  cocina_en?: string | null;
+};
+
 /**
- * La única bajada de la caja: el cierre que el panel le puso a un día que
- * quedó abierto (alguien se olvidó de cerrar). Solo se pregunta por los
- * cobros que aquí siguen abiertos, y solo se trae el nombre del cierre.
+ * La bajada de la caja. Solo trae lo que escriben OTROS sobre los cobros
+ * que aquí siguen abiertos:
+ *
+ *   · el cierre que el panel le puso a un día que quedó abierto;
+ *   · lo que marcó la cocina: listo, o entregado directo al cliente.
  *
  * Se aplica al localStorage ANTES de subir la cola, así un cobro editado
- * que el panel ya cerró sube con su cierre y no con el vacío. Sin señal no
- * pasa nada: se reintenta en la siguiente vuelta.
+ * que el panel ya cerró sube con su cierre y no con el vacío. Lo de la
+ * cocina se salta en los pedidos con cambios sin subir: si el cajero acaba
+ * de tocar "Devolver", su decisión manda y no se le vuelve a marcar
+ * entregado encima. Sin señal no pasa nada: se reintenta en la siguiente
+ * vuelta.
  */
-async function bajarCierres(
+async function bajarDelServidor(
   sb: NonNullable<ReturnType<typeof getSupabase>>,
-): Promise<Record<string, string>> {
+): Promise<Record<string, CambioServidor>> {
   const abiertos = leerPedidos()
     .filter((p) => !p.cierre)
     .map((p) => p.id);
   if (!abiertos.length) return {};
 
-  const cerrados: Record<string, string> = {};
+  const filas: FilaBajada[] = [];
   // en tandas: la lista de ids viaja en la URL de la consulta
   for (let i = 0; i < abiertos.length; i += 100) {
-    const { data, error } = await sb
+    const tanda = abiertos.slice(i, i + 100);
+    const completa = await sb
       .from('caja_pedidos')
-      .select('id, cierre')
-      .in('id', abiertos.slice(i, i + 100))
-      .neq('cierre', '');
-    if (error) return {};
-    for (const fila of data ?? []) cerrados[fila.id as string] = fila.cierre as string;
+      .select('id, cierre, entregado_en, cocina_estado, cocina_en')
+      .in('id', tanda);
+    if (!completa.error) {
+      filas.push(...((completa.data ?? []) as FilaBajada[]));
+      continue;
+    }
+    // una base sin la 044 no tiene las columnas de cocina: solo los cierres
+    const soloCierre = await sb.from('caja_pedidos').select('id, cierre').in('id', tanda);
+    if (soloCierre.error) return {};
+    filas.push(...((soloCierre.data ?? []) as FilaBajada[]));
   }
-  if (!Object.keys(cerrados).length) return {};
 
   // se relee: mientras se esperaba a la red pudo entrar un cobro nuevo
-  guardarPedidos(leerPedidos().map((p) => (cerrados[p.id] && !p.cierre ? { ...p, cierre: cerrados[p.id], entregado: true } : p)));
-  return cerrados;
+  const locales = new Map(leerPedidos().map((p) => [p.id, p]));
+  const sucios = new Set(leerEstado().pendientes);
+  const cambios: Record<string, CambioServidor> = {};
+
+  for (const fila of filas) {
+    const p = locales.get(fila.id);
+    if (!p) continue;
+    const cambio: CambioServidor = {};
+
+    if (fila.cierre && !p.cierre) {
+      cambio.cierre = fila.cierre;
+      cambio.entregado = true;
+    }
+
+    if (fila.cocina_estado !== undefined && !sucios.has(p.id)) {
+      const estado = (fila.cocina_estado ?? '') as EstadoCocina;
+      const en = fila.cocina_en ?? null;
+      if (estado !== p.cocinaEstado || en !== p.cocinaEn) {
+        cambio.cocinaEstado = estado;
+        cambio.cocinaEn = en;
+      }
+      if (estado === 'entregado' && !p.entregado) {
+        cambio.entregado = true;
+        cambio.entregadoEn = fila.entregado_en ?? en ?? new Date().toISOString();
+        // se vuelve a subir: así `entregado` queda bien aunque una subida vieja lo hubiera pisado
+        marcarSucio(p.id);
+      }
+    }
+
+    if (Object.keys(cambio).length) cambios[p.id] = cambio;
+  }
+  if (!Object.keys(cambios).length) return {};
+
+  guardarPedidos(leerPedidos().map((p) => (cambios[p.id] ? { ...p, ...cambios[p.id] } : p)));
+  return cambios;
+}
+
+/**
+ * El cajero devolvió un pedido que la cocina había entregado: se limpia lo
+ * que marcó la cocina para que vuelva a su cola. Va aparte del upsert
+ * porque la tablet nunca sube las columnas de cocina.
+ */
+export async function reiniciarCocina(id: string): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  await sb.from('caja_pedidos').update({ cocina_estado: '', cocina_en: null }).eq('id', id);
 }
 
 /**
@@ -207,16 +275,16 @@ export async function sincronizar(): Promise<Resultado> {
       subidos: 0,
       borrados: 0,
       pendientes: cuantosPendientes(),
-      cerradosEnPanel: {},
+      delServidor: {},
       error: 'SIN_BACKEND',
     };
   }
 
-  const cerradosEnPanel = await bajarCierres(sb);
+  const delServidor = await bajarDelServidor(sb);
 
   const inicial = leerEstado();
   if (!inicial.pendientes.length && !inicial.borrados.length) {
-    return { subidos: 0, borrados: 0, pendientes: 0, cerradosEnPanel, error: null };
+    return { subidos: 0, borrados: 0, pendientes: 0, delServidor, error: null };
   }
 
   const locales = new Map(leerPedidos().map((p) => [p.id, p]));
@@ -254,7 +322,7 @@ export async function sincronizar(): Promise<Resultado> {
         subidos: 0,
         borrados: 0,
         pendientes: cuantosPendientes(),
-        cerradosEnPanel,
+        delServidor,
         error: error.message,
       };
     }
@@ -275,7 +343,7 @@ export async function sincronizar(): Promise<Resultado> {
         subidos,
         borrados: 0,
         pendientes: cuantosPendientes(),
-        cerradosEnPanel,
+        delServidor,
         error: error.message,
       };
     }
@@ -292,7 +360,7 @@ export async function sincronizar(): Promise<Resultado> {
     ),
   });
 
-  return { subidos, borrados, pendientes: cuantosPendientes(), cerradosEnPanel, error: null };
+  return { subidos, borrados, pendientes: cuantosPendientes(), delServidor, error: null };
 }
 
 /* ------------------------------------------------------------------ */

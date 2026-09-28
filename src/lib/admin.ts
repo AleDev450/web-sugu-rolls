@@ -97,6 +97,9 @@ export interface PedidoCaja {
   monto_efectivo: number;
   /** vuelto devuelto por Yape (migración 043); 0 si no hubo */
   vuelto_yape: number;
+  /** lo que marcó la cocina (migración 044): '', 'listo' o 'entregado' */
+  cocina_estado?: string;
+  cocina_en?: string | null;
   pagado: boolean;
   entregado: boolean;
   /** hora en que se tocó "Entregar"; vacía si se dio por entregado al cerrar */

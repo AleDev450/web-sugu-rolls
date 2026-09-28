@@ -82,7 +82,17 @@ export type Pedido = {
    * entregado al cerrar la caja no tiene hora real y no entra en el promedio.
    */
   entregadoEn: string | null;
+  /**
+   * Lo que marcó la cocina, que se BAJA del servidor y nunca se sube: la
+   * tablet no pisa lo que la cocina decidió. '' = por preparar, 'listo' =
+   * terminado (lo tiene la caja o espera en cocina), 'entregado' = la
+   * cocina se lo dio directo al cliente.
+   */
+  cocinaEstado: EstadoCocina;
+  cocinaEn: string | null;
 };
+
+export type EstadoCocina = '' | 'listo' | 'entregado';
 
 /* El maki va primero: es lo que más se vende y no debe costar un toque extra. */
 export const PRODUCTOS: { id: ClaveProducto; nombre: string }[] = [
@@ -293,7 +303,12 @@ export function siguienteNumero(abiertos: Pedido[]): number {
  * la entrega conserva la hora que ya tenía.
  */
 export function conEntrega(previo: Pedido, nuevo: Pedido): Pedido {
-  if (!nuevo.entregado) return { ...nuevo, entregadoEn: null };
+  if (!nuevo.entregado) {
+    // devolver lo que entregó la cocina lo deja pendiente también para ella
+    const cocina =
+      previo.cocinaEstado === 'entregado' ? { cocinaEstado: '' as const, cocinaEn: null } : {};
+    return { ...nuevo, ...cocina, entregadoEn: null };
+  }
   if (previo.entregado) return { ...nuevo, entregadoEn: previo.entregadoEn ?? null };
   return { ...nuevo, entregadoEn: new Date().toISOString() };
 }
@@ -522,6 +537,8 @@ function normalizar(guardado: PedidoGuardado): Pedido {
     cierre: previo.cierre ?? '',
     entregadoEn: previo.entregadoEn ?? null,
     vueltoYape: Number(previo.vueltoYape ?? 0),
+    cocinaEstado: previo.cocinaEstado ?? '',
+    cocinaEn: previo.cocinaEn ?? null,
     lineas,
     total,
     metodo,

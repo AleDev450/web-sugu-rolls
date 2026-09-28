@@ -56,3 +56,4 @@ Cuando corras una, márcala aquí:
 | `041-hora-de-entrega.sql` | Hora de entrega de cada cobro de caja, para el tiempo de atención en las estadísticas | ☐ |
 | `042-precios-por-caja.sql` | Precios de la caja editables desde el panel, con precios propios por cajero; el maki de 5 piezas cuenta medio roll en cocina | ☐ |
 | `043-vuelto-yape-y-gastos.sql` | Vuelto devuelto por Yape en cada venta, y gastos (motorizado, comida…) y retiros de efectivo de la caja | ☐ |
+| `044-cocina-marca-listo-y-entregado.sql` | La cocina marca los pedidos como listos o entregados al cliente, y ve si falta pagar | ☐ |
