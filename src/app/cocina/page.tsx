@@ -9,7 +9,16 @@ import { describirLinea, espera, formatearNumero, hora, type Linea } from '@/lib
 /** Cada cuántos milisegundos se vuelve a preguntar qué hay que cocinar. */
 const CADA = 5000;
 
-type Resumen = { rolls: number; onigiris: number; pokebowls: number; pedidos: number };
+type Resumen = {
+  rolls: number;
+  onigiris: number;
+  pokebowls: number;
+  pedidos: number;
+  handrolls?: number;
+  handrolls_pollo?: number;
+  handrolls_langostino?: number;
+  handrolls_otros?: number;
+};
 
 type PedidoCocina = {
   id: string;
@@ -104,8 +113,8 @@ function Cocina() {
     setUltima(new Date());
 
     /*
-     * El acumulado del turno va aparte: la cola solo trae lo pendiente, así
-     * que sola no puede decir cuánto lleva preparado. Si esta segunda
+     * El resumen va aparte: la cola solo trae lo pendiente, así que sola
+     * no puede decir cuánto se elaboró durante el día. Si esta segunda
      * consulta falla no se toca nada más —la cola manda—, simplemente no se
      * actualiza el contador.
      */
@@ -196,6 +205,18 @@ function Cocina() {
   }
 
   const porPreparar = (pedidos ?? []).filter((p) => !p.cocina_estado);
+  const handrollsPendientes = porPreparar.flatMap((p) => p.lineas)
+    .filter((l) => l.producto === 'handroll')
+    .reduce(
+      (conteo, l) => {
+        conteo.total += l.cantidad;
+        if (l.promo === 'handroll_pollo') conteo.pollo += l.cantidad;
+        else if (l.promo === 'handroll_langostino') conteo.langostino += l.cantidad;
+        else conteo.otros += l.cantidad;
+        return conteo;
+      },
+      { total: 0, pollo: 0, langostino: 0, otros: 0 },
+    );
   // los listos, del que más espera al más nuevo: el de arriba es al que hay que llamar
   const listos = (pedidos ?? [])
     .filter((p) => p.cocina_estado === 'listo')
@@ -227,6 +248,15 @@ function Cocina() {
                 {listos.length} {listos.length === 1 ? 'listo' : 'listos'} para recoger
               </p>
             )}
+            {pedidos !== null && (
+              <p className="mt-1.5 text-[12px] font-semibold text-sugu-glow">
+                Handrolls por preparar: {handrollsPendientes.total}
+                <span className="block text-[11px] text-bone-dim">
+                  Pollo: {handrollsPendientes.pollo} · Langostino: {handrollsPendientes.langostino}
+                  {handrollsPendientes.otros > 0 && ` · Otros: ${handrollsPendientes.otros}`}
+                </span>
+              </p>
+            )}
             {resumen && (
               <>
                 <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] text-bone-dim">
@@ -243,6 +273,26 @@ function Cocina() {
                     Poke bowls: {resumen.pokebowls}
                   </span>
                 </p>
+                {resumen.handrolls !== undefined && (
+                  <div className="mt-2">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-bone-dim">
+                      Handrolls elaborados hoy · {resumen.handrolls} en total
+                    </p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                      <span className="rounded-full bg-sugu/20 px-2 py-0.5 text-sugu-glow">
+                        Pollo: {resumen.handrolls_pollo}
+                      </span>
+                      <span className="rounded-full bg-sugu/20 px-2 py-0.5 text-sugu-glow">
+                        Langostino: {resumen.handrolls_langostino}
+                      </span>
+                      {(resumen.handrolls_otros ?? 0) > 0 && (
+                        <span className="rounded-full bg-white/10 px-2 py-0.5">
+                          Otros: {resumen.handrolls_otros}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
               </>
             )}
           </div>
