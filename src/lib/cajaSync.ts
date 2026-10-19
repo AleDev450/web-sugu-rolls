@@ -38,6 +38,46 @@ export async function traerPrecios(vendedor: string): Promise<{ precios: Precios
   };
 }
 
+/** Cambia una presentación solo en la caja del cajero, conservando sus precios. */
+export async function guardarDisponibilidadCaja(
+  vendedor: string,
+  clave: string,
+  habilitado: boolean,
+): Promise<Disponibilidad> {
+  const sb = getSupabase();
+  if (!sb || !vendedor.trim()) throw new Error('No hay conexión con el panel. Inténtalo de nuevo.');
+  const caja = claveCaja(vendedor);
+  const { data, error } = await sb
+    .from('caja_precios')
+    .select('caja, nombre, precios, disponibilidad')
+    .in('caja', ['', caja]);
+  if (error) throw error;
+  const filas = (data ?? []) as { caja: string; nombre: string; precios: Precios; disponibilidad: Disponibilidad }[];
+  const base = filas.find((f) => f.caja === '');
+  const propia = filas.find((f) => f.caja === caja);
+  const heredada = combinarDisponibilidad(base?.disponibilidad);
+  const cambios = { ...(propia?.disponibilidad ?? {}) };
+  if (habilitado === heredada[clave]) delete cambios[clave];
+  else cambios[clave] = habilitado;
+  const precios = propia?.precios ?? {};
+  if (!Object.keys(cambios).length && !Object.keys(precios).length) {
+    if (propia) {
+      const borrada = await sb.from('caja_precios').delete().eq('caja', caja);
+      if (borrada.error) throw borrada.error;
+    }
+  } else {
+    const guardada = await sb.from('caja_precios').upsert({
+      caja,
+      nombre: propia?.nombre || vendedor.trim(),
+      precios,
+      disponibilidad: cambios,
+      updated_at: new Date().toISOString(),
+    });
+    if (guardada.error) throw guardada.error;
+  }
+  return combinarDisponibilidad(base?.disponibilidad, cambios);
+}
+
 /**
  * Sincronización de la caja de feria con Supabase.
  *

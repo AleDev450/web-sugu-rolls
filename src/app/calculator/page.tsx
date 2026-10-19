@@ -31,6 +31,7 @@ import {
   CONCEPTOS_GASTO,
   METODOS_PAGO,
   NOMBRE_METODO,
+  MENU_CAJA,
   NOTAS_RAPIDAS,
   PRECIOS_CARTA,
   PRODUCTOS,
@@ -89,6 +90,7 @@ import {
   sincronizar,
   sincronizarMovimientos,
   traerPrecios,
+  guardarDisponibilidadCaja,
 } from '@/lib/cajaSync';
 import { cerrarSesion, esAdmin, traerClaveCocina, usuarioActual } from '@/lib/admin';
 import { hayBackend } from '@/lib/contenido';
@@ -406,6 +408,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
   const [precios, setPrecios] = useState<Precios>(PRECIOS_CARTA);
   const preciosRef = useRef<Precios>(PRECIOS_CARTA);
   const [disponibilidad, setDisponibilidad] = useState<Disponibilidad>(() => combinarDisponibilidad());
+  const [guardandoDisponibilidad, setGuardandoDisponibilidad] = useState(false);
 
   // subida al panel
   const [pendientesSync, setPendientesSync] = useState(0);
@@ -720,6 +723,32 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     // cada producto trae sus propias variantes y sabores; no se arrastran
     setVariante(null);
     setSabores([]);
+  }
+
+  async function alternarDisponibilidad(clave: string, habilitado: boolean) {
+    if (!vendedor || guardandoDisponibilidad) return;
+    const anterior = disponibilidad;
+    const siguiente = { ...anterior, [clave]: habilitado };
+    setDisponibilidad(siguiente);
+    guardarDisponibilidad(vendedor, siguiente);
+    setGuardandoDisponibilidad(true);
+    try {
+      const guardada = await guardarDisponibilidadCaja(vendedor, clave, habilitado);
+      setDisponibilidad(guardada);
+      guardarDisponibilidad(vendedor, guardada);
+      if (!habilitado && producto && clavePrecio(producto, variante) === clave) {
+        setProducto(null);
+        setVariante(null);
+        setSabores([]);
+      }
+      setAviso('Menú de esta caja actualizado');
+    } catch (e) {
+      setDisponibilidad(anterior);
+      guardarDisponibilidad(vendedor, anterior);
+      setAviso(e instanceof Error ? `No se pudo guardar el menú: ${e.message}` : 'No se pudo guardar el menú');
+    } finally {
+      setGuardandoDisponibilidad(false);
+    }
   }
 
   function elegirVariante(id: string) {
@@ -1108,6 +1137,33 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                   </Opcion>
                 ))}
               </div>
+              <details className="mt-3 rounded-xl border border-white/15 bg-night-2 px-3 py-2">
+                <summary className="cursor-pointer text-[12px] font-semibold text-bone-dim">
+                  Habilitar o deshabilitar productos de esta caja
+                </summary>
+                <div className="mt-3 grid gap-2">
+                  {MENU_CAJA.map((m) => (
+                    <label key={m.clave} className="flex cursor-pointer items-center justify-between gap-3 text-[13px]">
+                      <span>{m.nombre}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-[11px] text-bone-dim">
+                          {disponibilidad[m.clave] === false ? 'Deshabilitado' : 'Habilitado'}
+                        </span>
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          checked={disponibilidad[m.clave] !== false}
+                          disabled={guardandoDisponibilidad}
+                          onChange={(e) => void alternarDisponibilidad(m.clave, e.target.checked)}
+                          aria-label={`Habilitar ${m.nombre} en esta caja`}
+                          className="peer sr-only"
+                        />
+                        <span className="relative h-6 w-11 rounded-full bg-white/20 transition-colors peer-checked:bg-sugu peer-focus-visible:ring-2 peer-focus-visible:ring-white peer-disabled:opacity-50 after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5" />
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </details>
             </Paso>
 
             {opciones.length > 0 && (

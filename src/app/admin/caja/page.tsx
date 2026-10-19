@@ -583,7 +583,7 @@ export default function CajaAdmin() {
               [
                 ['detalle', 'Detalle'],
                 ['estadisticas', 'Estadísticas'],
-                ['precios', 'Precios'],
+                ['precios', 'Menú de caja'],
               ] as const
             ).map(([clave, nombre]) => (
               <button
