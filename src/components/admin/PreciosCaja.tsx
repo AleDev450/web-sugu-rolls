@@ -10,7 +10,7 @@ import {
   repreciarCajasAbiertas,
 } from '@/lib/admin';
 import { Aviso, Cargando } from '@/components/admin/ui';
-import { MENU_CAJA, NOMBRE_PRODUCTO, type Precios, claveCaja, combinarPrecios, soles } from '@/lib/caja';
+import { MENU_CAJA, NOMBRE_PRODUCTO, type Precios, type Disponibilidad, claveCaja, combinarPrecios, combinarDisponibilidad, soles } from '@/lib/caja';
 
 const claseCampo =
   'rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[13px] text-bone outline-none transition-colors [color-scheme:dark] focus:border-sugu';
@@ -43,6 +43,7 @@ export default function PreciosCaja({
   const [caja, setCaja] = useState('');
   const [nueva, setNueva] = useState<string | null>(null);
   const [valores, setValores] = useState<Record<string, string>>({});
+  const [disponibilidad, setDisponibilidad] = useState<Disponibilidad>({});
   const [guardando, setGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -52,8 +53,8 @@ export default function PreciosCaja({
     } catch (e) {
       const texto = e instanceof Error ? e.message : String(e);
       setError(
-        texto.includes('caja_precios')
-          ? 'Falta correr la migración 042 en Supabase para poder guardar precios.'
+        texto.includes('caja_precios') || texto.includes('disponibilidad')
+          ? 'Falta correr las migraciones 042 y 045 en Supabase para configurar el menú de caja.'
           : texto,
       );
       setFilas([]);
@@ -80,6 +81,10 @@ export default function PreciosCaja({
     () => (caja ? preciosVigentes(filas ?? [], '') : combinarPrecios()),
     [caja, filas],
   );
+  const disponibilidadHeredada = useMemo(
+    () => combinarDisponibilidad(caja ? filas?.find((f) => f.caja === '')?.disponibilidad : null),
+    [caja, filas],
+  );
 
   // al cambiar de caja, el formulario muestra lo que esa capa tiene guardado
   useEffect(() => {
@@ -87,25 +92,26 @@ export default function PreciosCaja({
     setValores(
       Object.fromEntries(MENU_CAJA.map((m) => [m.clave, propios[m.clave] ? String(propios[m.clave]) : ''])),
     );
+    setDisponibilidad(fila?.disponibilidad ?? {});
   }, [fila, caja]);
 
-  async function guardar(precios: Precios) {
+  async function guardar(precios: Precios, disponibles: Disponibilidad = disponibilidad) {
     if (!filas) return;
     setGuardando(true);
     setError(null);
     setOk(null);
     try {
-      await guardarPreciosCaja(caja ? claveCaja(caja) : '', caja, precios);
+      await guardarPreciosCaja(caja ? claveCaja(caja) : '', caja, precios, disponibles);
       const ahora = await listarPreciosCaja();
       const cambiadas = await repreciarCajasAbiertas(filas, ahora);
       setFilas(ahora);
       setOk(
         cambiadas
           ? `Precios guardados. Se actualizaron ${cambiadas} ${cambiadas === 1 ? 'venta' : 'ventas'} de cajas abiertas.`
-          : 'Precios guardados. Las cajas los reciben en cuanto tengan señal.',
+          : 'Menú guardado. Las cajas reciben los cambios en cuanto tengan señal.',
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudieron guardar los precios.');
+      setError(e instanceof Error ? e.message : 'No se pudo guardar el menú.');
     } finally {
       setGuardando(false);
     }
@@ -197,8 +203,8 @@ export default function PreciosCaja({
 
       <p className="text-[12px] text-bone-dim">
         {caja
-          ? `Precios solo para la caja de ${caja}. Deja vacío lo que deba seguir al precio base.`
-          : 'Rige en todas las cajas que no tengan precios propios. Deja vacío lo que deba seguir al precio de carta.'}{' '}
+          ? `Configuración para la caja de ${caja}. Los precios vacíos y los switches sin cambios siguen la configuración base.`
+          : 'Configuración base para todas las cajas. Los precios vacíos siguen la carta.'}{' '}
         Al guardar, las ventas de las cajas abiertas pasan a los precios nuevos, salvo las que se
         corrigieron a mano. Lo cerrado no cambia.
       </p>
@@ -213,6 +219,7 @@ export default function PreciosCaja({
               <th className="pb-2 text-left font-medium">Producto</th>
               <th className="pb-2 text-right font-medium">{caja ? 'Base' : 'Carta'}</th>
               <th className="pb-2 pl-3 text-right font-medium">{caja ? `Caja de ${caja}` : 'Base'}</th>
+              <th className="pb-2 pl-3 text-right font-medium">Habilitado</th>
             </tr>
           </thead>
           <tbody>
@@ -220,6 +227,7 @@ export default function PreciosCaja({
               const nuevoProducto = i === 0 || MENU_CAJA[i - 1].producto !== m.producto;
               const valor = valores[m.clave] ?? '';
               const cambia = valor.trim() !== '' && Number(valor) !== heredado[m.clave];
+              const habilitado = disponibilidad[m.clave] ?? disponibilidadHeredada[m.clave];
               return (
                 <tr key={m.clave} className={nuevoProducto ? 'border-t border-white/10' : ''}>
                   <td className="py-2">
@@ -248,6 +256,29 @@ export default function PreciosCaja({
                       />
                     </span>
                   </td>
+                  <td className="py-2 pl-3 text-right">
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <span className="text-[11px] text-bone-dim">{habilitado ? 'Sí' : 'No'}</span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        checked={habilitado}
+                        aria-label={`Habilitar ${m.nombre} ${caja ? `en caja de ${caja}` : 'en todas las cajas'}`}
+                        onChange={(e) => {
+                          const siguiente = e.target.checked;
+                          setDisponibilidad((previa) => {
+                            const nueva = { ...previa };
+                            if (caja && siguiente === disponibilidadHeredada[m.clave]) delete nueva[m.clave];
+                            else if (!caja && siguiente) delete nueva[m.clave];
+                            else nueva[m.clave] = siguiente;
+                            return nueva;
+                          });
+                        }}
+                        className="peer sr-only"
+                      />
+                      <span className="relative h-6 w-11 rounded-full bg-white/20 transition-colors peer-checked:bg-sugu peer-focus-visible:ring-2 peer-focus-visible:ring-white after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5" />
+                    </label>
+                  </td>
                 </tr>
               );
             })}
@@ -259,11 +290,11 @@ export default function PreciosCaja({
             <button
               type="button"
               disabled={guardando}
-              onClick={() => void guardar({})}
+              onClick={() => void guardar({}, {})}
               className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-[13px] font-semibold text-bone-dim disabled:opacity-40"
             >
               <RotateCcw className="h-4 w-4" />
-              Quitar precios propios
+              Restablecer configuración propia
             </button>
           )}
           <button
@@ -273,7 +304,7 @@ export default function PreciosCaja({
             className="flex items-center gap-2 rounded-full bg-sugu px-5 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
           >
             <Save className="h-4 w-4" />
-            {guardando ? 'Guardando…' : 'Guardar precios'}
+            {guardando ? 'Guardando…' : 'Guardar menú'}
           </button>
         </div>
       </section>

@@ -16,7 +16,7 @@
  * cuanto hay conexión, que es lo que leen el panel y la cocina.
  */
 
-export type ClaveProducto = 'maki' | 'pokebowl' | 'onigiri';
+export type ClaveProducto = 'maki' | 'pokebowl' | 'onigiri' | 'handroll';
 export type MetodoPago = 'efectivo' | 'yape' | 'mixto' | 'tarjeta' | 'canje';
 
 /** Un renglón del ticket: un producto configurado, con su cantidad. */
@@ -99,12 +99,14 @@ export const PRODUCTOS: { id: ClaveProducto; nombre: string }[] = [
   { id: 'maki', nombre: 'Maki' },
   { id: 'pokebowl', nombre: 'Poke Bowl' },
   { id: 'onigiri', nombre: 'Onigiri' },
+  { id: 'handroll', nombre: 'Handroll' },
 ];
 
 export const NOMBRE_PRODUCTO: Record<ClaveProducto, string> = {
   maki: 'Maki',
   pokebowl: 'Poke Bowl',
   onigiri: 'Onigiri',
+  handroll: 'Handroll',
 };
 
 /**
@@ -141,10 +143,14 @@ export const VARIANTES: Record<ClaveProducto, Variante[]> = {
   ],
   // el onigiri se vende tal cual: no hay variante que elegir
   onigiri: [],
+  handroll: [
+    { id: 'handroll_pollo', nombre: 'Pollo', precio: 16, maxSabores: 0 },
+    { id: 'handroll_langostino', nombre: 'Langostino', precio: 18, maxSabores: 0 },
+  ],
 };
 
 /** Precio de carta de los productos que no tienen variante. */
-const PRECIO_SIMPLE: Record<ClaveProducto, number> = { maki: 0, pokebowl: 0, onigiri: 6 };
+const PRECIO_SIMPLE: Record<ClaveProducto, number> = { maki: 0, pokebowl: 0, onigiri: 6, handroll: 0 };
 
 /**
  * Precios vigentes, por clave: el id de la variante ('duo', 'pollo'…) o el
@@ -152,6 +158,18 @@ const PRECIO_SIMPLE: Record<ClaveProducto, number> = { maki: 0, pokebowl: 0, oni
  * no se repiten entre productos, así que una sola tabla alcanza.
  */
 export type Precios = Record<string, number>;
+/** Cada caja puede sobrescribir si una presentación se ofrece. Ausente = heredado. */
+export type Disponibilidad = Record<string, boolean>;
+
+export function combinarDisponibilidad(...capas: (Disponibilidad | null | undefined)[]): Disponibilidad {
+  const final: Disponibilidad = Object.fromEntries(MENU_CAJA.map((m) => [m.clave, true]));
+  for (const capa of capas) {
+    for (const [clave, habilitado] of Object.entries(capa ?? {})) {
+      if (clave in final && typeof habilitado === 'boolean') final[clave] = habilitado;
+    }
+  }
+  return final;
+}
 
 /** Clave de precio de una línea: su variante, o el producto si no tiene. */
 export const clavePrecio = (producto: ClaveProducto, variante: string | null) =>
@@ -190,6 +208,25 @@ export function combinarPrecios(...capas: (Precios | null | undefined)[]): Preci
 /** Clave de caja para los precios: el cajero, sin mayúsculas ni espacios de más. */
 export const claveCaja = (vendedor: string) => vendedor.trim().toLowerCase();
 
+/** Disponibilidad recordada por cajero para atender sin señal. */
+export function leerDisponibilidad(vendedor: string): Disponibilidad {
+  if (typeof window === 'undefined' || !vendedor.trim()) return combinarDisponibilidad();
+  try {
+    const guardada = JSON.parse(window.localStorage.getItem(`sugu-caja-disponibilidad-${claveCaja(vendedor)}`) ?? '{}');
+    return combinarDisponibilidad(guardada);
+  } catch {
+    return combinarDisponibilidad();
+  }
+}
+
+export function guardarDisponibilidad(vendedor: string, disponibilidad: Disponibilidad): void {
+  try {
+    window.localStorage.setItem(`sugu-caja-disponibilidad-${claveCaja(vendedor)}`, JSON.stringify(disponibilidad));
+  } catch {
+    /* La caja conserva la configuración en memoria. */
+  }
+}
+
 export function variantesDe(producto: ClaveProducto): Variante[] {
   return VARIANTES[producto] ?? [];
 }
@@ -216,8 +253,8 @@ export function precioUnitario(
 const fmtPrecio = (n: number) => `S/ ${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 /** "S/ 18" o "S/ 15 – 35": lo que se muestra bajo el nombre del producto. */
-export function rangoPrecio(producto: ClaveProducto, precios: Precios): string {
-  const valores = MENU_CAJA.filter((m) => m.producto === producto).map((m) => precios[m.clave] ?? 0);
+export function rangoPrecio(producto: ClaveProducto, precios: Precios, disponibilidad?: Disponibilidad): string {
+  const valores = MENU_CAJA.filter((m) => m.producto === producto && disponibilidad?.[m.clave] !== false).map((m) => precios[m.clave] ?? 0);
   const menor = Math.min(...valores);
   const mayor = Math.max(...valores);
   return menor === mayor ? fmtPrecio(menor) : `${fmtPrecio(menor)} – ${mayor}`;

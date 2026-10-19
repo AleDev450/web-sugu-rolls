@@ -6,7 +6,9 @@ import {
   type Movimiento,
   type Pedido,
   type Precios,
+  type Disponibilidad,
   claveCaja,
+  combinarDisponibilidad,
   combinarPrecios,
   guardarMovimientos,
   guardarPedidos,
@@ -19,19 +21,21 @@ import {
  * este cajero. Devuelve null si no se pudo preguntar —sin señal, o una base
  * sin la migración 042—: entonces se sigue cobrando con lo que ya había.
  */
-export async function traerPrecios(vendedor: string): Promise<Precios | null> {
+export async function traerPrecios(vendedor: string): Promise<{ precios: Precios; disponibilidad: Disponibilidad } | null> {
   const sb = getSupabase();
   if (!sb || !vendedor.trim()) return null;
   const { data, error } = await sb
     .from('caja_precios')
-    .select('caja, precios')
+    .select('caja, precios, disponibilidad')
     .in('caja', ['', claveCaja(vendedor)]);
   if (error) return null;
-  const filas = (data ?? []) as { caja: string; precios: Precios }[];
-  return combinarPrecios(
-    filas.find((f) => f.caja === '')?.precios,
-    filas.find((f) => f.caja === claveCaja(vendedor))?.precios,
-  );
+  const filas = (data ?? []) as { caja: string; precios: Precios; disponibilidad: Disponibilidad }[];
+  const base = filas.find((f) => f.caja === '');
+  const propia = filas.find((f) => f.caja === claveCaja(vendedor));
+  return {
+    precios: combinarPrecios(base?.precios, propia?.precios),
+    disponibilidad: combinarDisponibilidad(base?.disponibilidad, propia?.disponibilidad),
+  };
 }
 
 /**

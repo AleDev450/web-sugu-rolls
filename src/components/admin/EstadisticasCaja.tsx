@@ -195,7 +195,7 @@ export default function EstadisticasCaja({
     /* --- qué se vende --- */
     const porVariante = new Map<string, { unidades: number; venta: number }>();
     const porSabor = new Map<string, number>();
-    const ventaPorProducto = { maki: 0, onigiri: 0, pokebowl: 0 };
+    const ventaPorProducto = { maki: 0, onigiri: 0, pokebowl: 0, handroll: 0 };
     const esperas: number[] = [];
 
     for (const p of ordenados) {
@@ -277,6 +277,7 @@ export default function EstadisticasCaja({
         { nombre: 'Maki', valor: ventaPorProducto.maki, color: SERIE[0] },
         { nombre: 'Onigiri', valor: ventaPorProducto.onigiri, color: SERIE[1] },
         { nombre: 'Poke Bowl', valor: ventaPorProducto.pokebowl, color: SERIE[2] },
+        { nombre: 'Handroll', valor: ventaPorProducto.handroll, color: SERIE[3] },
       ].filter((m) => m.valor > 0),
       pagos: arqueoPorMetodo(ordenados)
         .filter((a) => a.metodo !== 'canje' && a.monto > 0)

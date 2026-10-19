@@ -36,6 +36,7 @@ import {
   PRODUCTOS,
   SABORES,
   type ClaveProducto,
+  type Disponibilidad,
   type Linea,
   type MetodoPago,
   type Movimiento,
@@ -51,11 +52,13 @@ import {
   guardarMovimientos,
   guardarPedidos,
   guardarPrecios,
+  guardarDisponibilidad,
   guardarVendedor,
   hora,
   leerMovimientos,
   leerPedidos,
   leerPrecios,
+  leerDisponibilidad,
   leerVendedor,
   maxSabores,
   nuevoId,
@@ -71,6 +74,8 @@ import {
   totalPedido,
   unidadesDe,
   variantesDe,
+  combinarDisponibilidad,
+  clavePrecio,
 } from '@/lib/caja';
 import {
   cuantosPendientes,
@@ -400,6 +405,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
    */
   const [precios, setPrecios] = useState<Precios>(PRECIOS_CARTA);
   const preciosRef = useRef<Precios>(PRECIOS_CARTA);
+  const [disponibilidad, setDisponibilidad] = useState<Disponibilidad>(() => combinarDisponibilidad());
 
   // subida al panel
   const [pendientesSync, setPendientesSync] = useState(0);
@@ -416,6 +422,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     setPedidos(leerPedidos());
     setMovimientos(leerMovimientos());
     setVendedor(leerVendedor());
+    setDisponibilidad(leerDisponibilidad(leerVendedor() ?? ''));
     const guardados = leerPrecios();
     preciosRef.current = guardados;
     setPrecios(guardados);
@@ -447,8 +454,11 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
    */
   const actualizarPrecios = useCallback(async () => {
     if (!sincroniza || !vendedor) return;
-    const nuevos = await traerPrecios(vendedor);
-    if (!nuevos) return;
+    const configuracion = await traerPrecios(vendedor);
+    if (!configuracion) return;
+    const { precios: nuevos, disponibilidad: disponibles } = configuracion;
+    setDisponibilidad(disponibles);
+    guardarDisponibilidad(vendedor, disponibles);
     const antes = preciosRef.current;
     if (Object.keys(nuevos).every((k) => nuevos[k] === antes[k])) return;
     preciosRef.current = nuevos;
@@ -594,12 +604,17 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
     return () => clearInterval(t);
   }, [hayPendientes]);
 
-  const opciones = producto ? variantesDe(producto) : [];
+  const productosDisponibles = PRODUCTOS.filter((p) =>
+    (variantesDe(p.id).length ? variantesDe(p.id).map((v) => v.id) : [p.id])
+      .some((clave) => disponibilidad[clave] !== false),
+  );
+  const opciones = producto ? variantesDe(producto).filter((v) => disponibilidad[v.id] !== false) : [];
   const tope = producto ? maxSabores(producto, variante) : 0;
 
   /** La selección en curso convertida en línea, o null si le falta algo. */
   const lineaActual = useMemo<Linea | null>(() => {
     if (!producto) return null;
+    if (disponibilidad[clavePrecio(producto, variante)] === false) return null;
     const exigeVariante = variantesDe(producto).length > 0;
     if (exigeVariante && !variante) return null;
     const cuantosSabores = maxSabores(producto, variante);
@@ -614,7 +629,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       unitario,
       total: unitario * cantidad,
     };
-  }, [producto, variante, sabores, cantidad, precios]);
+  }, [producto, variante, sabores, cantidad, precios, disponibilidad]);
 
   /*
    * Lo que se registraría ahora mismo. La línea en curso entra sola, sin
@@ -892,6 +907,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       if (!nombre) return;
       guardarVendedor(nombre);
       setVendedor(nombre);
+      setDisponibilidad(leerDisponibilidad(nombre));
     };
     return (
       <main className="grid min-h-[100dvh] place-items-center bg-night p-6 text-bone">
@@ -1082,12 +1098,12 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
           {/* ---------------- Registro ---------------- */}
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4">
             <Paso n={paso.producto} titulo="Producto">
-              <div className="grid grid-cols-3 gap-2">
-                {PRODUCTOS.map((p) => (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {productosDisponibles.map((p) => (
                   <Opcion key={p.id} activo={producto === p.id} onClick={() => elegirProducto(p.id)}>
                     <span>{p.nombre}</span>
                     <span className="text-[10px] font-normal opacity-70">
-                      {rangoPrecio(p.id, precios)}
+                      {rangoPrecio(p.id, precios, disponibilidad)}
                     </span>
                   </Opcion>
                 ))}
@@ -1702,6 +1718,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
         <EditarVenta
           pedido={editando}
           precios={precios}
+          disponibilidad={disponibilidad}
           alGuardar={guardarEdicion}
           alCancelar={() => setEditando(null)}
         />
@@ -1830,11 +1847,13 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
 function EditarVenta({
   pedido,
   precios,
+  disponibilidad,
   alGuardar,
   alCancelar,
 }: {
   pedido: Pedido;
   precios: Precios;
+  disponibilidad: Disponibilidad;
   alGuardar: (p: Pedido) => void;
   alCancelar: () => void;
 }) {
@@ -1880,7 +1899,7 @@ function EditarVenta({
    * vuelve al de la carta, y de ahí se puede retocar a mano.
    */
   function cambiarProducto(i: number, producto: ClaveProducto) {
-    const opciones = variantesDe(producto);
+    const opciones = variantesDe(producto).filter((v) => disponibilidad[v.id] !== false);
     const variante = opciones.length ? opciones[0].id : null;
     cambiarLinea(i, {
       producto,
@@ -1984,8 +2003,12 @@ function EditarVenta({
                 */}
                 {abierta === i && (
                   <div className="grid gap-2 rounded-xl border border-white/10 bg-night p-2.5">
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {PRODUCTOS.map((pr) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {PRODUCTOS.filter((pr) =>
+                        pr.id === l.producto || (variantesDe(pr.id).length
+                          ? variantesDe(pr.id).some((v) => disponibilidad[v.id] !== false)
+                          : disponibilidad[pr.id] !== false),
+                      ).map((pr) => (
                         <Opcion
                           key={pr.id}
                           activo={l.producto === pr.id}
@@ -2002,15 +2025,17 @@ function EditarVenta({
                           opciones.length > 2 ? 'grid-cols-3' : 'grid-cols-2'
                         }`}
                       >
-                        {opciones.map((v) => (
-                          <Opcion
-                            key={v.id}
-                            activo={l.promo === v.id}
-                            onClick={() => cambiarVariante(i, l, v.id)}
-                          >
-                            <span className="text-[12px]">{v.nombre}</span>
-                          </Opcion>
-                        ))}
+                        {opciones
+                          .filter((v) => v.id === l.promo || disponibilidad[v.id] !== false)
+                          .map((v) => (
+                            <Opcion
+                              key={v.id}
+                              activo={l.promo === v.id}
+                              onClick={() => cambiarVariante(i, l, v.id)}
+                            >
+                              <span className="text-[12px]">{v.nombre}</span>
+                            </Opcion>
+                          ))}
                       </div>
                     )}
 

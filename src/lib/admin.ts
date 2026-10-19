@@ -4,6 +4,7 @@ import { getSupabase } from '@/lib/supabase/client';
 import type { GrupoSaboresPromo } from '@/data/productos';
 import {
   type ClaveProducto,
+  type Disponibilidad,
   type Movimiento,
   type Pedido,
   type Precios,
@@ -1025,10 +1026,11 @@ export interface FilaPreciosCaja {
   caja: string;
   nombre: string;
   precios: Precios;
+  disponibilidad: Disponibilidad;
 }
 
 export async function listarPreciosCaja(): Promise<FilaPreciosCaja[]> {
-  const { data, error } = await sb().from('caja_precios').select('caja, nombre, precios');
+  const { data, error } = await sb().from('caja_precios').select('caja, nombre, precios, disponibilidad');
   if (error) throw error;
   return (data ?? []) as FilaPreciosCaja[];
 }
@@ -1044,16 +1046,17 @@ export function preciosVigentes(filas: FilaPreciosCaja[], vendedor: string): Pre
  * Guarda una capa de precios. Una caja sin ningún precio propio se borra:
  * así vuelve a seguir al base y no queda una fila vacía que confunda.
  */
-export async function guardarPreciosCaja(caja: string, nombre: string, precios: Precios): Promise<void> {
+export async function guardarPreciosCaja(caja: string, nombre: string, precios: Precios, disponibilidad: Disponibilidad = {}): Promise<void> {
   const limpios = Object.fromEntries(Object.entries(precios).filter(([, v]) => Number(v) > 0));
-  if (caja && !Object.keys(limpios).length) {
+  const disponibles = Object.fromEntries(Object.entries(disponibilidad).filter(([, v]) => typeof v === 'boolean'));
+  if (caja && !Object.keys(limpios).length && !Object.keys(disponibles).length) {
     const { error } = await sb().from('caja_precios').delete().eq('caja', caja);
     if (error) throw error;
     return;
   }
   const { error } = await sb()
     .from('caja_precios')
-    .upsert({ caja, nombre: nombre.trim(), precios: limpios, updated_at: new Date().toISOString() });
+    .upsert({ caja, nombre: nombre.trim(), precios: limpios, disponibilidad: disponibles, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
 

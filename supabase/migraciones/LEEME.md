@@ -57,3 +57,4 @@ Cuando corras una, márcala aquí:
 | `042-precios-por-caja.sql` | Precios de la caja editables desde el panel, con precios propios por cajero; el maki de 5 piezas cuenta medio roll en cocina | ☐ |
 | `043-vuelto-yape-y-gastos.sql` | Vuelto devuelto por Yape en cada venta, y gastos (motorizado, comida…) y retiros de efectivo de la caja | ☐ |
 | `044-cocina-marca-listo-y-entregado.sql` | La cocina marca los pedidos como listos o entregados al cliente, y ve si falta pagar | ☐ |
+| `045-disponibilidad-menu-caja.sql` | Switches por producto y por cajero para habilitar o deshabilitar el menú de caja | ☐ |
