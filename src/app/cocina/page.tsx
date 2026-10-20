@@ -19,6 +19,7 @@ type Resumen = {
   handrolls_langostino?: number;
   handrolls_otros?: number;
 };
+type VentasProductos = { handrolls: number; galletas: number };
 
 type PedidoCocina = {
   id: string;
@@ -74,6 +75,7 @@ function Cocina() {
   const [pedidos, setPedidos] = useState<PedidoCocina[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [ventasProductos, setVentasProductos] = useState<VentasProductos | null>(null);
   const [ultima, setUltima] = useState<Date | null>(null);
   const [cargando, setCargando] = useState(false);
   /** pedido sin pagar al que ya se le tocó "entregar" una vez: el segundo toque confirma */
@@ -118,13 +120,15 @@ function Cocina() {
      * consulta falla no se toca nada más —la cola manda—, simplemente no se
      * actualiza el contador.
      */
-    const { data: totales } = await sb.rpc('cocina_resumen', {
-      p_clave: clave,
-      p_vendedor: vendedor,
-    });
+    const [{ data: totales }, { data: ventas }] = await Promise.all([
+      sb.rpc('cocina_resumen', { p_clave: clave, p_vendedor: vendedor }),
+      sb.rpc('cocina_ventas_productos', { p_clave: clave, p_vendedor: vendedor }),
+    ]);
     const fila = (totales as Resumen[] | null)?.[0];
     // desde la 042 los rolls traen decimales: el de 5 piezas es medio roll
     if (fila) setResumen({ ...fila, rolls: Number(fila.rolls) });
+    const filaVentas = (ventas as VentasProductos[] | null)?.[0];
+    if (filaVentas) setVentasProductos(filaVentas);
   }, [clave, vendedor]);
 
   /**
@@ -260,7 +264,7 @@ function Cocina() {
             {resumen && (
               <>
                 <p className="mt-1.5 text-[10px] uppercase tracking-[0.18em] text-bone-dim">
-                  Llevas preparando
+                  Registrados en la caja abierta
                 </p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
                   <span className="rounded-full bg-white/10 px-2 py-0.5">
@@ -272,6 +276,16 @@ function Cocina() {
                   <span className="rounded-full bg-white/10 px-2 py-0.5">
                     Poke bowls: {resumen.pokebowls}
                   </span>
+                  {ventasProductos && (
+                    <>
+                      <span className="rounded-full bg-white/10 px-2 py-0.5">
+                        Handrolls: {ventasProductos.handrolls}
+                      </span>
+                      <span className="rounded-full bg-white/10 px-2 py-0.5">
+                        Galletas de la suerte: {ventasProductos.galletas}
+                      </span>
+                    </>
+                  )}
                 </p>
                 {resumen.handrolls !== undefined && (
                   <div className="mt-2">

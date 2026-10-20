@@ -58,3 +58,5 @@ Cuando corras una, márcala aquí:
 | `043-vuelto-yape-y-gastos.sql` | Vuelto devuelto por Yape en cada venta, y gastos (motorizado, comida…) y retiros de efectivo de la caja | ☐ |
 | `044-cocina-marca-listo-y-entregado.sql` | La cocina marca los pedidos como listos o entregados al cliente, y ve si falta pagar | ☐ |
 | `045-disponibilidad-menu-caja.sql` | Switches por producto y por cajero para habilitar o deshabilitar el menú de caja | ☐ |
+| `046-handrolls-en-resumen-de-cocina.sql` | Handrolls elaborados hoy por sabor en cocina | ☐ |
+| `047-ventas-handrolls-y-galletas-cocina.sql` | Unidades de handrolls y galletas de la caja abierta en cocina | ☐ |

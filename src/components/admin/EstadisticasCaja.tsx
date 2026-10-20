@@ -186,7 +186,7 @@ export default function EstadisticasCaja({
     const porDia = new Map(
       dias.map((d) => [
         d,
-        { dia: d, venta: 0, cobrado: 0, pedidos: 0, rolls: 0, onigiris: 0, pokebowls: 0, esperas: [] as number[] },
+        { dia: d, venta: 0, cobrado: 0, pedidos: 0, rolls: 0, onigiris: 0, pokebowls: 0, handrolls: 0, galletas: 0, esperas: [] as number[] },
       ]),
     );
     /* --- por hora del día y día de la semana --- */
@@ -195,7 +195,7 @@ export default function EstadisticasCaja({
     /* --- qué se vende --- */
     const porVariante = new Map<string, { unidades: number; venta: number }>();
     const porSabor = new Map<string, number>();
-    const ventaPorProducto = { maki: 0, onigiri: 0, pokebowl: 0, handroll: 0 };
+    const ventaPorProducto = { maki: 0, onigiri: 0, pokebowl: 0, handroll: 0, galleta_suerte: 0 };
     const esperas: number[] = [];
 
     for (const p of ordenados) {
@@ -210,6 +210,8 @@ export default function EstadisticasCaja({
         fila.rolls += rolls;
         fila.onigiris += unidadesDe(p.lineas, 'onigiri');
         fila.pokebowls += unidadesDe(p.lineas, 'pokebowl');
+        fila.handrolls += unidadesDe(p.lineas, 'handroll');
+        fila.galletas += unidadesDe(p.lineas, 'galleta_suerte');
       }
 
       porHora[cuando.getHours()].pedidos += 1;
@@ -278,6 +280,7 @@ export default function EstadisticasCaja({
         { nombre: 'Onigiri', valor: ventaPorProducto.onigiri, color: SERIE[1] },
         { nombre: 'Poke Bowl', valor: ventaPorProducto.pokebowl, color: SERIE[2] },
         { nombre: 'Handroll', valor: ventaPorProducto.handroll, color: SERIE[3] },
+        { nombre: 'Galleta de la suerte', valor: ventaPorProducto.galleta_suerte, color: SERIE[4] },
       ].filter((m) => m.valor > 0),
       pagos: arqueoPorMetodo(ordenados)
         .filter((a) => a.metodo !== 'canje' && a.monto > 0)
@@ -290,6 +293,8 @@ export default function EstadisticasCaja({
       rolls: diario.reduce((s, d) => s + d.rolls, 0),
       onigiris: diario.reduce((s, d) => s + d.onigiris, 0),
       pokebowls: diario.reduce((s, d) => s + d.pokebowls, 0),
+      handrolls: diario.reduce((s, d) => s + d.handrolls, 0),
+      galletas: diario.reduce((s, d) => s + d.galletas, 0),
       atencionMedia: esperas.length ? esperas.reduce((s, x) => s + x, 0) / esperas.length : null,
       atencionMediana: esperas.length ? mediana(esperas) : null,
       medidos: esperas.length,
@@ -343,11 +348,13 @@ export default function EstadisticasCaja({
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
           { et: 'Rolls de maki', total: datos.rolls, color: SERIE[0] },
           { et: 'Onigiris', total: datos.onigiris, color: SERIE[1] },
           { et: 'Poke bowls', total: datos.pokebowls, color: SERIE[2] },
+          { et: 'Handrolls', total: datos.handrolls, color: SERIE[3] },
+          { et: 'Galletas de la suerte', total: datos.galletas, color: SERIE[4] },
         ].map((t) => (
           <div key={t.et} className="rounded-2xl border border-white/10 bg-night-2 p-4">
             <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-bone-dim">
@@ -396,6 +403,8 @@ export default function EstadisticasCaja({
               { nombre: 'Rolls de maki', color: SERIE[0] },
               { nombre: 'Onigiris', color: SERIE[1] },
               { nombre: 'Poke bowls', color: SERIE[2] },
+              { nombre: 'Handrolls', color: SERIE[3] },
+              { nombre: 'Galletas de la suerte', color: SERIE[4] },
             ]}
           />
           <div className="h-64">
@@ -411,6 +420,8 @@ export default function EstadisticasCaja({
                 <Bar dataKey="rolls" name="Rolls de maki" fill={SERIE[0]} radius={[4, 4, 0, 0]} maxBarSize={18} />
                 <Bar dataKey="onigiris" name="Onigiris" fill={SERIE[1]} radius={[4, 4, 0, 0]} maxBarSize={18} />
                 <Bar dataKey="pokebowls" name="Poke bowls" fill={SERIE[2]} radius={[4, 4, 0, 0]} maxBarSize={18} />
+                <Bar dataKey="handrolls" name="Handrolls" fill={SERIE[3]} radius={[4, 4, 0, 0]} maxBarSize={18} />
+                <Bar dataKey="galletas" name="Galletas de la suerte" fill={SERIE[4]} radius={[4, 4, 0, 0]} maxBarSize={18} />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -16,7 +16,7 @@
  * cuanto hay conexión, que es lo que leen el panel y la cocina.
  */
 
-export type ClaveProducto = 'maki' | 'pokebowl' | 'onigiri' | 'handroll';
+export type ClaveProducto = 'maki' | 'pokebowl' | 'onigiri' | 'handroll' | 'galleta_suerte';
 export type MetodoPago = 'efectivo' | 'yape' | 'mixto' | 'tarjeta' | 'canje';
 
 /** Un renglón del ticket: un producto configurado, con su cantidad. */
@@ -100,6 +100,7 @@ export const PRODUCTOS: { id: ClaveProducto; nombre: string }[] = [
   { id: 'pokebowl', nombre: 'Poke Bowl' },
   { id: 'onigiri', nombre: 'Onigiri' },
   { id: 'handroll', nombre: 'Handroll' },
+  { id: 'galleta_suerte', nombre: 'Galleta de la suerte' },
 ];
 
 export const NOMBRE_PRODUCTO: Record<ClaveProducto, string> = {
@@ -107,6 +108,7 @@ export const NOMBRE_PRODUCTO: Record<ClaveProducto, string> = {
   pokebowl: 'Poke Bowl',
   onigiri: 'Onigiri',
   handroll: 'Handroll',
+  galleta_suerte: 'Galleta de la suerte',
 };
 
 /**
@@ -147,10 +149,11 @@ export const VARIANTES: Record<ClaveProducto, Variante[]> = {
     { id: 'handroll_pollo', nombre: 'Pollo', precio: 16, maxSabores: 0 },
     { id: 'handroll_langostino', nombre: 'Langostino', precio: 18, maxSabores: 0 },
   ],
+  galleta_suerte: [],
 };
 
 /** Precio de carta de los productos que no tienen variante. */
-const PRECIO_SIMPLE: Record<ClaveProducto, number> = { maki: 0, pokebowl: 0, onigiri: 6, handroll: 0 };
+const PRECIO_SIMPLE: Record<ClaveProducto, number> = { maki: 0, pokebowl: 0, onigiri: 6, handroll: 0, galleta_suerte: 1 };
 
 /**
  * Precios vigentes, por clave: el id de la variante ('duo', 'pollo'…) o el
@@ -831,6 +834,7 @@ export async function descargarExcel(
   }
 
   const total = ordenados.reduce((s, p) => s + p.total, 0);
+  const lineasDelCierre = ordenados.flatMap((p) => p.lineas);
   const cobrados = ordenados.filter((p) => p.pagado);
   // el canje no es plata: su valor se informa aparte, nunca dentro de lo cobrado
   const cobrado = cobrados.reduce((s, p) => s + dineroDe(p), 0);
@@ -872,6 +876,25 @@ export async function descargarExcel(
   for (const fila of filas) {
     fila.font = { bold: true };
     fila.getCell('unitario').numFmt = '@';
+  }
+
+  const productos = libro.addWorksheet('Resumen de productos');
+  productos.columns = [
+    { header: 'Producto', key: 'producto', width: 28 },
+    { header: 'Unidades', key: 'unidades', width: 14 },
+  ];
+  productos.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  productos.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0263B' } };
+  for (const [producto, unidades] of [
+    ['Rolls de maki', rollsDe(lineasDelCierre)],
+    ['Onigiris', unidadesDe(lineasDelCierre, 'onigiri')],
+    ['Poke bowls', unidadesDe(lineasDelCierre, 'pokebowl')],
+    ['Handrolls', unidadesDe(lineasDelCierre, 'handroll')],
+    ['  Pollo', lineasDelCierre.filter((l) => l.producto === 'handroll' && l.promo === 'handroll_pollo').reduce((s, l) => s + l.cantidad, 0)],
+    ['  Langostino', lineasDelCierre.filter((l) => l.producto === 'handroll' && l.promo === 'handroll_langostino').reduce((s, l) => s + l.cantidad, 0)],
+    ['Galletas de la suerte', unidadesDe(lineasDelCierre, 'galleta_suerte')],
+  ] as const) {
+    productos.addRow({ producto, unidades });
   }
 
   if (movimientos.length) {

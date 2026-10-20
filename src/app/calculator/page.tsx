@@ -688,6 +688,10 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
       rolls: rollsDe(todasLasLineas),
       onigiris: unidadesDe(todasLasLineas, 'onigiri'),
       pokebowls: unidadesDe(todasLasLineas, 'pokebowl'),
+      handrolls: unidadesDe(todasLasLineas, 'handroll'),
+      handrollsPollo: todasLasLineas.filter((l) => l.producto === 'handroll' && l.promo === 'handroll_pollo').reduce((s, l) => s + l.cantidad, 0),
+      handrollsLangostino: todasLasLineas.filter((l) => l.producto === 'handroll' && l.promo === 'handroll_langostino').reduce((s, l) => s + l.cantidad, 0),
+      galletas: unidadesDe(todasLasLineas, 'galleta_suerte'),
     };
   }, [abiertos]);
 
@@ -1060,6 +1064,8 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
                 <Etiqueta tono="gris">Rolls: {resumen.rolls}</Etiqueta>
                 <Etiqueta tono="gris">Onigiris: {resumen.onigiris}</Etiqueta>
                 <Etiqueta tono="gris">Poke bowls: {resumen.pokebowls}</Etiqueta>
+                <Etiqueta tono="gris">Handrolls: {resumen.handrolls}</Etiqueta>
+                <Etiqueta tono="gris">Galletas de la suerte: {resumen.galletas}</Etiqueta>
               </p>
             </div>
 
@@ -1127,7 +1133,7 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
           {/* ---------------- Registro ---------------- */}
           <section className="grid gap-4 rounded-3xl border border-white/10 bg-night-soft p-4">
             <Paso n={paso.producto} titulo="Producto">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {productosDisponibles.map((p) => (
                   <Opcion key={p.id} activo={producto === p.id} onClick={() => elegirProducto(p.id)}>
                     <span>{p.nombre}</span>
@@ -1833,6 +1839,12 @@ function Caja({ sincroniza }: { sincroniza: boolean }) {
               <span className="block text-[11px] text-bone-dim">Yape neto</span>
               <span className="font-bold">{soles(cuadre.yapeNeto)}</span>
             </p>
+          </div>
+          <div className="mt-3 rounded-xl border border-white/10 bg-night-2 px-3 py-2 text-[13px]">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-bone-dim">Unidades registradas en este cierre</p>
+            <p>Rolls: {resumen.rolls} · Onigiris: {resumen.onigiris} · Poke bowls: {resumen.pokebowls}</p>
+            <p>Handrolls: {resumen.handrolls} (pollo {resumen.handrollsPollo}, langostino {resumen.handrollsLangostino})</p>
+            <p>Galletas de la suerte: {resumen.galletas}</p>
           </div>
           {resumen.pendiente > 0 && (
             <p className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300">
