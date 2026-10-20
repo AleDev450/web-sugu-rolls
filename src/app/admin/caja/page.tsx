@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChefHat, Download, ExternalLink, Lock, RefreshCw, UserRound, X } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Check, ChefHat, ChevronDown, ChevronRight, Download, ExternalLink, Lock, RefreshCw, UserRound, X } from 'lucide-react';
 import Link from 'next/link';
 import {
   asignarVendedorACierre,
@@ -37,6 +37,22 @@ import {
 } from '@/lib/caja';
 
 const POR_PAGINA = 20;
+
+type VarianteProducto = {
+  clave: string;
+  nombre: string;
+  unidades: number;
+  total: number;
+  sabores: Map<string, number>;
+};
+
+type GrupoProducto = {
+  clave: string;
+  nombre: string;
+  unidades: number;
+  total: number;
+  variantes: Map<string, VarianteProducto>;
+};
 
 const claseFecha =
   'rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[13px] text-bone-dim outline-none transition-colors [color-scheme:dark] focus:border-sugu';
@@ -95,6 +111,8 @@ export default function CajaAdmin() {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
+  const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(() => new Set());
+  const [variantesAbiertas, setVariantesAbiertas] = useState<Set<string>>(() => new Set());
   /** cierre al que se le está poniendo nombre de vendedor, y el nombre */
   const [asignando, setAsignando] = useState<string | null>(null);
   const [nombreVendedor, setNombreVendedor] = useState('');
@@ -335,22 +353,55 @@ export default function CajaAdmin() {
     return Array.from(mapa.entries()).sort((a, b) => b[1].total - a[1].total);
   }, [visibles]);
 
-  /** Qué salió más: se agrupa por producto y promo, que es como se cobra. */
+  /** Grupos y presentaciones suman ventas; los sabores cuentan elecciones sin duplicar dinero. */
   const porProducto = useMemo(() => {
-    const mapa = new Map<string, { unidades: number; total: number }>();
+    const mapa = new Map<string, GrupoProducto>();
     for (const p of visibles) {
       for (const l of aPedido(p).lineas) {
-        const nombre = NOMBRE_PRODUCTO[l.producto] ?? l.producto;
-        const variante = buscarVariante(l.promo);
-        const clave = variante ? `${nombre} ${variante.nombre}` : nombre;
-        const fila = mapa.get(clave) ?? { unidades: 0, total: 0 };
-        fila.unidades += l.cantidad;
-        fila.total += l.total;
-        mapa.set(clave, fila);
+        const clave = l.producto;
+        let grupo = mapa.get(clave);
+        if (!grupo) {
+          grupo = { clave, nombre: NOMBRE_PRODUCTO[clave] ?? clave, unidades: 0, total: 0, variantes: new Map() };
+          mapa.set(clave, grupo);
+        }
+        grupo.unidades += l.cantidad;
+        grupo.total += l.total;
+
+        if (!l.promo) continue;
+        let variante = grupo.variantes.get(l.promo);
+        if (!variante) {
+          variante = {
+            clave: l.promo,
+            nombre: buscarVariante(l.promo)?.nombre ?? l.promo,
+            unidades: 0,
+            total: 0,
+            sabores: new Map(),
+          };
+          grupo.variantes.set(l.promo, variante);
+        }
+        variante.unidades += l.cantidad;
+        variante.total += l.total;
+        for (const sabor of new Set(l.sabores.map((s) => s.trim()).filter(Boolean))) {
+          variante.sabores.set(sabor, (variante.sabores.get(sabor) ?? 0) + l.cantidad);
+        }
       }
     }
-    return Array.from(mapa.entries()).sort((a, b) => b[1].total - a[1].total);
+    return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
   }, [visibles]);
+
+  const alternarGrupo = (clave: string) => setGruposAbiertos((previos) => {
+    const siguientes = new Set(previos);
+    if (siguientes.has(clave)) siguientes.delete(clave);
+    else siguientes.add(clave);
+    return siguientes;
+  });
+
+  const alternarVariante = (clave: string) => setVariantesAbiertas((previas) => {
+    const siguientes = new Set(previas);
+    if (siguientes.has(clave)) siguientes.delete(clave);
+    else siguientes.add(clave);
+    return siguientes;
+  });
 
   const totalPaginas = Math.max(1, Math.ceil(visibles.length / POR_PAGINA));
   const paginaSegura = Math.min(pagina, totalPaginas);
@@ -873,6 +924,10 @@ export default function CajaAdmin() {
 
               <section className="rounded-2xl border border-white/10 bg-night-2 p-4">
                 <h2 className="mb-3 text-sm font-semibold">Por producto</h2>
+                <p className="mb-3 text-[11px] text-bone-dim">
+                  Toca un producto para ver sus presentaciones y luego los sabores elegidos.
+                  En un Dúo de dos sabores, cada sabor suma una elección; la venta solo se muestra en producto y presentación.
+                </p>
                 <table className="w-full text-[13px]">
                   <thead className="text-[11px] uppercase tracking-wider text-bone-dim">
                     <tr>
@@ -882,15 +937,74 @@ export default function CajaAdmin() {
                     </tr>
                   </thead>
                   <tbody>
-                    {porProducto.map(([nombre, f]) => (
-                      <tr key={nombre} className="border-t border-white/5">
-                        <td className="py-2 font-medium">{nombre}</td>
-                        <td className="py-2 text-right tabular-nums text-bone-dim">{f.unidades}</td>
-                        <td className="py-2 text-right font-semibold tabular-nums">
-                          {soles(f.total)}
-                        </td>
-                      </tr>
-                    ))}
+                    {porProducto.map((grupo) => {
+                      const tieneVariantes = grupo.variantes.size > 0;
+                      const abierto = gruposAbiertos.has(grupo.clave);
+                      return (
+                        <Fragment key={grupo.clave}>
+                          <tr className="border-t border-white/10">
+                            <td className="py-2 font-semibold">
+                              {tieneVariantes ? (
+                                <button
+                                  type="button"
+                                  onClick={() => alternarGrupo(grupo.clave)}
+                                  aria-expanded={abierto}
+                                  aria-label={`${abierto ? 'Ocultar' : 'Mostrar'} presentaciones de ${grupo.nombre}`}
+                                  className="flex w-full items-center gap-1.5 text-left hover:text-sugu-glow"
+                                >
+                                  {abierto ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                  {grupo.nombre}
+                                </button>
+                              ) : (
+                                <span className="pl-[21px]">{grupo.nombre}</span>
+                              )}
+                            </td>
+                            <td className="py-2 text-right tabular-nums text-bone-dim">{grupo.unidades}</td>
+                            <td className="py-2 text-right font-semibold tabular-nums">{soles(grupo.total)}</td>
+                          </tr>
+                          {abierto && Array.from(grupo.variantes.values())
+                            .sort((a, b) => b.total - a.total)
+                            .map((variante) => {
+                              const claveVariante = `${grupo.clave}:${variante.clave}`;
+                              const tieneSabores = variante.sabores.size > 0;
+                              const varianteAbierta = variantesAbiertas.has(claveVariante);
+                              return (
+                                <Fragment key={claveVariante}>
+                                  <tr className="border-t border-white/5 bg-white/[0.025]">
+                                    <td className="py-2 font-medium">
+                                      {tieneSabores ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => alternarVariante(claveVariante)}
+                                          aria-expanded={varianteAbierta}
+                                          aria-label={`${varianteAbierta ? 'Ocultar' : 'Mostrar'} sabores de ${grupo.nombre} ${variante.nombre}`}
+                                          className="flex w-full items-center gap-1.5 pl-5 text-left hover:text-sugu-glow"
+                                        >
+                                          {varianteAbierta ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                          {variante.nombre}
+                                        </button>
+                                      ) : (
+                                        <span className="pl-[43px]">{variante.nombre}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 text-right tabular-nums text-bone-dim">{variante.unidades}</td>
+                                    <td className="py-2 text-right font-semibold tabular-nums">{soles(variante.total)}</td>
+                                  </tr>
+                                  {varianteAbierta && Array.from(variante.sabores.entries())
+                                    .sort((a, b) => b[1] - a[1])
+                                    .map(([sabor, elecciones]) => (
+                                      <tr key={`${claveVariante}:${sabor}`} className="border-t border-white/5 text-bone-dim">
+                                        <td className="py-2 pl-[66px]">{sabor}</td>
+                                        <td className="py-2 text-right tabular-nums">{elecciones}</td>
+                                        <td className="py-2 text-right">—</td>
+                                      </tr>
+                                    ))}
+                                </Fragment>
+                              );
+                            })}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </section>
